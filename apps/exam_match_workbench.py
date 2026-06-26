@@ -341,47 +341,174 @@ HTML = r"""<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>押题对比审计工作台</title>
   <style>
-    :root { color-scheme: light; --ink:#17202a; --muted:#637083; --line:#d8dee8; --bg:#f6f7f9; --panel:#fff; --accent:#0f766e; --warn:#b45309; --bad:#b91c1c; }
+    :root {
+      color-scheme: light;
+      --ink:#1d2733;
+      --muted:#667386;
+      --soft:#8b96a8;
+      --line:#dfe5ee;
+      --line-strong:#ccd6e3;
+      --bg:#f5f7fb;
+      --panel:#ffffff;
+      --panel-soft:#fbfcff;
+      --accent:#08776f;
+      --accent-2:#3557b7;
+      --rose:#c65b73;
+      --amber:#b77712;
+      --warn:#a35c00;
+      --bad:#b42318;
+      --shadow: 0 20px 45px rgba(34, 48, 73, .08);
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-    header { padding: 18px 24px; background: var(--panel); border-bottom: 1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap: 16px; }
-    h1 { margin: 0; font-size: 20px; font-weight: 650; }
-    main { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 66px); }
-    aside { border-right: 1px solid var(--line); background: var(--panel); padding: 16px; overflow:auto; }
-    section { padding: 18px 22px; overflow:auto; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(250,244,239,.86) 0%, rgba(245,248,252,.94) 38%, rgba(238,247,250,.9) 100%);
+      min-height: 100vh;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(53,87,183,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(8,119,111,.035) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.6), transparent 70%);
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: 18px 28px;
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(205,214,226,.78);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 18px;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 760; letter-spacing: 0; }
+    h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: 0; }
+    h3 { letter-spacing: 0; }
+    main { display: grid; grid-template-columns: 380px minmax(0, 1fr); min-height: calc(100vh - 82px); }
+    aside { border-right: 1px solid rgba(205,214,226,.78); padding: 18px; overflow:auto; }
+    section { padding: 22px 28px; overflow:auto; }
     button, select, input, textarea { font: inherit; }
-    button { border: 1px solid var(--line); background: #fff; padding: 8px 10px; border-radius: 6px; cursor:pointer; }
-    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    button.danger { color: var(--bad); }
-    select, input, textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:8px 10px; background:#fff; }
+    button {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.9);
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor:pointer;
+      color: var(--ink);
+      box-shadow: 0 1px 0 rgba(255,255,255,.7) inset;
+    }
+    button:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 10px 24px rgba(8,119,111,.18); }
+    button.danger { color: var(--bad); border-color: rgba(180,35,24,.28); }
+    select, input, textarea { width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:#fff; color: var(--ink); }
+    input:focus, textarea:focus, select:focus { outline: 2px solid rgba(8,119,111,.14); border-color: rgba(8,119,111,.55); }
     textarea { min-height: 96px; resize: vertical; }
-    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .brand { display:flex; align-items:center; gap:14px; min-width: 300px; }
+    .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 8px;
+      display:grid;
+      place-items:center;
+      color:#16403d;
+      font-weight:800;
+      letter-spacing:0;
+      background:
+        linear-gradient(150deg, rgba(255,255,255,.94), rgba(212,237,232,.9)),
+        radial-gradient(circle at 35% 25%, rgba(198,91,115,.22), transparent 38%);
+      border:1px solid rgba(154,190,187,.72);
+      box-shadow: 0 14px 32px rgba(30,75,74,.12);
+    }
+    .brand-copy p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .toolbar { display:flex; gap:9px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
     .tabs { display:flex; gap:8px; margin-bottom:14px; }
     .tabs button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
-    .paper { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px; cursor:pointer; background:#fff; }
-    .paper.active { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
-    .paper h3 { margin:0 0 8px; font-size:14px; line-height:1.35; }
-    .meta { color: var(--muted); font-size: 12px; display:flex; gap:8px; flex-wrap:wrap; }
-    .badge { border:1px solid var(--line); border-radius:999px; padding:2px 7px; background:#fff; }
+    .status-strip { margin-bottom: 14px; }
+    .paper {
+      border:1px solid rgba(215,223,234,.9);
+      border-radius:8px;
+      padding:12px;
+      margin-bottom:10px;
+      cursor:pointer;
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 10px 24px rgba(38,55,77,.05);
+      transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+    }
+    .paper:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(38,55,77,.08); }
+    .paper.active { border-color: rgba(8,119,111,.58); box-shadow: inset 4px 0 0 var(--accent), 0 16px 34px rgba(8,119,111,.12); background:#fff; }
+    .paper h3 { margin:0 0 10px; font-size:14px; line-height:1.35; }
+    .meta { color: var(--muted); font-size: 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .badge { border:1px solid var(--line); border-radius:999px; padding:3px 8px; background:rgba(255,255,255,.8); }
     .badge.allow { color: var(--accent); border-color:#99d4ce; }
     .badge.warn { color: var(--warn); border-color:#e7c48c; }
-    .grid { display:grid; grid-template-columns: 1fr 420px; gap:16px; }
-    .panel { background: var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
-    .question { border-bottom:1px solid var(--line); padding:12px 0; }
+    .grid { display:grid; grid-template-columns: minmax(0, 1fr) 420px; gap:18px; }
+    .panel { background: rgba(255,255,255,.86); border:1px solid rgba(215,223,234,.9); border-radius:8px; padding:16px; box-shadow: var(--shadow); }
+    .hero-panel {
+      margin-bottom: 18px;
+      padding: 22px;
+      overflow:hidden;
+      background:
+        linear-gradient(120deg, rgba(255,255,255,.94), rgba(240,248,249,.9) 56%, rgba(249,241,244,.86));
+    }
+    .hero-layout { display:grid; grid-template-columns: minmax(0, 1fr) 220px; gap:18px; align-items:center; }
+    .hero-eyebrow { color: var(--rose); font-weight:700; margin:0 0 8px; }
+    .hero-title { font-size: 30px; line-height:1.12; margin:0 0 10px; font-weight:800; letter-spacing:0; }
+    .hero-copy { color: var(--muted); margin:0; line-height:1.7; }
+    .hero-token {
+      min-height: 150px;
+      border-radius: 8px;
+      background:
+        linear-gradient(145deg, rgba(241,247,246,.95), rgba(235,230,249,.85)),
+        radial-gradient(circle at 42% 35%, rgba(8,119,111,.18), transparent 42%);
+      border:1px solid rgba(203,213,225,.8);
+      display:grid;
+      place-items:center;
+      text-align:center;
+      color:#23433f;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.86), 0 18px 34px rgba(60,74,95,.12);
+    }
+    .hero-token strong { font-size:34px; display:block; letter-spacing:0; }
+    .hero-token span { color: var(--muted); font-size:12px; }
+    .stat-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-top:18px; }
+    .stat-card { border:1px solid rgba(215,223,234,.88); border-radius:8px; padding:12px; background:rgba(255,255,255,.72); }
+    .stat-card b { display:block; font-size:22px; margin-bottom:3px; letter-spacing:0; }
+    .stat-card span { color: var(--soft); font-size:12px; }
+    .section-title { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .section-title p { margin:4px 0 0; color: var(--muted); }
+    .question { border-bottom:1px solid var(--line); padding:14px 0; }
     .question:last-child { border-bottom:0; }
-    .question h3 { margin:0 0 8px; font-size:15px; }
-    .candidate { padding:10px; border:1px solid var(--line); border-radius:8px; margin-top:8px; background:#fbfcfd; }
+    .question h3 { margin:0 0 10px; font-size:15px; }
+    .candidate { padding:11px; border:1px solid var(--line); border-radius:8px; margin-top:9px; background:var(--panel-soft); }
     .candidate strong { display:block; margin-bottom:4px; }
-    .row { display:grid; grid-template-columns: 120px 1fr; gap:10px; align-items:start; margin-bottom:10px; }
+    .row { display:grid; grid-template-columns: 120px 1fr; gap:10px; align-items:start; margin-bottom:11px; }
+    .row label { color: var(--muted); font-size: 13px; padding-top: 9px; }
     pre { white-space:pre-wrap; background:#101820; color:#e6edf5; padding:12px; border-radius:8px; max-height:240px; overflow:auto; }
     a { color:#0f5f9e; text-decoration:none; }
     a:hover { text-decoration:underline; }
-    @media (max-width: 980px) { main, .grid { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } }
+    @media (max-width: 1100px) { main, .grid, .hero-layout { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { header { align-items:flex-start; flex-direction:column; } .brand { min-width: 0; } .stat-grid { grid-template-columns:1fr; } section { padding:16px; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>中考化学押题对比审计工作台</h1>
+    <div class="brand">
+      <div class="brand-mark">CM</div>
+      <div class="brand-copy">
+        <h1>中考化学押题对比审计工作台</h1>
+        <p>Codex + Superpowers · 真实业务版</p>
+      </div>
+    </div>
     <div class="toolbar">
       <button onclick="runAction('prepare')">生成候选</button>
       <button onclick="runAction('sop_scan')">SOP 扫描</button>
@@ -391,10 +518,11 @@ HTML = r"""<!doctype html>
   </header>
   <main>
     <aside>
-      <div class="meta" id="dataStatus"></div>
+      <div class="meta status-strip" id="dataStatus"></div>
       <div id="papers"></div>
     </aside>
     <section>
+      <div class="panel hero-panel" id="hero"></div>
       <div id="content" class="panel">正在读取本地数据...</div>
     </section>
   </main>
@@ -435,12 +563,39 @@ function zhAction(action) {
   }[action]) || action;
 }
 
+function renderHero() {
+  const paperCount = state.papers.length;
+  const questionCount = state.papers.reduce((sum, p) => sum + (Number(p.question_count) || 0), 0);
+  const allowCount = state.papers.reduce((sum, p) => sum + (Number(p.allow_count) || 0), 0);
+  const finalCount = state.papers.reduce((sum, p) => sum + (Number(p.final_show_count) || 0), 0);
+  const intakeCount = (state.intakes || []).length;
+  document.getElementById('hero').innerHTML = `
+    <div class="hero-layout">
+      <div>
+        <p class="hero-eyebrow">Chemistry Match Workbench</p>
+        <div class="hero-title">把真题、视频课和人工审计标准放进同一个工作台</div>
+        <p class="hero-copy">从新卷上传、候选生成，到三像门禁审计和飞书发布检查，服务真实中考化学押题对比流程。</p>
+      </div>
+      <div class="hero-token">
+        <div><strong>V5</strong><span>题图像 · 任务像 · 解法像</span></div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><b>${paperCount}</b><span>已接入试卷</span></div>
+      <div class="stat-card"><b>${questionCount}</b><span>题目总量</span></div>
+      <div class="stat-card"><b>${allowCount}</b><span>宣传版通过</span></div>
+      <div class="stat-card"><b>${finalCount}</b><span>最终展示候选</span></div>
+    </div>
+    ${intakeCount ? `<div class="meta" style="margin-top:12px"><span class="badge warn">新卷交接包 ${intakeCount}</span></div>` : ''}`;
+}
+
 async function loadSummary() {
   const data = await api('/api/summary');
   state.papers = data.papers;
   const modeText = data.data_mode === 'real' ? '真实数据' : '脱敏样例';
   document.getElementById('dataStatus').innerHTML = data.has_data ? `<span class="badge allow">已读取匹配数据</span><span class="badge">${modeText}</span>` : `<span class="badge warn">未找到数据</span>`;
   state.intakes = data.intakes || [];
+  renderHero();
   renderPapers();
   if (!state.current && state.papers.length) await selectPaper(state.papers[0].paper);
 }
@@ -466,8 +621,12 @@ function showUpload() {
   document.getElementById('content').innerHTML = `
     <div class="grid">
       <div class="panel">
-        <h2>新卷上传</h2>
-        <p class="meta">上传标准交接包：Word 用于抽题，PDF 用于裁题图，官方解析用于设问任务审计。</p>
+        <div class="section-title">
+          <div>
+            <h2>新卷上传</h2>
+            <p>上传标准交接包：Word 用于抽题，PDF 用于裁题图，官方解析用于设问任务审计。</p>
+          </div>
+        </div>
         <form id="uploadForm">
           <div class="row"><label>标准卷名</label><input name="paper_title" placeholder="2026年××市中考化学试卷" required /></div>
           <div class="row"><label>真题 Word</label><input name="paper_word" type="file" accept=".docx" required /></div>
@@ -478,9 +637,9 @@ function showUpload() {
         </form>
       </div>
       <div class="panel">
-        <h2>上传记录</h2>
+        <div class="section-title"><div><h2>上传记录</h2><p>每次上传都会生成 intake 清单。</p></div></div>
         <div id="intakeList">${renderIntakes()}</div>
-        <h2>上传结果</h2>
+        <div class="section-title"><div><h2>上传结果</h2></div></div>
         <pre id="uploadLog">暂无</pre>
       </div>
     </div>`;
@@ -526,7 +685,12 @@ function renderDetail() {
   document.getElementById('content').innerHTML = `
     <div class="grid">
       <div class="panel">
-        <h2>${esc(d.paper)}</h2>
+        <div class="section-title">
+          <div>
+            <h2>${esc(d.paper)}</h2>
+            <p>逐题确认是否满足题图像、任务像、解法像。</p>
+          </div>
+        </div>
         <div class="meta">
           <span class="badge">审计配置：${esc(d.override_path)}</span>
           ${p.url ? `<a class="badge" href="${esc(p.url)}" target="_blank">飞书文档</a>` : ''}
@@ -535,11 +699,11 @@ function renderDetail() {
         ${d.questions.map(renderQuestion).join('')}
       </div>
       <div class="panel">
-        <h2>发布操作</h2>
+        <div class="section-title"><div><h2>发布操作</h2><p>发布前先完成扫描和人工复核。</p></div></div>
         <p class="meta">整卷重发会覆盖飞书文档内容；手调右列的卷请保持保护。</p>
         <div class="row"><label>确认文本</label><input id="confirmRepublish" placeholder="输入 REPUBLISH 确认覆盖" /></div>
         <button class="danger" onclick="runAction('republish')">重发当前卷</button>
-        <h2>运行日志</h2>
+        <div class="section-title"><div><h2>运行日志</h2></div></div>
         <pre id="runLog">暂无</pre>
       </div>
     </div>`;
