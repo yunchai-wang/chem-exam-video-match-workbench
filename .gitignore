@@ -18,6 +18,7 @@ build/
 .env.*
 
 outputs/
+inputs/
 试卷/2026中考卷/
 *.pdf
 *.docx

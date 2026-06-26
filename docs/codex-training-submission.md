@@ -21,12 +21,14 @@ MVP 做成一个本地 Web 工作台，底层复用已有 v5 引擎和项目 Ski
 2. 按试卷展示命中题数、覆盖分值、待审题数、飞书文档入口。
 3. 展示单题候选视频、命中理由、拒绝理由和 final_show 状态。
 4. 允许教研人员编辑单题 `promotion`、`allowed_video_ids`、`audit_note`。
-5. 一键运行 `--prepare`、`sop_scan.py`、`crop_scan.py` 做发布前检查。
-6. 对整卷飞书重发设置二次确认，保护已经手调过的右列视频截图。
+5. 提供新卷上传入口，接收 Word、PDF、官方解析并生成 intake 清单。
+6. 一键运行 `--prepare`、`sop_scan.py`、`crop_scan.py` 做发布前检查。
+7. 对整卷飞书重发设置二次确认，保护已经手调过的右列视频截图。
 
 ## 验收标准
 
 - 新增或修改一套卷后，可以通过工作台完成：选卷 -> 审题 -> 写白名单 -> 运行 prepare -> 跑 SOP 扫描 -> 跑裁图扫描。
+- 新卷上传后生成 `inputs/new_papers/<卷名>/intake.json`，并在真实业务仓库中可同步到 `试卷/2026中考卷/`。
 - 宣传版 `promotion: allow` 的题目必须满足“题图像 + 任务像 + 解法像”。
 - 复合题必须在 `audit_note` 或 `task_video_map` 中说明小问与视频课的对应关系。
 - `sop_scan.py` 的 P0 问题清零后再发布宣传版。

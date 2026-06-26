@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import argparse
+from email.parser import BytesParser
+from email.policy import default as email_policy
 import html
 import json
+import re
+import shutil
 import subprocess
 import time
 import urllib.parse
@@ -25,6 +29,8 @@ MATCHES_PATH = DATA / "matches_v5.json"
 OVERRIDE_DIR = DATA / "paper_tag_overrides"
 DOC_URLS_PATH = FEISHU / "doc_urls_v5.json"
 RUN_LOG_DIR = ROOT / "outputs" / "app_run_logs"
+INTAKE_DIR = ROOT / "inputs" / "new_papers"
+PIPELINE_PAPER_DIR = ROOT / "试卷" / "2026中考卷"
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -54,6 +60,22 @@ def paper_slug(paper: str) -> str:
     return urllib.parse.quote(slug, safe="") or "paper"
 
 
+def safe_name(text: str, fallback: str = "paper") -> str:
+    text = re.sub(r"[^\w\u4e00-\u9fff.-]+", "_", text or "").strip("._")
+    return text or fallback
+
+
+def unique_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem, suffix = path.stem, path.suffix
+    for idx in range(2, 200):
+        candidate = path.with_name(f"{stem}_{idx}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"too many duplicate files for {path.name}")
+
+
 def override_path_for(paper: str) -> Path:
     for path in OVERRIDE_DIR.glob("*_v5.json"):
         obj = load_json(path, {})
@@ -74,6 +96,106 @@ def load_overrides() -> dict[str, dict[str, Any]]:
         if paper:
             overrides[paper] = obj
     return overrides
+
+
+def parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    if "multipart/form-data" not in content_type:
+        raise ValueError("upload must use multipart/form-data")
+    raw = b"Content-Type: " + content_type.encode("utf-8") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
+    message = BytesParser(policy=email_policy).parsebytes(raw)
+    fields: dict[str, str] = {}
+    files: dict[str, dict[str, Any]] = {}
+    for part in message.iter_parts():
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        filename = part.get_filename()
+        payload = part.get_payload(decode=True) or b""
+        if filename:
+            files[name] = {"filename": filename, "content": payload, "content_type": part.get_content_type()}
+        else:
+            fields[name] = payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+    return fields, files
+
+
+def list_intakes() -> list[dict[str, Any]]:
+    items = []
+    for path in sorted(INTAKE_DIR.glob("*/intake.json")):
+        item = load_json(path, {})
+        item["manifest_path"] = str(path)
+        items.append(item)
+    return sorted(items, key=lambda x: x.get("created_at", ""), reverse=True)
+
+
+def save_upload_intake(fields: dict[str, str], files: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    paper = (fields.get("paper_title") or "").strip()
+    if not paper:
+        for item in files.values():
+            if item.get("filename"):
+                paper = Path(item["filename"]).stem
+                break
+    if not paper:
+        raise ValueError("paper title is required")
+
+    required = {"paper_word": [".docx"], "paper_pdf": [".pdf"]}
+    optional = {"official_analysis": [".pdf", ".docx", ".txt", ".md"]}
+    for field, exts in required.items():
+        if field not in files or not files[field]["content"]:
+            raise ValueError(f"{field} is required")
+        suffix = Path(files[field]["filename"]).suffix.lower()
+        if suffix not in exts:
+            raise ValueError(f"{field} must be one of {', '.join(exts)}")
+    for field, exts in optional.items():
+        if field in files and files[field]["content"]:
+            suffix = Path(files[field]["filename"]).suffix.lower()
+            if suffix not in exts:
+                raise ValueError(f"{field} must be one of {', '.join(exts)}")
+
+    created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+    folder = INTAKE_DIR / safe_name(paper, "paper")
+    folder.mkdir(parents=True, exist_ok=True)
+    saved_files: dict[str, dict[str, str]] = {}
+    for field, item in files.items():
+        if not item["content"]:
+            continue
+        filename = safe_name(item["filename"], field + Path(item["filename"]).suffix)
+        target = unique_path(folder / filename)
+        target.write_bytes(item["content"])
+        saved_files[field] = {
+            "filename": filename,
+            "path": str(target),
+            "content_type": item.get("content_type", ""),
+        }
+
+    copied: list[dict[str, str]] = []
+    copy_to_pipeline = fields.get("copy_to_pipeline") == "true"
+    if copy_to_pipeline and PIPELINE_PAPER_DIR.exists():
+        for field in ["paper_word", "paper_pdf", "official_analysis"]:
+            saved = saved_files.get(field)
+            if not saved:
+                continue
+            source = Path(saved["path"])
+            target = unique_path(PIPELINE_PAPER_DIR / source.name)
+            shutil.copy2(source, target)
+            copied.append({"field": field, "path": str(target)})
+
+    manifest = {
+        "paper": paper,
+        "created_at": created_at,
+        "status": "uploaded",
+        "files": saved_files,
+        "pipeline_copy_enabled": copy_to_pipeline,
+        "pipeline_paper_dir": str(PIPELINE_PAPER_DIR),
+        "pipeline_copied": copied,
+        "next_steps": [
+            "核对 Word/PDF/解析是否同卷同名",
+            "运行 professional 抽题或补齐 exam_records",
+            "运行 visual_v5 --prepare 生成候选",
+            "在工作台逐题审计 override",
+        ],
+    }
+    save_json(folder / "intake.json", manifest)
+    return {"ok": True, "intake": manifest, "manifest_path": str(folder / "intake.json")}
 
 
 def summarize() -> dict[str, Any]:
@@ -130,6 +252,7 @@ def summarize() -> dict[str, Any]:
         "has_data": MATCHES_PATH.exists(),
         "data_mode": "real" if DATA == REAL_DATA else "sample",
         "matches_path": str(MATCHES_PATH),
+        "intakes": list_intakes(),
         "papers": sorted(papers.values(), key=lambda x: x["paper"]),
     }
 
@@ -233,6 +356,8 @@ HTML = r"""<!doctype html>
     select, input, textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:8px 10px; background:#fff; }
     textarea { min-height: 96px; resize: vertical; }
     .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .tabs { display:flex; gap:8px; margin-bottom:14px; }
+    .tabs button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
     .paper { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px; cursor:pointer; background:#fff; }
     .paper.active { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
     .paper h3 { margin:0 0 8px; font-size:14px; line-height:1.35; }
@@ -261,6 +386,7 @@ HTML = r"""<!doctype html>
       <button onclick="runAction('prepare')">Prepare</button>
       <button onclick="runAction('sop_scan')">SOP 扫描</button>
       <button onclick="runAction('crop_scan')">裁图扫描</button>
+      <button class="primary" onclick="showUpload()">新卷上传</button>
     </div>
   </header>
   <main>
@@ -290,6 +416,7 @@ async function loadSummary() {
   const data = await api('/api/summary');
   state.papers = data.papers;
   document.getElementById('dataStatus').innerHTML = data.has_data ? `<span class="badge allow">已读取 matches</span>` : `<span class="badge warn">未找到数据</span>`;
+  state.intakes = data.intakes || [];
   renderPapers();
   if (!state.current && state.papers.length) await selectPaper(state.papers[0].paper);
 }
@@ -304,7 +431,62 @@ function renderPapers() {
         <span class="badge">final ${p.final_show_count}</span>
         ${p.manual_compare ? '<span class="badge warn">手调保护</span>' : ''}
       </div>
-    </div>`).join('');
+    </div>`).join('') + `
+    <div class="panel">
+      <h3>新卷交接包</h3>
+      <div class="meta">${(state.intakes || []).length ? state.intakes.slice(0, 4).map(x => `<span class="badge">${esc(x.paper)}</span>`).join('') : '<span class="badge">暂无上传</span>'}</div>
+    </div>`;
+}
+
+function showUpload() {
+  document.getElementById('content').innerHTML = `
+    <div class="grid">
+      <div class="panel">
+        <h2>新卷上传</h2>
+        <p class="meta">上传标准交接包：Word 用于抽题，PDF 用于裁题图，官方解析用于设问任务审计。</p>
+        <form id="uploadForm">
+          <div class="row"><label>标准卷名</label><input name="paper_title" placeholder="2026年××市中考化学试卷" required /></div>
+          <div class="row"><label>真题 Word</label><input name="paper_word" type="file" accept=".docx" required /></div>
+          <div class="row"><label>真题 PDF</label><input name="paper_pdf" type="file" accept=".pdf" required /></div>
+          <div class="row"><label>官方解析</label><input name="official_analysis" type="file" accept=".pdf,.docx,.txt,.md" /></div>
+          <div class="row"><label>同步流水线</label><label><input name="copy_to_pipeline" type="checkbox" value="true" checked style="width:auto" /> 若存在试卷目录，同步到试卷/2026中考卷</label></div>
+          <button class="primary" type="submit">上传交接包</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>上传记录</h2>
+        <div id="intakeList">${renderIntakes()}</div>
+        <h2>上传结果</h2>
+        <pre id="uploadLog">暂无</pre>
+      </div>
+    </div>`;
+  document.getElementById('uploadForm').addEventListener('submit', uploadIntake);
+}
+
+function renderIntakes() {
+  const items = state.intakes || [];
+  if (!items.length) return '<p class="meta">暂无上传记录。</p>';
+  return items.map(x => `<div class="candidate"><strong>${esc(x.paper)}</strong><div class="meta"><span>${esc(x.created_at)}</span><span>${esc(x.status)}</span></div><p>${esc(x.manifest_path || '')}</p></div>`).join('');
+}
+
+async function uploadIntake(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  if (!data.has('copy_to_pipeline')) data.set('copy_to_pipeline', 'false');
+  const log = document.getElementById('uploadLog');
+  log.textContent = '上传中...';
+  try {
+    const res = await fetch('/api/upload-intake', { method:'POST', body:data });
+    const payload = await res.json();
+    if (!res.ok || payload.error) throw new Error(payload.error || res.statusText);
+    log.textContent = JSON.stringify(payload, null, 2);
+    await loadSummary();
+    document.getElementById('intakeList').innerHTML = renderIntakes();
+    form.reset();
+  } catch (err) {
+    log.textContent = String(err);
+  }
 }
 
 async function selectPaper(paper) {
@@ -415,6 +597,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             elif parsed.path == "/api/summary":
                 self._send_json(summarize())
+            elif parsed.path == "/api/intakes":
+                self._send_json({"intakes": list_intakes()})
             elif parsed.path == "/api/paper":
                 paper = query.get("paper", [""])[0]
                 self._send_json(paper_detail(paper))
@@ -429,6 +613,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(update_question(self._read_json()))
             elif self.path == "/api/run":
                 self._send_json(run_action(self._read_json()))
+            elif self.path == "/api/upload-intake":
+                length = int(self.headers.get("Content-Length") or "0")
+                fields, files = parse_multipart(self.rfile.read(length), self.headers.get("Content-Type", ""))
+                self._send_json(save_upload_intake(fields, files))
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as exc:
