@@ -1,0 +1,23 @@
+{
+  "paper": "2026年样例市中考化学试卷",
+  "source_doc": "demo",
+  "note": "脱敏样例，用于训练营工作台演示。",
+  "questions": {
+    "14": {
+      "primary_type": "科学探究题",
+      "problem_tags": "pH曲线分析、图像匹配",
+      "visual_forms": "曲线图、数字化曲线",
+      "promotion": "allow",
+      "allowed_video_ids": ["JCTB-158"],
+      "audit_note": "酸碱中和 pH 曲线读图，题图像、任务像、解法像均通过。"
+    },
+    "18": {
+      "primary_type": "工艺流程题",
+      "problem_tags": "流程分析、设备作用、循环物质",
+      "visual_forms": "流程图",
+      "promotion": "allow",
+      "allowed_video_ids": ["XZK-22"],
+      "audit_note": "宣传版只保留流程审题主像；金属回收树状图仅作过程库候选。"
+    }
+  }
+}

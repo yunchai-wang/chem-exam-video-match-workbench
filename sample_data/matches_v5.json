@@ -1,0 +1,44 @@
+[
+  {
+    "match_id": "demo-Q14__JCTB-158",
+    "question_id": "2026年样例市中考化学试卷-Q14",
+    "paper": "2026年样例市中考化学试卷",
+    "qnum": 14,
+    "primary_type": "科学探究题",
+    "video_id": "JCTB-158",
+    "video_name": "中和反应 pH 数字化曲线",
+    "score": 0.91,
+    "hit_reason": "题面和课程都围绕酸碱中和 pH 曲线读图，学生动作都是判断起点、突变区间和终点。",
+    "reject_reason": "",
+    "final_show": true,
+    "review_reason": "宣传版通过"
+  },
+  {
+    "match_id": "demo-Q18__XZK-22",
+    "question_id": "2026年样例市中考化学试卷-Q18",
+    "paper": "2026年样例市中考化学试卷",
+    "qnum": 18,
+    "primary_type": "工艺流程题",
+    "video_id": "XZK-22",
+    "video_name": "工艺流程审题",
+    "score": 0.86,
+    "hit_reason": "都需要沿流程图判断原料、设备作用和循环物质。",
+    "reject_reason": "",
+    "final_show": true,
+    "review_reason": "宣传版通过"
+  },
+  {
+    "match_id": "demo-Q18__XZK-46",
+    "question_id": "2026年样例市中考化学试卷-Q18",
+    "paper": "2026年样例市中考化学试卷",
+    "qnum": 18,
+    "primary_type": "工艺流程题",
+    "video_id": "XZK-46",
+    "video_name": "树状图·金属合金回收",
+    "score": 0.62,
+    "hit_reason": "同为流程图，但设问任务不是金属回收树状图。",
+    "reject_reason": "任务像不足，仅保留过程库候选。",
+    "final_show": false,
+    "review_reason": "降级过程库"
+  }
+]
