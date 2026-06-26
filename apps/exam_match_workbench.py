@@ -383,7 +383,7 @@ HTML = r"""<!doctype html>
   <header>
     <h1>中考化学押题对比审计工作台</h1>
     <div class="toolbar">
-      <button onclick="runAction('prepare')">Prepare</button>
+      <button onclick="runAction('prepare')">生成候选</button>
       <button onclick="runAction('sop_scan')">SOP 扫描</button>
       <button onclick="runAction('crop_scan')">裁图扫描</button>
       <button class="primary" onclick="showUpload()">新卷上传</button>
@@ -412,10 +412,34 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function zhPromotion(value) {
+  return ({allow: '宣传版通过', exclude: '排除', unset: '未设置'}[value || 'unset']) || value;
+}
+
+function zhBool(value) {
+  if (value === true || value === 'true') return '是';
+  if (value === false || value === 'false') return '否';
+  return value || '否';
+}
+
+function zhStatus(value) {
+  return ({uploaded: '已上传'}[value]) || value || '未知';
+}
+
+function zhAction(action) {
+  return ({
+    prepare: '生成候选',
+    sop_scan: 'SOP 扫描',
+    crop_scan: '裁图扫描',
+    republish: '重发当前卷'
+  }[action]) || action;
+}
+
 async function loadSummary() {
   const data = await api('/api/summary');
   state.papers = data.papers;
-  document.getElementById('dataStatus').innerHTML = data.has_data ? `<span class="badge allow">已读取 matches</span>` : `<span class="badge warn">未找到数据</span>`;
+  const modeText = data.data_mode === 'real' ? '真实数据' : '脱敏样例';
+  document.getElementById('dataStatus').innerHTML = data.has_data ? `<span class="badge allow">已读取匹配数据</span><span class="badge">${modeText}</span>` : `<span class="badge warn">未找到数据</span>`;
   state.intakes = data.intakes || [];
   renderPapers();
   if (!state.current && state.papers.length) await selectPaper(state.papers[0].paper);
@@ -427,8 +451,8 @@ function renderPapers() {
       <h3>${esc(p.paper)}</h3>
       <div class="meta">
         <span class="badge">题 ${p.question_count}</span>
-        <span class="badge allow">allow ${p.allow_count}</span>
-        <span class="badge">final ${p.final_show_count}</span>
+        <span class="badge allow">宣传版 ${p.allow_count}</span>
+        <span class="badge">最终展示 ${p.final_show_count}</span>
         ${p.manual_compare ? '<span class="badge warn">手调保护</span>' : ''}
       </div>
     </div>`).join('') + `
@@ -466,7 +490,7 @@ function showUpload() {
 function renderIntakes() {
   const items = state.intakes || [];
   if (!items.length) return '<p class="meta">暂无上传记录。</p>';
-  return items.map(x => `<div class="candidate"><strong>${esc(x.paper)}</strong><div class="meta"><span>${esc(x.created_at)}</span><span>${esc(x.status)}</span></div><p>${esc(x.manifest_path || '')}</p></div>`).join('');
+  return items.map(x => `<div class="candidate"><strong>${esc(x.paper)}</strong><div class="meta"><span>${esc(x.created_at)}</span><span>${esc(zhStatus(x.status))}</span></div><p>${esc(x.manifest_path || '')}</p></div>`).join('');
 }
 
 async function uploadIntake(event) {
@@ -504,16 +528,16 @@ function renderDetail() {
       <div class="panel">
         <h2>${esc(d.paper)}</h2>
         <div class="meta">
-          <span class="badge">override: ${esc(d.override_path)}</span>
+          <span class="badge">审计配置：${esc(d.override_path)}</span>
           ${p.url ? `<a class="badge" href="${esc(p.url)}" target="_blank">飞书文档</a>` : ''}
-          ${d.manual_compare ? '<span class="badge warn">feishu_manual_compare</span>' : ''}
+          ${d.manual_compare ? '<span class="badge warn">飞书手调保护</span>' : ''}
         </div>
         ${d.questions.map(renderQuestion).join('')}
       </div>
       <div class="panel">
         <h2>发布操作</h2>
         <p class="meta">整卷重发会覆盖飞书文档内容；手调右列的卷请保持保护。</p>
-        <div class="row"><label>确认文本</label><input id="confirmRepublish" placeholder="输入 REPUBLISH" /></div>
+        <div class="row"><label>确认文本</label><input id="confirmRepublish" placeholder="输入 REPUBLISH 确认覆盖" /></div>
         <button class="danger" onclick="runAction('republish')">重发当前卷</button>
         <h2>运行日志</h2>
         <pre id="runLog">暂无</pre>
@@ -527,12 +551,12 @@ function renderQuestion(q) {
   const top = candidates.slice(0, 4);
   return `
     <div class="question">
-      <h3>Q${esc(q.qnum)} <span class="badge">${esc(o.primary_type || q.primary_type || '未标题型')}</span> <span class="badge ${o.promotion === 'allow' ? 'allow' : ''}">${esc(o.promotion || 'unset')}</span></h3>
-      <div class="row"><label>promotion</label><select id="promotion-${q.qnum}"><option value="exclude" ${o.promotion === 'exclude' ? 'selected' : ''}>exclude</option><option value="allow" ${o.promotion === 'allow' ? 'selected' : ''}>allow</option></select></div>
-      <div class="row"><label>allowed ids</label><input id="videos-${q.qnum}" value="${esc((o.allowed_video_ids || []).join(', '))}" placeholder="XZK-21, JCTB-158" /></div>
-      <div class="row"><label>audit note</label><textarea id="note-${q.qnum}">${esc(o.audit_note || '')}</textarea></div>
+      <h3>第 ${esc(q.qnum)} 题 <span class="badge">${esc(o.primary_type || q.primary_type || '未标题型')}</span> <span class="badge ${o.promotion === 'allow' ? 'allow' : ''}">${esc(zhPromotion(o.promotion))}</span></h3>
+      <div class="row"><label>审计结论</label><select id="promotion-${q.qnum}"><option value="exclude" ${o.promotion === 'exclude' ? 'selected' : ''}>排除</option><option value="allow" ${o.promotion === 'allow' ? 'selected' : ''}>宣传版通过</option></select></div>
+      <div class="row"><label>视频白名单</label><input id="videos-${q.qnum}" value="${esc((o.allowed_video_ids || []).join(', '))}" placeholder="例如：XZK-21, JCTB-158" /></div>
+      <div class="row"><label>审计理由</label><textarea id="note-${q.qnum}">${esc(o.audit_note || '')}</textarea></div>
       <button class="primary" onclick="saveQuestion('${esc(q.qnum)}')">保存 Q${esc(q.qnum)}</button>
-      ${top.map(c => `<div class="candidate"><strong>${esc(c.video_id || 'NO_MATCH')} ${esc(c.video_name || '')}</strong><div class="meta"><span>score ${esc(c.score)}</span><span>final ${esc(c.final_show)}</span></div><p>${esc(c.hit_reason || c.reject_reason || c.review_reason || '')}</p></div>`).join('')}
+      ${top.map(c => `<div class="candidate"><strong>${esc(c.video_id || '无匹配')} ${esc(c.video_name || '')}</strong><div class="meta"><span>匹配分 ${esc(c.score)}</span><span>最终展示 ${esc(zhBool(c.final_show))}</span></div><p>${esc(c.hit_reason || c.reject_reason || c.review_reason || '')}</p></div>`).join('')}
     </div>`;
 }
 
@@ -553,10 +577,10 @@ async function saveQuestion(qnum) {
 async function runAction(action) {
   const payload = {action, paper: state.current};
   if (action === 'republish') payload.confirm = document.getElementById('confirmRepublish')?.value || '';
-  document.getElementById('runLog').textContent = '运行中...';
+  document.getElementById('runLog').textContent = `${zhAction(action)}运行中...`;
   try {
     const data = await api('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    document.getElementById('runLog').textContent = `ok=${data.ok} code=${data.returncode}\nlog=${data.log_path}\n\nSTDOUT:\n${data.stdout}\n\nSTDERR:\n${data.stderr}`;
+    document.getElementById('runLog').textContent = `是否成功：${zhBool(data.ok)}\n退出码：${data.returncode}\n日志文件：${data.log_path}\n\n标准输出：\n${data.stdout}\n\n错误输出：\n${data.stderr}`;
     await loadSummary();
   } catch (err) {
     document.getElementById('runLog').textContent = String(err);
