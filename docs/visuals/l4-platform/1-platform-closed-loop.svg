@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1080" width="1600" height="1080">
+  <defs>
+    <linearGradient id="heroGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15264A"/>
+      <stop offset="1" stop-color="#253E76"/>
+    </linearGradient>
+    <linearGradient id="evolveGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EEF4FF"/>
+      <stop offset="1" stop-color="#F3EEFF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1080" rx="30" fill="#F6F8FC"/>
+  <rect x="44" y="36" width="1512" height="118" rx="28" fill="url(#heroGradient)"/>
+  <circle cx="95" cy="87" r="24" fill="#6EA8FE" opacity="0.24"/>
+  <circle cx="95" cy="87" r="11" fill="#8CC8FF"/>
+  <path d="M88 87 L93 92 L103 80" fill="none" stroke="#15264A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="137" y="82" font-family="Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">L4 考情驱动课程自进化平台</text>
+  <text x="137" y="122" font-family="Noto Sans SC, sans-serif" font-size="18" fill="#CEDBFA">从多源真题到课程交付，再把真实反馈变成可验证、可批准、可回退的下一版规则</text>
+  <rect x="1270" y="70" width="230" height="50" rx="25" fill="#FFFFFF" opacity="0.12"/>
+  <text x="1385" y="102" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="17" font-weight="600" fill="#FFFFFF">本地 Web ＋ 个人闭环 Base</text>
+
+  <rect x="44" y="178" width="1512" height="520" rx="28" fill="#FFFFFF" stroke="#DEE5F2" stroke-width="2"/>
+  <rect x="70" y="198" width="128" height="34" rx="17" fill="#EAF1FF"/>
+  <text x="134" y="221" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#3567C5">生产主链</text>
+  <text x="218" y="221" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#6C7892">质量门通过后由事件工作流推进；硬阻断不会被自动模式绕过</text>
+
+  <rect x="72" y="259" width="182" height="166" rx="22" fill="#F1F6FF" stroke="#AFC9F7" stroke-width="2"/>
+  <circle cx="105" cy="291" r="18" fill="#4F46E5"/>
+  <text x="105" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">01</text>
+  <text x="125" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#173868">多源接入</text>
+  <text x="94" y="335" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#526078">
+    <tspan x="94" dy="0">Word / PDF / 套卷</tspan>
+    <tspan x="94" dy="26">本地文件夹或路径</tspan>
+    <tspan x="94" dy="26">飞书 Base · 菁优网</tspan>
+  </text>
+  <rect x="92" y="392" width="142" height="23" rx="11" fill="#DCE9FF"/>
+  <text x="163" y="408" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#3567C5">保存来源快照与授权状态</text>
+
+  <polyline points="254,342 275,342" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="275,336 287,342 275,348" fill="#8797B4"/>
+
+  <rect x="288" y="259" width="182" height="166" rx="22" fill="#F3F8FF" stroke="#AFC9F7" stroke-width="2"/>
+  <circle cx="321" cy="291" r="18" fill="#4F46E5"/>
+  <text x="321" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">02</text>
+  <text x="341" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#173868">资料标准化</text>
+  <text x="310" y="335" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#526078">
+    <tspan x="310" dy="0">OCR · 拆题 · 去重</tspan>
+    <tspan x="310" dy="26">题图、答案与来源追踪</tspan>
+    <tspan x="310" dy="26">异常进入 F1 教师复核</tspan>
+  </text>
+  <rect x="310" y="392" width="138" height="23" rx="11" fill="#FFE9E7"/>
+  <text x="379" y="408" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#B9473D">缺图 / 冲突 / 低置信度阻断</text>
+
+  <polyline points="470,342 491,342" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="491,336 503,342 491,348" fill="#8797B4"/>
+
+  <rect x="504" y="259" width="210" height="166" rx="22" fill="#EEFBF8" stroke="#8FD3C2" stroke-width="2"/>
+  <circle cx="537" cy="291" r="18" fill="#0F9D8B"/>
+  <text x="537" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">03</text>
+  <text x="557" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#174C42">诊断与缺口</text>
+  <text x="526" y="335" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#3F625C">
+    <tspan x="526" dy="0">题型、结构与作答边界</tspan>
+    <tspan x="526" dy="26">考情趋势＋保守生产覆盖</tspan>
+    <tspan x="526" dy="26">按小问 / 得分点识别缺口</tspan>
+  </text>
+  <rect x="526" y="392" width="166" height="23" rx="11" fill="#D8F3EC"/>
+  <text x="609" y="408" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#17745F">宣传相似 ≠ 生产充分覆盖</text>
+
+  <polyline points="714,342 735,342" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="735,336 747,342 735,348" fill="#8797B4"/>
+
+  <rect x="748" y="259" width="210" height="166" rx="22" fill="#FFF8E9" stroke="#EBCB75" stroke-width="2"/>
+  <circle cx="781" cy="291" r="18" fill="#F59E0B"/>
+  <text x="781" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">04</text>
+  <text x="801" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#684B0F">好题与优先级</text>
+  <text x="770" y="335" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#665B3D">
+    <tspan x="770" dy="0">目标学生层 × 学习收益</tspan>
+    <tspan x="770" dy="26">难度、卡点与迁移价值</tspan>
+    <tspan x="770" dy="26">选择最小充分干预方式</tspan>
+  </text>
+  <rect x="770" y="392" width="166" height="23" rx="11" fill="#FCE9B9"/>
+  <text x="853" y="408" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#89620F">F2 确认整题 / 小问 / 选项</text>
+
+  <polyline points="958,342 979,342" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="979,336 991,342 979,348" fill="#8797B4"/>
+
+  <rect x="992" y="259" width="214" height="166" rx="22" fill="#F6F0FF" stroke="#C9A9EC" stroke-width="2"/>
+  <circle cx="1025" cy="291" r="18" fill="#4F46E5"/>
+  <text x="1025" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">05</text>
+  <text x="1045" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#4E287B">内容生产</text>
+  <text x="1014" y="335" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#5F4B71">
+    <tspan x="1014" dy="0">母题 / 递进题组 → 教案</tspan>
+    <tspan x="1014" dy="26">教案确认 → 逐字稿</tspan>
+    <tspan x="1014" dy="26">原题图表全程锁定关联</tspan>
+  </text>
+  <rect x="1014" y="392" width="170" height="23" rx="11" fill="#EADCFB"/>
+  <text x="1099" y="408" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#7042A8">F3 / F4 / F5 分阶段确认</text>
+
+  <polyline points="1206,342 1227,342" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="1227,336 1239,342 1227,348" fill="#8797B4"/>
+
+  <rect x="1240" y="259" width="286" height="166" rx="22" fill="#F4F2FF" stroke="#B9B4F5" stroke-width="2"/>
+  <circle cx="1273" cy="291" r="18" fill="#4F46E5"/>
+  <text x="1273" y="297" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">06</text>
+  <text x="1293" y="298" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#3730A3">分镜与交付</text>
+  <rect x="1264" y="323" width="112" height="66" rx="15" fill="#FFFFFF" stroke="#C7C3F8"/>
+  <text x="1320" y="348" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#3730A3">PPT</text>
+  <text x="1320" y="371" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#5F5A8A">PMO → 兼职</text>
+  <rect x="1389" y="323" width="112" height="66" rx="15" fill="#FFFFFF" stroke="#C7C3F8"/>
+  <text x="1445" y="348" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#3730A3">HTML</text>
+  <text x="1445" y="371" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#5F5A8A">AI 生产并回填</text>
+  <text x="1383" y="409" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#A36200">首次默认生成后确认 · F6 验收</text>
+
+  <polyline points="1402,425 1402,447 1316,447 1316,464" fill="none" stroke="#8797B4" stroke-width="3"/>
+  <polygon points="1310,464 1316,476 1322,464" fill="#8797B4"/>
+
+  <rect x="1112" y="477" width="414" height="174" rx="22" fill="#F7FAFE" stroke="#B7C5D9" stroke-width="2"/>
+  <circle cx="1150" cy="513" r="18" fill="#536B92"/>
+  <text x="1150" y="519" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">07</text>
+  <text x="1175" y="520" font-family="Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#253C60">使用与效果验证</text>
+  <text x="1140" y="555" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#526078">
+    <tspan x="1140" dy="0">历史回放：未见年份的覆盖盲审</tspan>
+    <tspan x="1140" dy="25">过程质量：修改率、退回率、耗时、严重错误</tspan>
+    <tspan x="1140" dy="25">学习效果：观看、回看、首答与同类题迁移</tspan>
+  </text>
+  <rect x="1140" y="620" width="358" height="20" rx="10" fill="#E8EDF5"/>
+  <text x="1319" y="634" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="11" fill="#526078">学生行为与教师审核、历史回放联合解释 · F7</text>
+
+  <rect x="72" y="477" width="1008" height="174" rx="22" fill="#FBFCFE" stroke="#D4DCE9" stroke-width="2" stroke-dasharray="8 7"/>
+  <text x="101" y="513" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#41516B">贯穿主链的控制面</text>
+  <circle cx="116" cy="551" r="8" fill="#F59E0B"/>
+  <text x="136" y="557" font-family="Noto Sans SC, sans-serif" font-size="14" fill="#526078">七个真实反馈节点：系统记录动作与版本差异，重大反常决策才要求补充理由</text>
+  <circle cx="116" cy="587" r="8" fill="#F59E0B"/>
+  <text x="136" y="593" font-family="Noto Sans SC, sans-serif" font-size="14" fill="#526078">成熟度升级：逐项校准 → 异常复核 → 自动通过＋抽检；严重错误自动降级</text>
+  <circle cx="116" cy="623" r="8" fill="#0F9D8B"/>
+  <text x="136" y="629" font-family="Noto Sans SC, sans-serif" font-size="14" fill="#526078">Word / 飞书是工作副本；只有教师确认后的版本，才允许后续环节读取</text>
+
+  <rect x="44" y="726" width="1512" height="302" rx="28" fill="url(#evolveGradient)" stroke="#C8D5EC" stroke-width="2"/>
+  <rect x="70" y="746" width="154" height="34" rx="17" fill="#263F75"/>
+  <text x="147" y="769" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">规则自进化闭环</text>
+  <text x="244" y="769" font-family="Noto Sans SC, sans-serif" font-size="15" fill="#64728A">反馈不是直接改规则；先形成候选，再经隔离回测和人工批准</text>
+
+  <rect x="86" y="819" width="212" height="108" rx="24" fill="#FFFFFF" stroke="#9EBAEA" stroke-width="2"/>
+  <circle cx="121" cy="853" r="18" fill="#4F46E5"/>
+  <path d="M113 853 L119 859 L130 846" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="149" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#244C91">反馈事件池</text>
+  <text x="108" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="108" dy="0">AI 原结果 · 教师最终结果</tspan>
+    <tspan x="108" dy="21">差异 · 理由 · 适用范围</tspan>
+  </text>
+
+  <polyline points="298,873 330,873" fill="none" stroke="#7184A5" stroke-width="3"/>
+  <polygon points="330,867 342,873 330,879" fill="#7184A5"/>
+  <rect x="343" y="819" width="212" height="108" rx="24" fill="#FFFFFF" stroke="#B5A0DF" stroke-width="2"/>
+  <circle cx="378" cy="853" r="18" fill="#4F46E5"/>
+  <path d="M370 852 C375 844 383 844 387 852 C383 862 374 863 370 852" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+  <text x="406" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#58318A">聚类与归因</text>
+  <text x="365" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="365" dy="0">分入解析、选题、母题、</tspan>
+    <tspan x="365" dy="21">教案、写稿或分镜规则域</tspan>
+  </text>
+
+  <polyline points="555,873 587,873" fill="none" stroke="#7184A5" stroke-width="3"/>
+  <polygon points="587,867 599,873 587,879" fill="#7184A5"/>
+  <rect x="600" y="819" width="212" height="108" rx="24" fill="#FFFFFF" stroke="#E5BF64" stroke-width="2"/>
+  <circle cx="635" cy="853" r="18" fill="#F59E0B"/>
+  <path d="M626 856 L633 849 L640 855 L646 846" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="663" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#77550E">规则候选</text>
+  <text x="622" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="622" dy="0">适用范围 · 证据 · 反例</tspan>
+    <tspan x="622" dy="21">单条修改先进入案例</tspan>
+  </text>
+
+  <polyline points="812,873 844,873" fill="none" stroke="#7184A5" stroke-width="3"/>
+  <polygon points="844,867 856,873 844,879" fill="#7184A5"/>
+  <rect x="857" y="819" width="212" height="108" rx="24" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <circle cx="892" cy="853" r="18" fill="#0F9D8B"/>
+  <path d="M883 856 L889 850 L895 856 L902 847" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="920" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#176450">隔离回测</text>
+  <text x="879" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="879" dy="0">历史集＋未参与归纳的保留集</tspan>
+    <tspan x="879" dy="21">比较效果、误伤与严重错误</tspan>
+  </text>
+
+  <polyline points="1069,873 1101,873" fill="none" stroke="#7184A5" stroke-width="3"/>
+  <polygon points="1101,867 1113,873 1101,879" fill="#7184A5"/>
+  <rect x="1114" y="819" width="212" height="108" rx="24" fill="#FFFFFF" stroke="#F2BE67" stroke-width="2"/>
+  <circle cx="1149" cy="853" r="18" fill="#F59E0B"/>
+  <path d="M1141 853 L1147 859 L1158 846" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1177" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#8A5B08">人工批准</text>
+  <text x="1136" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="1136" dy="0">拒绝 / 限定项目 / 发布</tspan>
+    <tspan x="1136" dy="21">保留责任人和审批证据</tspan>
+  </text>
+
+  <polyline points="1326,873 1358,873" fill="none" stroke="#7184A5" stroke-width="3"/>
+  <polygon points="1358,867 1370,873 1358,879" fill="#7184A5"/>
+  <rect x="1371" y="819" width="149" height="108" rx="24" fill="#263F75"/>
+  <circle cx="1406" cy="853" r="18" fill="#8CC8FF"/>
+  <path d="M1398 853 L1404 859 L1415 846" fill="none" stroke="#263F75" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1433" y="858" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">新版本</text>
+  <text x="1394" y="891" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#DCE6FA">
+    <tspan x="1394" dy="0">可追溯 · 可回退</tspan>
+    <tspan x="1394" dy="21">服务下一批任务</tspan>
+  </text>
+
+  <polyline points="1446,927 1446,986 609,986 609,954" fill="none" stroke="#4F46E5" stroke-width="3" stroke-dasharray="8 6"/>
+  <polygon points="603,954 609,942 615,954" fill="#4F46E5"/>
+  <rect x="900" y="966" width="250" height="30" rx="15" fill="#EAF1FF"/>
+  <text x="1025" y="986" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" font-weight="600" fill="#3567C5">新规则只影响下一批，不静默覆盖历史版本</text>
+</svg>

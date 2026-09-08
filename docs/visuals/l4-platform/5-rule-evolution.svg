@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1080" width="1600" height="1080" font-family="Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7F8FE"/>
+      <stop offset="1" stop-color="#F0F8F7"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5B55D9"/>
+      <stop offset="1" stop-color="#2563A8"/>
+    </linearGradient>
+    <linearGradient id="release" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0F9F83"/>
+      <stop offset="1" stop-color="#0C7C75"/>
+    </linearGradient>
+    <linearGradient id="review" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF7E9"/>
+      <stop offset="1" stop-color="#FFFDF8"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#24324A" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1080" fill="url(#bg2)"/>
+  <circle cx="1500" cy="130" r="180" fill="#E2E8FF" opacity="0.65"/>
+  <circle cx="80" cy="980" r="180" fill="#DDF4EE" opacity="0.65"/>
+
+  <text x="70" y="72" font-size="34" font-weight="700" fill="#18223A">规则自进化：从真实反馈到可回退版本</text>
+  <text x="70" y="108" font-size="17" fill="#65718A">AI 提炼规律，人类批准边界；任何单次反馈都不会直接改写正式规则</text>
+  <rect x="1260" y="50" width="270" height="58" rx="29" fill="#FFFFFF" stroke="#D5DDF0" stroke-width="2"/>
+  <circle cx="1298" cy="79" r="18" fill="#E9ECFF"/>
+  <path d="M1290 79 L1297 86 L1308 72" fill="none" stroke="#554CD8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1327" y="75" font-size="14" font-weight="700" fill="#34405A">核心原则</text>
+  <text x="1327" y="95" font-size="12" fill="#6F7890">有证据 · 可解释 · 可回测 · 可回退</text>
+
+  <!-- 左侧反馈入口 -->
+  <rect x="70" y="165" width="310" height="745" rx="30" fill="#FFFFFF" stroke="#D7DFF0" stroke-width="2" filter="url(#cardShadow)"/>
+  <text x="105" y="210" font-size="22" font-weight="700" fill="#2C3750">① 反馈事件池</text>
+  <text x="105" y="238" font-size="14" fill="#6F7A92">记录“AI 原结果 ↔ 教师最终结果”</text>
+
+  <rect x="105" y="275" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="308" r="14" fill="#5A53D5"/>
+  <text x="135" y="313" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F1</text>
+  <text x="160" y="304" font-size="15" font-weight="700" fill="#3A4460">资料标准化</text>
+  <text x="160" y="326" font-size="12" fill="#737D94">错图、错题号、重复与冲突</text>
+
+  <rect x="105" y="355" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="388" r="14" fill="#5A53D5"/>
+  <text x="135" y="393" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F2</text>
+  <text x="160" y="384" font-size="15" font-weight="700" fill="#3A4460">诊断、缺口与选题</text>
+  <text x="160" y="406" font-size="12" fill="#737D94">标签、覆盖、优先级、题目单元</text>
+
+  <rect x="105" y="435" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="468" r="14" fill="#5A53D5"/>
+  <text x="135" y="473" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F3</text>
+  <text x="160" y="464" font-size="15" font-weight="700" fill="#3A4460">母题与题组</text>
+  <text x="160" y="486" font-size="12" fill="#737D94">分组、问法、图表和作答边界</text>
+
+  <rect x="105" y="515" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="548" r="14" fill="#5A53D5"/>
+  <text x="135" y="553" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F4</text>
+  <text x="160" y="544" font-size="15" font-weight="700" fill="#3A4460">教案</text>
+  <text x="160" y="566" font-size="12" fill="#737D94">目标、卡点、理解与教学结构</text>
+
+  <rect x="105" y="595" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="628" r="14" fill="#5A53D5"/>
+  <text x="135" y="633" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F5</text>
+  <text x="160" y="624" font-size="15" font-weight="700" fill="#3A4460">逐字稿</text>
+  <text x="160" y="646" font-size="12" fill="#737D94">科学、逻辑、口语与画面指向</text>
+
+  <rect x="105" y="675" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="708" r="14" fill="#5A53D5"/>
+  <text x="135" y="713" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F6</text>
+  <text x="160" y="704" font-size="15" font-weight="700" fill="#3A4460">分镜与成品</text>
+  <text x="160" y="726" font-size="12" fill="#737D94">清保增、素材、动画与交互</text>
+
+  <rect x="105" y="755" width="240" height="66" rx="18" fill="#F0F3FF" stroke="#C9D0F4"/>
+  <circle cx="135" cy="788" r="14" fill="#5A53D5"/>
+  <text x="135" y="793" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">F7</text>
+  <text x="160" y="784" font-size="15" font-weight="700" fill="#3A4460">使用效果</text>
+  <text x="160" y="806" font-size="12" fill="#737D94">验收、耗时、观看与练习表现</text>
+
+  <rect x="105" y="844" width="240" height="40" rx="20" fill="#E8EBF8"/>
+  <text x="225" y="869" text-anchor="middle" font-size="13" font-weight="600" fill="#536078">正常点击与版本差异自动留痕</text>
+
+  <!-- 进入候选生成 -->
+  <polyline points="380,538 420,538 420,405 463,405" fill="none" stroke="#697690" stroke-width="3"/>
+  <polygon points="463,405 451,398 451,412" fill="#697690"/>
+
+  <rect x="463" y="205" width="330" height="402" rx="28" fill="#FFFFFF" stroke="#D7DFF0" stroke-width="2" filter="url(#cardShadow)"/>
+  <text x="493" y="248" font-size="22" font-weight="700" fill="#2C3750">② AI 提炼规则候选</text>
+  <text x="493" y="277" font-size="14" fill="#6F7A92">相似反馈聚类，不把个例直接规则化</text>
+
+  <circle cx="525" cy="330" r="31" fill="#E9ECFF"/>
+  <circle cx="573" cy="317" r="22" fill="#D8E0FF"/>
+  <circle cx="576" cy="356" r="18" fill="#C7D3FF"/>
+  <path d="M610 335 C645 335 653 318 681 318" fill="none" stroke="#5B55D9" stroke-width="3"/>
+  <polygon points="681,318 669,311 669,325" fill="#5B55D9"/>
+  <rect x="681" y="293" width="80" height="50" rx="16" fill="url(#core)"/>
+  <text x="721" y="323" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">共同模式</text>
+  <text x="493" y="392" font-size="15" font-weight="700" fill="#3A4460">规则候选卡必须包含</text>
+
+  <rect x="493" y="414" width="122" height="50" rx="14" fill="#F4F5FB" stroke="#DDE1EE"/>
+  <text x="554" y="444" text-anchor="middle" font-size="13" fill="#58647C">适用范围</text>
+  <rect x="631" y="414" width="132" height="50" rx="14" fill="#F4F5FB" stroke="#DDE1EE"/>
+  <text x="697" y="444" text-anchor="middle" font-size="13" fill="#58647C">支持证据</text>
+  <rect x="493" y="478" width="122" height="50" rx="14" fill="#F4F5FB" stroke="#DDE1EE"/>
+  <text x="554" y="508" text-anchor="middle" font-size="13" fill="#58647C">反例边界</text>
+  <rect x="631" y="478" width="132" height="50" rx="14" fill="#F4F5FB" stroke="#DDE1EE"/>
+  <text x="697" y="508" text-anchor="middle" font-size="13" fill="#58647C">预期影响</text>
+  <rect x="493" y="544" width="270" height="40" rx="20" fill="#ECEEFE"/>
+  <text x="628" y="569" text-anchor="middle" font-size="13" font-weight="600" fill="#504BC0">先进入实验，不影响线上正式版本</text>
+
+  <!-- 回测双轨 -->
+  <polyline points="793,405 846,405" fill="none" stroke="#697690" stroke-width="3"/>
+  <polygon points="846,405 834,398 834,412" fill="#697690"/>
+  <rect x="846" y="165" width="390" height="500" rx="30" fill="#FFFFFF" stroke="#D7DFF0" stroke-width="2" filter="url(#cardShadow)"/>
+  <text x="879" y="210" font-size="22" font-weight="700" fill="#2C3750">③ 双轨回测与风险审计</text>
+  <text x="879" y="238" font-size="14" fill="#6F7A92">必须同时回答“有效吗”与“伤害谁”</text>
+
+  <rect x="879" y="276" width="324" height="118" rx="20" fill="#F0F3FF" stroke="#C9D0F4" stroke-width="2"/>
+  <circle cx="912" cy="312" r="18" fill="#5B55D9"/>
+  <text x="912" y="318" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">A</text>
+  <text x="945" y="310" font-size="17" font-weight="700" fill="#3A4460">历史集回放</text>
+  <text x="945" y="337" font-size="13" fill="#68748C">验证已知错误是否被纠正</text>
+  <text x="945" y="360" font-size="13" fill="#68748C">对比命中、误判、人工修改和耗时</text>
+  <rect x="945" y="371" width="165" height="16" rx="8" fill="#DDE3FF"/>
+
+  <rect x="879" y="416" width="324" height="118" rx="20" fill="#ECFAF7" stroke="#8ED3C2" stroke-width="2"/>
+  <circle cx="912" cy="452" r="18" fill="#0F9D8B"/>
+  <text x="912" y="458" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">B</text>
+  <text x="945" y="450" font-size="17" font-weight="700" fill="#24594F">未参与归纳的保留集</text>
+  <text x="945" y="477" font-size="13" fill="#4B746C">检验新样本能否稳定泛化</text>
+  <text x="945" y="500" font-size="13" fill="#4B746C">防止规则只记住教师反馈样例</text>
+  <rect x="945" y="511" width="205" height="16" rx="8" fill="#CDEFE7"/>
+
+  <rect x="879" y="556" width="324" height="80" rx="18" fill="#FFF5EB" stroke="#F1C692"/>
+  <text x="899" y="584" font-size="14" font-weight="700" fill="#8B581F">风险审计</text>
+  <text x="899" y="608" font-size="12" fill="#966A39">科学错误 · 错杀优质题 · 跨学科污染 · 规则冲突</text>
+  <text x="899" y="627" font-size="12" fill="#966A39">输出：指标差异、失败案例、建议范围与置信度</text>
+
+  <!-- 人工批准闸门 -->
+  <polyline points="1236,405 1272,405 1272,360 1306,360" fill="none" stroke="#697690" stroke-width="3"/>
+  <polygon points="1306,360 1294,353 1294,367" fill="#697690"/>
+  <polygon points="1390,273 1480,360 1390,447 1300,360" fill="#FFFFFF" stroke="#F59E0B" stroke-width="3" filter="url(#cardShadow)"/>
+  <circle cx="1390" cy="324" r="17" fill="#FFF0D8"/>
+  <path d="M1382 324 L1389 331 L1400 317" fill="none" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1390" y="358" text-anchor="middle" font-size="18" font-weight="700" fill="#6F4517">教研人工批准</text>
+  <text x="1390" y="384" text-anchor="middle" font-size="13" fill="#8A633A">拒绝 / 限定发布</text>
+  <text x="1390" y="406" text-anchor="middle" font-size="13" fill="#8A633A">升级公共 Skill</text>
+
+  <polyline points="1390,447 1390,513 1285,513 1285,603 1238,603" fill="none" stroke="#BE5566" stroke-width="3"/>
+  <polygon points="1238,603 1250,596 1250,610" fill="#BE5566"/>
+  <text x="1353" y="503" text-anchor="middle" font-size="12" font-weight="600" fill="#9B4351">拒绝 / 补证据</text>
+  <rect x="858" y="688" width="363" height="86" rx="20" fill="#FFF2F4" stroke="#E4A8B0" stroke-width="2"/>
+  <text x="884" y="720" font-size="16" font-weight="700" fill="#7B2938">回到实验区</text>
+  <text x="884" y="746" font-size="13" fill="#9A5360">修改适用范围、补反例或直接关闭候选</text>
+  <text x="884" y="766" font-size="12" fill="#AD6C77">失败结果也保留，避免反复尝试同一错误</text>
+
+  <!-- 批准后的发布 -->
+  <polyline points="1390,273 1390,217 1438,217" fill="none" stroke="#0F9D8B" stroke-width="4"/>
+  <polygon points="1438,217 1426,210 1426,224" fill="#0F9D8B"/>
+  <text x="1398" y="205" font-size="12" font-weight="600" fill="#087B67">批准</text>
+  <rect x="1260" y="165" width="270" height="82" rx="22" fill="url(#release)"/>
+  <text x="1395" y="197" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">④ 发布正式规则版本</text>
+  <text x="1395" y="224" text-anchor="middle" font-size="13" fill="#DAFFF6">版本号＋范围＋批准人＋回退点</text>
+
+  <!-- 底部运行与监控环 -->
+  <rect x="463" y="820" width="1067" height="190" rx="30" fill="#FFFFFF" stroke="#C8DAD6" stroke-width="2" filter="url(#cardShadow)"/>
+  <text x="500" y="858" font-size="21" font-weight="700" fill="#24453F">⑤ 新版本运行：抽检、降级与回退</text>
+  <text x="500" y="884" font-size="13" fill="#647A76">正式规则进入下一批任务，但仍持续被教师反馈和质量指标监督</text>
+
+  <rect x="500" y="910" width="205" height="65" rx="18" fill="#EAF9F5" stroke="#83CCBA"/>
+  <circle cx="528" cy="942" r="15" fill="#0F9D8B"/>
+  <text x="528" y="947" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">1</text>
+  <text x="554" y="937" font-size="14" font-weight="700" fill="#24594F">低风险自动运行</text>
+  <text x="554" y="960" font-size="12" fill="#557A71">保留随机抽检</text>
+
+  <polyline points="705,942 735,942" fill="none" stroke="#65A998" stroke-width="3"/>
+  <polygon points="735,942 723,935 723,949" fill="#65A998"/>
+  <rect x="735" y="910" width="205" height="65" rx="18" fill="#F4F7FA" stroke="#C8D4DE"/>
+  <circle cx="763" cy="942" r="15" fill="#668095"/>
+  <text x="763" y="947" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">2</text>
+  <text x="789" y="937" font-size="14" font-weight="700" fill="#3D5262">监控质量指标</text>
+  <text x="789" y="960" font-size="12" fill="#667B8A">一致率、退回率、严重错误</text>
+
+  <polyline points="940,942 970,942" fill="none" stroke="#65A998" stroke-width="3"/>
+  <polygon points="970,942 958,935 958,949" fill="#65A998"/>
+  <rect x="970" y="910" width="230" height="65" rx="18" fill="#FFF5EB" stroke="#EDC28A"/>
+  <circle cx="998" cy="942" r="15" fill="#D98B2D"/>
+  <text x="998" y="947" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">3</text>
+  <text x="1024" y="937" font-size="14" font-weight="700" fill="#714A1D">异常触发自动降级</text>
+  <text x="1024" y="960" font-size="12" fill="#8D673A">自动通过 → 异常复核 → 逐项校准</text>
+
+  <polyline points="1200,942 1230,942" fill="none" stroke="#B15B67" stroke-width="3"/>
+  <polygon points="1230,942 1218,935 1218,949" fill="#B15B67"/>
+  <rect x="1230" y="910" width="260" height="65" rx="18" fill="#FFF0F2" stroke="#DFA7AF"/>
+  <circle cx="1258" cy="942" r="15" fill="#C34F60"/>
+  <text x="1258" y="947" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">4</text>
+  <text x="1284" y="937" font-size="14" font-weight="700" fill="#7B2938">严重错误：一键回退</text>
+  <text x="1284" y="960" font-size="12" fill="#98515D">恢复上一稳定版并保留审计记录</text>
+
+  <!-- 闭环回流 -->
+  <path d="M500 942 C420 942 420 965 270 965 C155 965 75 930 75 835" fill="none" stroke="#4F6D87" stroke-width="3" stroke-dasharray="9 7"/>
+  <polygon points="75,835 68,847 82,847" fill="#4F6D87"/>
+  <text x="245" y="1001" text-anchor="middle" font-size="13" font-weight="600" fill="#53697B">下一轮真实反馈继续进入事件池</text>
+
+  <!-- 发布连到底部 -->
+  <path d="M1530 206 C1560 206 1560 520 1530 520 L1530 884 C1530 900 1515 920 1490 920" fill="none" stroke="#0F9D8B" stroke-width="4"/>
+  <polygon points="1490,920 1502,913 1502,927" fill="#0F9D8B"/>
+
+  <!-- 守门原则 -->
+  <rect x="463" y="644" width="330" height="130" rx="22" fill="url(#review)" stroke="#E7C58E" stroke-width="2"/>
+  <text x="493" y="676" font-size="16" font-weight="700" fill="#74491A">三条不可越过的边界</text>
+  <text x="493" y="703" font-size="13" fill="#8B6336">• 单次修改只是案例，不自动升级规则</text>
+  <text x="493" y="729" font-size="13" fill="#8B6336">• 教案、逐字稿等规则域分别进入对应 Skill</text>
+  <text x="493" y="755" font-size="13" fill="#8B6336">• 无保留集回测、无人工批准，就不能正式发布</text>
+
+  <text x="70" y="1045" font-size="13" fill="#718097">全链路留痕：反馈事件 ID｜规则候选 ID｜回测报告｜批准记录｜正式版本｜回退原因</text>
+  <text x="1530" y="1045" text-anchor="end" font-size="12" fill="#98A3B7">L4 课程自进化平台 · 规则演进</text>
+</svg>

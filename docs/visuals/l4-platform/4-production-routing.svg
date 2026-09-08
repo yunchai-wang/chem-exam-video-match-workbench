@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1080" width="1600" height="1080" font-family="Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F5F8FF"/>
+      <stop offset="1" stop-color="#EEF9F7"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="ppt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF5E8"/>
+      <stop offset="1" stop-color="#FFFDF8"/>
+    </linearGradient>
+    <linearGradient id="html" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E8FBF5"/>
+      <stop offset="1" stop-color="#F8FFFD"/>
+    </linearGradient>
+    <linearGradient id="danger" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFF1F2"/>
+      <stop offset="1" stop-color="#FFF7ED"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#24324A" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1080" fill="url(#bg)"/>
+  <circle cx="1460" cy="90" r="170" fill="#DDEBFF" opacity="0.55"/>
+  <circle cx="126" cy="960" r="150" fill="#D9F4EC" opacity="0.6"/>
+
+  <text x="70" y="72" font-size="34" font-weight="700" fill="#18223A">逐字稿定稿后的生产路由</text>
+  <text x="70" y="108" font-size="17" fill="#65718A">老师保留决策权 · 项目偏好可复用 · 自动化始终受质量门禁约束</text>
+  <rect x="1285" y="54" width="245" height="54" rx="27" fill="#FFFFFF" stroke="#D9E2F2" stroke-width="2"/>
+  <circle cx="1320" cy="81" r="16" fill="#E6EDFF"/>
+  <path d="M1312 81 L1318 87 L1329 75" fill="none" stroke="#4F46E5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1348" y="87" font-size="16" font-weight="600" fill="#3D4963">首次默认：生成后确认</text>
+
+  <!-- 起点与主分叉 -->
+  <rect x="70" y="175" width="270" height="112" rx="24" fill="url(#hero)"/>
+  <circle cx="112" cy="222" r="20" fill="#FFFFFF" opacity="0.22"/>
+  <path d="M104 222 L111 229 L123 214" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="147" y="215" font-size="20" font-weight="700" fill="#FFFFFF">逐字稿已定稿</text>
+  <text x="147" y="244" font-size="15" fill="#E9EEFF">题目、教案、原图均已锁定</text>
+  <text x="147" y="268" font-size="15" fill="#E9EEFF">进入生产方式选择</text>
+
+  <polyline points="340,231 402,231 402,258 451,258" fill="none" stroke="#7281A0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="451,258 439,251 439,265" fill="#7281A0"/>
+  <polygon points="520,180 610,258 520,336 430,258" fill="#FFFFFF" stroke="#7D89A6" stroke-width="2.5"/>
+  <text x="520" y="250" text-anchor="middle" font-size="20" font-weight="700" fill="#26324B">选择产物</text>
+  <text x="520" y="279" text-anchor="middle" font-size="15" fill="#67738D">PPT / HTML</text>
+
+  <!-- PPT 分支 -->
+  <polyline points="588,230 658,230 658,188 715,188" fill="none" stroke="#F59E0B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="715,188 702,181 702,195" fill="#F59E0B"/>
+  <rect x="715" y="145" width="805" height="337" rx="30" fill="url(#ppt)" stroke="#F2C37D" stroke-width="2.5" filter="url(#cardShadow)"/>
+  <rect x="744" y="170" width="92" height="36" rx="18" fill="#F59E0B"/>
+  <text x="790" y="194" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">PPT</text>
+  <text x="858" y="195" font-size="16" fill="#80521E">进入飞书交接与兼职制作链路</text>
+
+  <polygon points="886,234 956,296 886,358 816,296" fill="#FFFFFF" stroke="#DE963C" stroke-width="2"/>
+  <text x="886" y="287" text-anchor="middle" font-size="17" font-weight="700" fill="#714318">制作方式</text>
+  <text x="886" y="313" text-anchor="middle" font-size="13" fill="#98652C">老师选择</text>
+
+  <polyline points="956,270 1008,270 1008,236 1048,236" fill="none" stroke="#D0903F" stroke-width="3"/>
+  <polygon points="1048,236 1036,229 1036,243" fill="#D0903F"/>
+  <text x="994" y="254" text-anchor="middle" font-size="13" font-weight="600" fill="#A06420">直接交接</text>
+  <rect x="1048" y="213" width="238" height="94" rx="18" fill="#FFFFFF" stroke="#E9B76D" stroke-width="2"/>
+  <text x="1068" y="243" font-size="17" font-weight="700" fill="#6E4217">兼职直接制作</text>
+  <text x="1068" y="269" font-size="14" fill="#805B35">定稿稿件＋原题＋已有素材</text>
+  <text x="1068" y="291" font-size="14" fill="#805B35">＋基础交接清单</text>
+
+  <polyline points="956,322 1008,322 1008,365 1048,365" fill="none" stroke="#D0903F" stroke-width="3"/>
+  <polygon points="1048,365 1036,358 1036,372" fill="#D0903F"/>
+  <text x="998" y="343" text-anchor="middle" font-size="13" font-weight="600" fill="#A06420">AI先设计</text>
+  <rect x="1048" y="326" width="238" height="113" rx="18" fill="#FFFFFF" stroke="#E9B76D" stroke-width="2"/>
+  <text x="1068" y="356" font-size="17" font-weight="700" fill="#6E4217">AI 深度设计</text>
+  <text x="1068" y="382" font-size="14" fill="#805B35">逐页分镜＋清保增说明</text>
+  <text x="1068" y="404" font-size="14" fill="#805B35">＋素材包＋制作提示</text>
+  <rect x="1068" y="414" width="166" height="18" rx="9" fill="#FFF0D9"/>
+  <text x="1151" y="427" text-anchor="middle" font-size="11" fill="#A06420">是否审核由项目偏好决定</text>
+
+  <polyline points="1286,260 1323,260 1323,296 1355,296" fill="none" stroke="#D0903F" stroke-width="3"/>
+  <polyline points="1286,382 1323,382 1323,296" fill="none" stroke="#D0903F" stroke-width="3"/>
+  <polygon points="1355,296 1343,289 1343,303" fill="#D0903F"/>
+  <rect x="1355" y="231" width="138" height="130" rx="20" fill="#FFF7E8" stroke="#E49D3D" stroke-width="2"/>
+  <text x="1424" y="260" text-anchor="middle" font-size="16" font-weight="700" fill="#6E4217">飞书交接包</text>
+  <text x="1424" y="286" text-anchor="middle" font-size="13" fill="#805B35">文档＋素材文件夹</text>
+  <text x="1424" y="310" text-anchor="middle" font-size="13" fill="#805B35">PMO → 待制作 PPT</text>
+  <rect x="1371" y="325" width="106" height="22" rx="11" fill="#F59E0B"/>
+  <text x="1424" y="341" text-anchor="middle" font-size="11" font-weight="600" fill="#FFFFFF">随后触达兼职</text>
+
+  <rect x="744" y="390" width="274" height="67" rx="16" fill="#FFF7E8" stroke="#EBC78E" stroke-width="1.5"/>
+  <circle cx="770" cy="423" r="13" fill="#F9D69D"/>
+  <text x="770" y="428" text-anchor="middle" font-size="13" font-weight="700" fill="#8F571D">1</text>
+  <text x="793" y="417" font-size="13" font-weight="600" fill="#6E4217">优先读取 PMO“兼职负责人”</text>
+  <text x="793" y="439" font-size="12" fill="#98652C">字段已有值 → 直接定向触达</text>
+  <rect x="1050" y="390" width="274" height="67" rx="16" fill="#FFF7E8" stroke="#EBC78E" stroke-width="1.5"/>
+  <circle cx="1076" cy="423" r="13" fill="#F9D69D"/>
+  <text x="1076" y="428" text-anchor="middle" font-size="13" font-weight="700" fill="#8F571D">2</text>
+  <text x="1099" y="417" font-size="13" font-weight="600" fill="#6E4217">负责人为空 → 暂停并请老师选</text>
+  <text x="1099" y="439" font-size="12" fill="#98652C">选择后再生成一次性通知</text>
+
+  <!-- HTML 分支 -->
+  <polyline points="588,286 658,286 658,560 715,560" fill="none" stroke="#0F9D8B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="715,560 702,553 702,567" fill="#0F9D8B"/>
+  <rect x="715" y="510" width="805" height="270" rx="30" fill="url(#html)" stroke="#64CDB5" stroke-width="2.5" filter="url(#cardShadow)"/>
+  <rect x="744" y="535" width="102" height="36" rx="18" fill="#0F9D8B"/>
+  <text x="795" y="559" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">HTML</text>
+  <text x="868" y="560" font-size="16" fill="#1D715F">不触达兼职，进入 AI 本地生产链路</text>
+
+  <polygon points="886,600 956,662 886,724 816,662" fill="#FFFFFF" stroke="#2AA88B" stroke-width="2"/>
+  <text x="886" y="653" text-anchor="middle" font-size="17" font-weight="700" fill="#155D4D">课件方式</text>
+  <text x="886" y="679" text-anchor="middle" font-size="13" fill="#397E6F">老师选择</text>
+
+  <polyline points="956,636 1006,636 1006,603 1045,603" fill="none" stroke="#2AA88B" stroke-width="3"/>
+  <polygon points="1045,603 1033,596 1033,610" fill="#2AA88B"/>
+  <rect x="1045" y="580" width="220" height="87" rx="18" fill="#FFFFFF" stroke="#7CCDBA" stroke-width="2"/>
+  <text x="1065" y="611" font-size="17" font-weight="700" fill="#155D4D">基础内容模式</text>
+  <text x="1065" y="638" font-size="14" fill="#397E6F">完整题目＋充足手写区</text>
+  <text x="1065" y="658" font-size="12" fill="#579485">少动画、少交互</text>
+
+  <polyline points="956,688 1006,688 1006,721 1045,721" fill="none" stroke="#2AA88B" stroke-width="3"/>
+  <polygon points="1045,721 1033,714 1033,728" fill="#2AA88B"/>
+  <rect x="1045" y="684" width="220" height="87" rx="18" fill="#FFFFFF" stroke="#7CCDBA" stroke-width="2"/>
+  <text x="1065" y="714" font-size="17" font-weight="700" fill="#155D4D">AI 完整互动模式</text>
+  <text x="1065" y="740" font-size="14" fill="#397E6F">分镜＋交互＋反馈＋测试</text>
+  <text x="1065" y="760" font-size="12" fill="#579485">少手写、AI为主</text>
+
+  <polyline points="1265,623 1308,623 1308,676 1342,676" fill="none" stroke="#2AA88B" stroke-width="3"/>
+  <polyline points="1265,727 1308,727 1308,676" fill="none" stroke="#2AA88B" stroke-width="3"/>
+  <polygon points="1342,676 1330,669 1330,683" fill="#2AA88B"/>
+  <rect x="1342" y="589" width="151" height="174" rx="20" fill="#F0FCF8" stroke="#37B596" stroke-width="2"/>
+  <text x="1417" y="620" text-anchor="middle" font-size="16" font-weight="700" fill="#155D4D">AI 生产与校验</text>
+  <text x="1417" y="649" text-anchor="middle" font-size="13" fill="#397E6F">科学性</text>
+  <text x="1417" y="672" text-anchor="middle" font-size="13" fill="#397E6F">交互测试</text>
+  <text x="1417" y="695" text-anchor="middle" font-size="13" fill="#397E6F">离线运行</text>
+  <text x="1417" y="718" text-anchor="middle" font-size="13" fill="#397E6F">源码与验收报告</text>
+  <rect x="1363" y="731" width="109" height="22" rx="11" fill="#0F9D8B"/>
+  <text x="1417" y="747" text-anchor="middle" font-size="11" font-weight="600" fill="#FFFFFF">回填飞书文档</text>
+
+  <!-- 审核方式与生效范围控制面板 -->
+  <rect x="70" y="380" width="570" height="400" rx="28" fill="#FFFFFF" stroke="#D7DFF0" stroke-width="2" filter="url(#cardShadow)"/>
+  <text x="100" y="426" font-size="21" font-weight="700" fill="#26324B">跨分支的两组项目设置</text>
+  <text x="100" y="454" font-size="14" fill="#6D7890">PPT 与 HTML 均读取同一套偏好，老师可随时覆盖</text>
+
+  <rect x="100" y="483" width="510" height="115" rx="20" fill="#F7F8FD" stroke="#DEE3F0"/>
+  <circle cx="128" cy="515" r="15" fill="#E6E9FF"/>
+  <text x="128" y="521" text-anchor="middle" font-size="15" font-weight="700" fill="#4F46E5">A</text>
+  <text x="156" y="521" font-size="17" font-weight="700" fill="#313C55">自动化方式</text>
+  <rect x="156" y="540" width="181" height="34" rx="17" fill="#4F46E5"/>
+  <text x="246" y="562" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">生成后先让我确认</text>
+  <text x="354" y="562" font-size="16" fill="#8B95A9">或</text>
+  <rect x="385" y="540" width="194" height="34" rx="17" fill="#FFFFFF" stroke="#AAB5CB"/>
+  <text x="482" y="562" text-anchor="middle" font-size="14" fill="#4E5970">校验通过后自动继续</text>
+
+  <rect x="100" y="618" width="510" height="115" rx="20" fill="#F7F8FD" stroke="#DEE3F0"/>
+  <circle cx="128" cy="650" r="15" fill="#E6E9FF"/>
+  <text x="128" y="656" text-anchor="middle" font-size="15" font-weight="700" fill="#4F46E5">B</text>
+  <text x="156" y="656" font-size="17" font-weight="700" fill="#313C55">生效范围</text>
+  <rect x="156" y="676" width="108" height="34" rx="17" fill="#FFFFFF" stroke="#AAB5CB"/>
+  <text x="210" y="698" text-anchor="middle" font-size="14" fill="#4E5970">仅本次</text>
+  <rect x="278" y="676" width="160" height="34" rx="17" fill="#4F46E5"/>
+  <text x="358" y="698" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">当前生产项目</text>
+  <rect x="452" y="676" width="127" height="34" rx="17" fill="#FFFFFF" stroke="#AAB5CB"/>
+  <text x="515" y="698" text-anchor="middle" font-size="14" fill="#4E5970">我的默认</text>
+  <text x="100" y="760" font-size="13" fill="#707C93">优先级：仅本次 ＞ 当前生产项目 ＞ 个人默认</text>
+
+  <!-- 门禁与异常 -->
+  <polyline points="1167,482 1167,500 674,500 674,829 750,829" fill="none" stroke="#AF6170" stroke-width="3" stroke-dasharray="8 7"/>
+  <polyline points="1167,780 1167,829 750,829" fill="none" stroke="#AF6170" stroke-width="3" stroke-dasharray="8 7"/>
+  <polygon points="750,829 738,822 738,836" fill="#AF6170"/>
+  <rect x="70" y="820" width="1450" height="190" rx="28" fill="url(#danger)" stroke="#E5A4A9" stroke-width="2"/>
+  <circle cx="110" cy="862" r="19" fill="#D94D62"/>
+  <text x="110" y="869" text-anchor="middle" font-size="19" font-weight="700" fill="#FFFFFF">!</text>
+  <text x="143" y="868" font-size="21" font-weight="700" fill="#7B2938">质量门禁优先于“自动继续”</text>
+  <text x="143" y="896" font-size="14" fill="#955060">任一硬阻断命中 → 暂停当前分支 → 进入异常队列 → 保留上一确认版与原 PMO 状态</text>
+
+  <rect x="100" y="923" width="222" height="52" rx="16" fill="#FFFFFF" stroke="#E2B2B6"/>
+  <text x="211" y="946" text-anchor="middle" font-size="14" font-weight="600" fill="#7B2938">内容冲突 / 科学图风险</text>
+  <text x="211" y="966" text-anchor="middle" font-size="12" fill="#A3616D">逐字稿、教案、原题不一致</text>
+  <rect x="340" y="923" width="222" height="52" rx="16" fill="#FFFFFF" stroke="#E2B2B6"/>
+  <text x="451" y="946" text-anchor="middle" font-size="14" font-weight="600" fill="#7B2938">素材缺失 / 许可不清</text>
+  <text x="451" y="966" text-anchor="middle" font-size="12" fill="#A3616D">关键图表、版权、来源待确认</text>
+  <rect x="580" y="923" width="222" height="52" rx="16" fill="#FFFFFF" stroke="#E2B2B6"/>
+  <text x="691" y="946" text-anchor="middle" font-size="14" font-weight="600" fill="#7B2938">分镜或成品校验失败</text>
+  <text x="691" y="966" text-anchor="middle" font-size="12" fill="#A3616D">结构、交互、离线测试未通过</text>
+  <rect x="820" y="923" width="222" height="52" rx="16" fill="#FFFFFF" stroke="#E2B2B6"/>
+  <text x="931" y="946" text-anchor="middle" font-size="14" font-weight="600" fill="#7B2938">PMO 负责人缺失</text>
+  <text x="931" y="966" text-anchor="middle" font-size="12" fill="#A3616D">PPT 分支暂停，请老师选择</text>
+  <rect x="1060" y="923" width="430" height="52" rx="16" fill="#7B2938"/>
+  <text x="1090" y="946" font-size="14" font-weight="600" fill="#FFFFFF">处理后恢复原节点</text>
+  <text x="1090" y="968" font-size="12" fill="#FFE6E9">幂等触发 · 通知去重 · 负责人变更留痕 · 不生成半完成交付</text>
+
+  <text x="70" y="1045" font-size="13" fill="#718097">设置入口：资产页临时覆盖｜生产项目设置修改项目默认｜我的默认设置修改个人默认</text>
+  <text x="1530" y="1045" text-anchor="end" font-size="12" fill="#98A3B7">L4 课程自进化平台 · 生产路由</text>
+</svg>

@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1260" width="1800" height="1260">
+  <defs>
+    <linearGradient id="swimHero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#162750"/>
+      <stop offset="1" stop-color="#34528C"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1800" height="1260" rx="30" fill="#F5F7FB"/>
+  <rect x="40" y="32" width="1720" height="112" rx="26" fill="url(#swimHero)"/>
+  <text x="78" y="79" font-family="Noto Sans SC, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF">人机协作泳道：正常流程事件驱动，关键判断由教师掌舵</text>
+  <text x="78" y="116" font-family="Noto Sans SC, sans-serif" font-size="17" fill="#D6E2FA">教师 · AI Agent · 飞书 Base 与工作流 · PMO 与兼职，在同一版本链和质量门上协作</text>
+  <rect x="1452" y="63" width="262" height="48" rx="24" fill="#FFFFFF" opacity="0.12"/>
+  <text x="1583" y="94" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="600" fill="#FFFFFF">→ 时间推进　◇ 教师判断　◆ 硬阻断</text>
+
+  <rect x="40" y="166" width="1720" height="66" rx="18" fill="#FFFFFF" stroke="#D8E0ED" stroke-width="2"/>
+  <rect x="40" y="166" width="176" height="66" rx="18" fill="#253F75"/>
+  <text x="128" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">角色 / 阶段</text>
+  <text x="335" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#42516A">① 接入与标准化</text>
+  <text x="605" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#42516A">② 诊断与选题</text>
+  <text x="895" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#42516A">③ 内容生产</text>
+  <text x="1190" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#42516A">④ 路由与交付</text>
+  <text x="1510" y="207" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#42516A">⑤ 验收与进化</text>
+  <line x1="480" y1="166" x2="480" y2="1058" stroke="#D8E0ED" stroke-width="2"/>
+  <line x1="748" y1="166" x2="748" y2="1058" stroke="#D8E0ED" stroke-width="2"/>
+  <line x1="1040" y1="166" x2="1040" y2="1058" stroke="#D8E0ED" stroke-width="2"/>
+  <line x1="1350" y1="166" x2="1350" y2="1058" stroke="#D8E0ED" stroke-width="2"/>
+
+  <rect x="40" y="248" width="1720" height="196" rx="22" fill="#F2F6FF" stroke="#C6D5EF" stroke-width="2"/>
+  <rect x="40" y="248" width="176" height="196" rx="22" fill="#DCE8FF"/>
+  <circle cx="128" cy="303" r="25" fill="#4F46E5"/>
+  <circle cx="128" cy="295" r="8" fill="#FFFFFF"/>
+  <path d="M112 326 C116 311 140 311 144 326" fill="#FFFFFF"/>
+  <text x="128" y="363" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#1D478F">教研教师</text>
+  <text x="128" y="390" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526B96">确认边界 · 纠偏 · 验收</text>
+
+  <rect x="246" y="275" width="202" height="118" rx="19" fill="#FFFFFF" stroke="#9CB9ED" stroke-width="2"/>
+  <text x="265" y="305" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#244C91">创建生产项目</text>
+  <text x="265" y="333" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="265" dy="0">选择资料入口、目标学生层</tspan>
+    <tspan x="265" dy="22">确认字段映射与授权范围</tspan>
+    <tspan x="265" dy="22">◇ F1 只复核异常项</tspan>
+  </text>
+
+  <rect x="508" y="275" width="210" height="118" rx="19" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="527" y="305" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#77550E">◇ F2 候选确认</text>
+  <text x="527" y="333" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="527" dy="0">按整题 / 小问 / 选项选择</tspan>
+    <tspan x="527" dy="22">校正缺口、好题与优先级</tspan>
+    <tspan x="527" dy="22">可拆分、排除、批量通过</tspan>
+  </text>
+
+  <rect x="776" y="267" width="236" height="134" rx="19" fill="#FFFFFF" stroke="#B49BDF" stroke-width="2"/>
+  <text x="795" y="297" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#5A348B">连续质量门</text>
+  <text x="795" y="325" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="795" dy="0">◇ F3 母题 / 题组确认</tspan>
+    <tspan x="795" dy="22">◇ F4 教案审核与多轮修改</tspan>
+    <tspan x="795" dy="22">◇ F5 逐字稿审核与定稿</tspan>
+    <tspan x="795" dy="22">可在工作台或 Word / 飞书深改</tspan>
+  </text>
+
+  <polygon points="1170,270 1252,334 1170,398 1088,334" fill="#FFF8EB" stroke="#F59E0B" stroke-width="2"/>
+  <text x="1170" y="322" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#8A5B08">选择交付路径</text>
+  <text x="1170" y="347" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#7E6741">PPT / HTML</text>
+  <text x="1170" y="367" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#7E6741">确认 / 自动 · 生效范围</text>
+
+  <rect x="1381" y="275" width="332" height="118" rx="19" fill="#FFFFFF" stroke="#9CB9ED" stroke-width="2"/>
+  <text x="1400" y="305" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#244C91">◇ F6 / F7 验收与效果反馈</text>
+  <text x="1400" y="333" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#60708A">
+    <tspan x="1400" dy="0">确认分镜或成品；必要时退回</tspan>
+    <tspan x="1400" dy="22">结合过程质量、观看和练习数据</tspan>
+    <tspan x="1400" dy="22">首次认可后才询问保存项目自动模式</tspan>
+  </text>
+
+  <polyline points="448,334 496,334" fill="none" stroke="#7890B8" stroke-width="3"/>
+  <polygon points="496,328 508,334 496,340" fill="#7890B8"/>
+  <polyline points="718,334 764,334" fill="none" stroke="#7890B8" stroke-width="3"/>
+  <polygon points="764,328 776,334 764,340" fill="#7890B8"/>
+  <polyline points="1012,334 1076,334" fill="none" stroke="#7890B8" stroke-width="3"/>
+  <polygon points="1076,328 1088,334 1076,340" fill="#7890B8"/>
+  <polyline points="1252,334 1369,334" fill="none" stroke="#7890B8" stroke-width="3"/>
+  <polygon points="1369,328 1381,334 1369,340" fill="#7890B8"/>
+
+  <rect x="40" y="460" width="1720" height="222" rx="22" fill="#F1FBF8" stroke="#B9DBD3" stroke-width="2"/>
+  <rect x="40" y="460" width="176" height="222" rx="22" fill="#D9F2EC"/>
+  <circle cx="128" cy="517" r="25" fill="#0F9D8B"/>
+  <path d="M117 507 L128 497 L139 507 L139 527 L117 527 Z" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="128" cy="516" r="4" fill="#FFFFFF"/>
+  <text x="128" y="577" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#176450">AI Agent</text>
+  <text x="128" y="604" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#4F746C">分析 · 生产 · 差异学习</text>
+
+  <rect x="246" y="487" width="202" height="142" rx="19" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <text x="265" y="517" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#176450">统一处理</text>
+  <text x="265" y="545" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526D67">
+    <tspan x="265" dy="0">读取多源资料与来源快照</tspan>
+    <tspan x="265" dy="22">OCR、拆题、去重、图题配对</tspan>
+    <tspan x="265" dy="22">能确定的自动处理</tspan>
+    <tspan x="265" dy="22">不确定的送入异常队列</tspan>
+  </text>
+
+  <rect x="508" y="487" width="210" height="142" rx="19" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <text x="527" y="517" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#176450">双口径诊断</text>
+  <text x="527" y="545" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526D67">
+    <tspan x="527" dy="0">宣传相似：独立展示</tspan>
+    <tspan x="527" dy="22">生产覆盖：六项门禁、保守降级</tspan>
+    <tspan x="527" dy="22">再算好题、学习收益与优先级</tspan>
+    <tspan x="527" dy="22">推荐最小充分干预方式</tspan>
+  </text>
+
+  <rect x="776" y="487" width="236" height="142" rx="19" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <text x="795" y="517" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#176450">按确认版逐级生产</text>
+  <text x="795" y="545" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526D67">
+    <tspan x="795" dy="0">母题 / 题组 → 教案 → 逐字稿</tspan>
+    <tspan x="795" dy="22">保留题面与原图来源映射</tspan>
+    <tspan x="795" dy="22">读取反馈、生成修订版与差异</tspan>
+    <tspan x="795" dy="22">未确认版本不进入下一阶段</tspan>
+  </text>
+
+  <rect x="1068" y="487" width="254" height="142" rx="19" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <text x="1087" y="517" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#176450">根据选择生产</text>
+  <text x="1087" y="545" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526D67">
+    <tspan x="1087" dy="0">PPT：基础交接或深度分镜素材包</tspan>
+    <tspan x="1087" dy="22">HTML：基础手写或完整互动课件</tspan>
+    <tspan x="1087" dy="22">执行科学、素材、交互与离线校验</tspan>
+    <tspan x="1087" dy="22">◆ 风险命中即暂停，不自动越权</tspan>
+  </text>
+
+  <rect x="1381" y="487" width="332" height="142" rx="19" fill="#FFFFFF" stroke="#82C9B7" stroke-width="2"/>
+  <text x="1400" y="517" font-family="Noto Sans SC, sans-serif" font-size="16" font-weight="700" fill="#176450">差异识别与规则实验</text>
+  <text x="1400" y="545" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526D67">
+    <tspan x="1400" dy="0">记录 AI 原结果与教师确认版差异</tspan>
+    <tspan x="1400" dy="22">聚类形成规则候选，不直接改正式规则</tspan>
+    <tspan x="1400" dy="22">历史集＋保留集回测，输出反例与影响</tspan>
+    <tspan x="1400" dy="22">获批后发布可回退的新版本</tspan>
+  </text>
+
+  <rect x="40" y="698" width="1720" height="176" rx="22" fill="#FFF9EC" stroke="#E7D49D" stroke-width="2"/>
+  <rect x="40" y="698" width="176" height="176" rx="22" fill="#F7EBC8"/>
+  <circle cx="128" cy="752" r="25" fill="#4F46E5"/>
+  <ellipse cx="128" cy="752" rx="13" ry="8" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+  <circle cx="128" cy="752" r="3" fill="#FFFFFF"/>
+  <text x="128" y="812" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="21" font-weight="700" fill="#77550E">飞书 Base</text>
+  <text x="128" y="838" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#765F28">状态 · 版本 · 事件工作流</text>
+
+  <rect x="246" y="723" width="202" height="110" rx="18" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="265" y="753" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#77550E">建立可追溯资产</text>
+  <text x="265" y="781" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6C6248">
+    <tspan x="265" dy="0">批次、来源、题目、题目单元</tspan>
+    <tspan x="265" dy="22">保存快照、版本和异常状态</tspan>
+  </text>
+
+  <rect x="508" y="723" width="210" height="110" rx="18" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="527" y="753" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#77550E">承载审核队列</text>
+  <text x="527" y="781" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6C6248">
+    <tspan x="527" dy="0">按项目、阶段、批次安全批量通过</tspan>
+    <tspan x="527" dy="22">硬阻断项自动排除并留痕</tspan>
+  </text>
+
+  <rect x="776" y="723" width="236" height="110" rx="18" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="795" y="753" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#77550E">统一内容版本</text>
+  <text x="795" y="781" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6C6248">
+    <tspan x="795" dy="0">资产中心连接 Word / 飞书工作副本</tspan>
+    <tspan x="795" dy="22">教师确认后更新“当前确认版”</tspan>
+  </text>
+
+  <rect x="1068" y="723" width="254" height="110" rx="18" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="1087" y="753" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#77550E">事件驱动状态变化</text>
+  <text x="1087" y="781" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6C6248">
+    <tspan x="1087" dy="0">质量门通过 → 更新 PMO → 触达</tspan>
+    <tspan x="1087" dy="22">幂等键防止重复通知</tspan>
+  </text>
+
+  <rect x="1381" y="723" width="332" height="110" rx="18" fill="#FFFFFF" stroke="#E2BD61" stroke-width="2"/>
+  <text x="1400" y="753" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#77550E">回填效果与规则证据</text>
+  <text x="1400" y="781" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6C6248">
+    <tspan x="1400" dy="0">反馈事件、使用效果、规则候选、回测</tspan>
+    <tspan x="1400" dy="22">全部绑定资产版本和规则版本</tspan>
+  </text>
+
+  <rect x="40" y="890" width="1720" height="168" rx="22" fill="#F7F5FF" stroke="#D2CDF7" stroke-width="2"/>
+  <rect x="40" y="890" width="176" height="168" rx="22" fill="#E7E4FF"/>
+  <circle cx="128" cy="941" r="25" fill="#7C3AED"/>
+  <rect x="116" y="929" width="24" height="20" rx="3" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+  <line x1="121" y1="954" x2="135" y2="954" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <text x="128" y="1001" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="19" font-weight="700" fill="#5B21B6">PMO 与兼职</text>
+  <text x="128" y="1027" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#6D5A91">协同 · 制作 · 状态回填</text>
+
+  <rect x="257" y="926" width="438" height="92" rx="18" fill="#FFFFFF" stroke="#E6BDC2" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="476" y="962" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#86505A">前序阶段不介入，PMO 只接收可执行状态</text>
+  <text x="476" y="989" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#7A666A">避免消息驱动主流程，也避免把未确认草稿交给下游</text>
+
+  <rect x="776" y="926" width="236" height="92" rx="18" fill="#FFFFFF" stroke="#E6BDC2" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="894" y="962" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#86505A">等待逐字稿当前确认版</text>
+  <text x="894" y="989" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#7A666A">未定稿不创建制作任务</text>
+
+  <rect x="1068" y="913" width="254" height="118" rx="18" fill="#FFFFFF" stroke="#D27985" stroke-width="2"/>
+  <text x="1087" y="943" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#7E303C">仅 PPT 分支触达兼职</text>
+  <text x="1087" y="971" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#76555A">
+    <tspan x="1087" dy="0">读取 PMO“兼职负责人”</tspan>
+    <tspan x="1087" dy="22">空缺则暂停，请教师选择</tspan>
+    <tspan x="1087" dy="22">发送交接文档、素材与截止时间</tspan>
+  </text>
+
+  <rect x="1381" y="913" width="332" height="118" rx="18" fill="#FFFFFF" stroke="#D27985" stroke-width="2"/>
+  <text x="1400" y="943" font-family="Noto Sans SC, sans-serif" font-size="15" font-weight="700" fill="#7E303C">制作、回填与验收</text>
+  <text x="1400" y="971" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#76555A">
+    <tspan x="1400" dy="0">兼职更新 PPT 制作状态并提交成品</tspan>
+    <tspan x="1400" dy="22">HTML 分支不触达兼职，由 AI 回填产物</tspan>
+    <tspan x="1400" dy="22">两条路径最终均进入教师验收</tspan>
+  </text>
+
+  <rect x="40" y="1081" width="1720" height="139" rx="24" fill="#FFFFFF" stroke="#D8E0ED" stroke-width="2"/>
+  <text x="74" y="1114" font-family="Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#2F4263">自动化边界与运行逻辑</text>
+  <circle cx="82" cy="1146" r="7" fill="#24A584"/>
+  <text x="100" y="1152" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526078">正常推进：状态改变由事件工作流触发；心跳巡检仅发现超时、失败、外部修改和漏触达。</text>
+  <circle cx="82" cy="1180" r="7" fill="#D35B69"/>
+  <text x="100" y="1186" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526078">强制暂停：科学错误、来源冲突、原题图缺失、许可不清、校验失败、PPT 负责人缺失。</text>
+  <rect x="1002" y="1125" width="716" height="70" rx="18" fill="#F4F7FC"/>
+  <text x="1026" y="1152" font-family="Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#42516A">审核减负</text>
+  <text x="1120" y="1152" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526078">逐项校准</text>
+  <polyline points="1203,1148 1235,1148" fill="none" stroke="#7890B8" stroke-width="2.5"/>
+  <polygon points="1235,1143 1245,1148 1235,1153" fill="#7890B8"/>
+  <text x="1260" y="1152" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526078">异常复核</text>
+  <polyline points="1345,1148 1377,1148" fill="none" stroke="#7890B8" stroke-width="2.5"/>
+  <polygon points="1377,1143 1387,1148 1377,1153" fill="#7890B8"/>
+  <text x="1402" y="1152" font-family="Noto Sans SC, sans-serif" font-size="13" fill="#526078">自动通过＋抽检</text>
+  <text x="1026" y="1180" font-family="Noto Sans SC, sans-serif" font-size="12" fill="#6A7890">升级需满足项目门槛；严重错误触发自动降级。批量通过只作用于当前项目、阶段、批次和筛选。</text>
+</svg>
