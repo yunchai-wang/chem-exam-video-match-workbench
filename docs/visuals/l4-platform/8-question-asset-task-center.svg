@@ -1,0 +1,331 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1700" role="img" aria-labelledby="title desc">
+  <title id="title">题目资产中心与可插拔下游任务</title>
+  <desc id="desc">展示组合标签筛选、完整原题卡墙、证据抽屉、冻结题目集合以及将自定义需求编译为任务契约的界面原型。</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#202A55" flood-opacity="0.13"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#202A55" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="2400" height="1700" fill="#F4F6FB"/>
+  <circle cx="2240" cy="80" r="210" fill="#EAE8FF"/>
+  <circle cx="120" cy="1590" r="185" fill="#E3F5F1"/>
+
+  <g font-family="Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif">
+    <!-- Page title -->
+    <g transform="translate(72 35)">
+      <rect x="0" y="0" width="62" height="62" rx="18" fill="#4F46E5"/>
+      <rect x="15" y="15" width="13" height="13" rx="3" fill="#FFFFFF"/><rect x="34" y="15" width="13" height="13" rx="3" fill="#FFFFFF"/>
+      <rect x="15" y="34" width="13" height="13" rx="3" fill="#FFFFFF"/><rect x="34" y="34" width="13" height="13" rx="3" fill="#FFFFFF"/>
+      <text x="85" y="30" font-size="34" font-weight="700" fill="#1F2945">题目资产中心＋可插拔下游任务</text>
+      <text x="85" y="60" font-size="18" fill="#6B7288">同一套标准题目资产，可按标签反复筛选、冻结并生成不同任务；无需重传，也无需强跑整条生产线</text>
+      <rect x="1918" y="8" width="304" height="42" rx="21" fill="#FFFFFF" stroke="#D9DDEC"/>
+      <circle cx="1943" cy="29" r="8" fill="#0F9D8B"/>
+      <text x="1962" y="35" font-size="16" fill="#46506A">题库快照：2026-09-09 · v12</text>
+    </g>
+
+    <!-- Main app canvas -->
+    <g transform="translate(65 125)" filter="url(#shadow)">
+      <rect width="2270" height="930" rx="28" fill="#FFFFFF"/>
+      <rect width="2270" height="76" rx="28" fill="#FBFCFE"/>
+      <rect y="50" width="2270" height="26" fill="#FBFCFE"/>
+      <circle cx="31" cy="37" r="7" fill="#FF7A7A"/><circle cx="55" cy="37" r="7" fill="#F7C45B"/><circle cx="79" cy="37" r="7" fill="#50C89B"/>
+      <text x="110" y="45" font-size="23" font-weight="700" fill="#27304A">题目资产中心</text>
+      <rect x="340" y="20" width="660" height="40" rx="20" fill="#F1F3F8"/>
+      <circle cx="366" cy="40" r="9" fill="none" stroke="#7C849A" stroke-width="2"/><line x1="373" y1="47" x2="381" y2="55" stroke="#7C849A" stroke-width="2"/>
+      <text x="392" y="46" font-size="14" fill="#767E94">找 2023—2025 华东中考里高频、数字化实验、难度中高且教研确认的好题</text>
+      <rect x="1012" y="20" width="92" height="40" rx="20" fill="#4F46E5"/><text x="1058" y="46" font-size="14" text-anchor="middle" fill="#FFFFFF">转为筛选</text>
+      <text x="1640" y="44" font-size="14" fill="#747C91">视图：</text>
+      <rect x="1691" y="20" width="83" height="40" rx="20" fill="#E9E8FF"/><text x="1732" y="46" font-size="14" font-weight="700" text-anchor="middle" fill="#4F46E5">题卡墙</text>
+      <text x="1800" y="45" font-size="14" fill="#747C91">表格</text><text x="1854" y="45" font-size="14" fill="#747C91">原图</text>
+      <rect x="2063" y="20" width="178" height="40" rx="20" fill="#FFFFFF" stroke="#CACFE1"/>
+      <text x="2152" y="46" font-size="14" text-anchor="middle" fill="#4F5871">恢复上次筛选</text>
+
+      <!-- left filters -->
+      <g transform="translate(20 94)">
+        <rect width="400" height="812" rx="19" fill="#F7F8FC" stroke="#E2E5EF"/>
+        <text x="22" y="33" font-size="18" font-weight="700" fill="#303953">组合筛选</text>
+        <rect x="282" y="14" width="96" height="29" rx="14" fill="#FFFFFF" stroke="#D7DBE7"/><text x="330" y="34" font-size="12" text-anchor="middle" fill="#677087">清空 8 项</text>
+        <text x="22" y="71" font-size="13" font-weight="700" fill="#5A627A">教材章 / 节</text>
+        <rect x="22" y="84" width="112" height="31" rx="15" fill="#E9E8FF"/><text x="78" y="105" font-size="12" text-anchor="middle" fill="#4F46E5">九上 · 第二章</text>
+        <rect x="143" y="84" width="99" height="31" rx="15" fill="#FFFFFF" stroke="#D9DDE9"/><text x="192" y="105" font-size="12" text-anchor="middle" fill="#626A80">我们周围的空气</text>
+
+        <line x1="22" y1="131" x2="378" y2="131" stroke="#E2E5ED"/>
+        <text x="22" y="160" font-size="13" font-weight="700" fill="#5A627A">知识点</text>
+        <rect x="22" y="173" width="82" height="29" rx="14" fill="#E6F6F2"/><text x="63" y="193" font-size="12" text-anchor="middle" fill="#0B7D70">O₂ 性质</text>
+        <rect x="112" y="173" width="92" height="29" rx="14" fill="#E6F6F2"/><text x="158" y="193" font-size="12" text-anchor="middle" fill="#0B7D70">实验探究</text>
+        <rect x="212" y="173" width="116" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="270" y="193" font-size="12" text-anchor="middle" fill="#626A80">数据与误差</text>
+
+        <line x1="22" y1="220" x2="378" y2="220" stroke="#E2E5ED"/>
+        <text x="22" y="249" font-size="13" font-weight="700" fill="#5A627A">题型 / 底层结构</text>
+        <rect x="22" y="262" width="100" height="29" rx="14" fill="#E9E8FF"/><text x="72" y="282" font-size="12" text-anchor="middle" fill="#4F46E5">实验评价</text>
+        <rect x="130" y="262" width="112" height="29" rx="14" fill="#E9E8FF"/><text x="186" y="282" font-size="12" text-anchor="middle" fill="#4F46E5">变量控制</text>
+        <rect x="250" y="262" width="112" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="306" y="282" font-size="12" text-anchor="middle" fill="#626A80">证据推理</text>
+
+        <line x1="22" y1="309" x2="378" y2="309" stroke="#E2E5ED"/>
+        <text x="22" y="338" font-size="13" font-weight="700" fill="#5A627A">创新标签</text>
+        <rect x="22" y="351" width="82" height="29" rx="14" fill="#FFF1D9"/><text x="63" y="371" font-size="12" text-anchor="middle" fill="#A66B12">新素材</text>
+        <rect x="112" y="351" width="82" height="29" rx="14" fill="#FFF1D9"/><text x="153" y="371" font-size="12" text-anchor="middle" fill="#A66B12">新形式</text>
+        <rect x="202" y="351" width="82" height="29" rx="14" fill="#FFF1D9"/><text x="243" y="371" font-size="12" text-anchor="middle" fill="#A66B12">新设问</text>
+        <text x="293" y="371" font-size="12" fill="#7B8297">组内 OR</text>
+
+        <line x1="22" y1="398" x2="378" y2="398" stroke="#E2E5ED"/>
+        <text x="22" y="427" font-size="13" font-weight="700" fill="#5A627A">难度</text>
+        <rect x="22" y="440" width="72" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="58" y="460" font-size="12" text-anchor="middle" fill="#626A80">基础</text>
+        <rect x="102" y="440" width="72" height="29" rx="14" fill="#E9E8FF"/><text x="138" y="460" font-size="12" text-anchor="middle" fill="#4F46E5">中等</text>
+        <rect x="182" y="440" width="72" height="29" rx="14" fill="#E9E8FF"/><text x="218" y="460" font-size="12" text-anchor="middle" fill="#4F46E5">较难</text>
+        <text x="271" y="460" font-size="12" fill="#7B8297">教研 ∪ 实证</text>
+
+        <line x1="22" y1="487" x2="378" y2="487" stroke="#E2E5ED"/>
+        <text x="22" y="516" font-size="13" font-weight="700" fill="#5A627A">高频</text>
+        <rect x="22" y="529" width="142" height="29" rx="14" fill="#E6F6F2"/><text x="93" y="549" font-size="12" text-anchor="middle" fill="#0B7D70">去重频次 ≥ 20%</text>
+        <rect x="172" y="529" width="109" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="226" y="549" font-size="12" text-anchor="middle" fill="#626A80">连续 ≥ 2 年</text>
+        <text x="289" y="549" font-size="12" fill="#7B8297">AND</text>
+
+        <line x1="22" y1="576" x2="378" y2="576" stroke="#E2E5ED"/>
+        <text x="22" y="605" font-size="13" font-weight="700" fill="#5A627A">好题维度</text>
+        <rect x="22" y="618" width="88" height="29" rx="14" fill="#F0ECFF"/><text x="66" y="638" font-size="12" text-anchor="middle" fill="#674DB5">典型性</text>
+        <rect x="118" y="618" width="88" height="29" rx="14" fill="#F0ECFF"/><text x="162" y="638" font-size="12" text-anchor="middle" fill="#674DB5">诊断性</text>
+        <rect x="214" y="618" width="100" height="29" rx="14" fill="#F0ECFF"/><text x="264" y="638" font-size="12" text-anchor="middle" fill="#674DB5">方法迁移</text>
+        <rect x="22" y="655" width="112" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="78" y="675" font-size="12" text-anchor="middle" fill="#626A80">图表完整</text>
+        <rect x="142" y="655" width="112" height="29" rx="14" fill="#FFFFFF" stroke="#D9DDE9"/><text x="198" y="675" font-size="12" text-anchor="middle" fill="#626A80">梯度合理</text>
+
+        <rect x="22" y="708" width="356" height="54" rx="13" fill="#EEF0FF"/>
+        <text x="37" y="731" font-size="12" font-weight="700" fill="#4F46E5">当前逻辑：组间 AND · 组内可切 OR / AND</text>
+        <text x="37" y="751" font-size="11" fill="#717991">排除：来源待核验｜超范围｜图片模糊</text>
+        <rect x="22" y="774" width="168" height="28" rx="14" fill="#FFFFFF" stroke="#C9CEE2"/><text x="106" y="793" font-size="12" text-anchor="middle" fill="#5E667C">保存为筛选视图</text>
+        <rect x="200" y="774" width="178" height="28" rx="14" fill="#4F46E5"/><text x="289" y="793" font-size="12" text-anchor="middle" fill="#FFFFFF">确认筛选 · 24 题</text>
+      </g>
+
+      <!-- center cards -->
+      <g transform="translate(440 94)">
+        <rect width="1120" height="812" rx="19" fill="#FFFFFF" stroke="#E2E5EF"/>
+        <text x="22" y="34" font-size="18" font-weight="700" fill="#303953">原题卡墙</text>
+        <text x="132" y="34" font-size="13" fill="#7A8297">24 个题目单元 · 126 套可比试卷</text>
+        <rect x="795" y="15" width="138" height="31" rx="15" fill="#FFFFFF" stroke="#D7DBE7"/><text x="864" y="36" font-size="12" text-anchor="middle" fill="#646D83">保存冻结集合</text>
+        <rect x="941" y="15" width="157" height="31" rx="15" fill="#E6F6F2"/><text x="1019" y="36" font-size="12" font-weight="700" text-anchor="middle" fill="#0B7D70">集合 v1 · 未冻结</text>
+
+        <g transform="translate(22 57)">
+          <rect width="1076" height="59" rx="14" fill="#F7F8FC"/>
+          <rect x="15" y="15" width="151" height="29" rx="14" fill="#E6F6F2"/><text x="90" y="35" font-size="12" text-anchor="middle" fill="#0B7D70">高频 38 / 126</text>
+          <rect x="176" y="15" width="184" height="29" rx="14" fill="#F0ECFF"/><text x="268" y="35" font-size="12" text-anchor="middle" fill="#674DB5">好题：通过 · 4 个维度</text>
+          <rect x="370" y="15" width="146" height="29" rx="14" fill="#FFF1D9"/><text x="443" y="35" font-size="12" text-anchor="middle" fill="#A66B12">生产优先级 P2</text>
+          <line x1="540" y1="15" x2="540" y2="44" stroke="#D9DDE9"/>
+          <text x="560" y="35" font-size="12" font-weight="700" fill="#4E566E">三个独立字段：可分别筛选、解释与修改</text>
+        </g>
+
+        <!-- card 1 -->
+        <g transform="translate(22 132)" filter="url(#soft)">
+          <rect width="523" height="270" rx="17" fill="#FFFFFF" stroke="#D8DCE9"/>
+          <rect x="14" y="14" width="24" height="24" rx="6" fill="#4F46E5"/><path d="M20 26 L25 31 L33 21" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+          <text x="49" y="33" font-size="14" font-weight="700" fill="#303953">Q18 (2)(3) · 实验方案评价</text>
+          <rect x="397" y="14" width="108" height="26" rx="13" fill="#E6F6F2"/><text x="451" y="32" font-size="11" text-anchor="middle" fill="#0B7D70">教研确认好题</text>
+          <rect x="14" y="53" width="177" height="143" rx="11" fill="#EEF1F5"/>
+          <text x="29" y="76" font-size="11" fill="#5F677B">某同学用下图装置测定……</text>
+          <circle cx="103" cy="128" r="32" fill="none" stroke="#7F899E" stroke-width="3"/><line x1="103" y1="91" x2="103" y2="165" stroke="#7F899E" stroke-width="2"/><line x1="65" y1="128" x2="141" y2="128" stroke="#7F899E" stroke-width="2"/>
+          <line x1="29" y1="181" x2="170" y2="181" stroke="#B0B6C4" stroke-width="3"/>
+          <text x="208" y="74" font-size="12" font-weight="700" fill="#4F46E5">高频 38 / 126 · 30.2%</text>
+          <text x="208" y="99" font-size="11" fill="#71798E">12 地区 · 连续 3 年 · 同结构去重</text>
+          <rect x="208" y="115" width="78" height="25" rx="12" fill="#F0ECFF"/><text x="247" y="132" font-size="11" text-anchor="middle" fill="#674DB5">典型母题</text>
+          <rect x="294" y="115" width="78" height="25" rx="12" fill="#F0ECFF"/><text x="333" y="132" font-size="11" text-anchor="middle" fill="#674DB5">诊断性强</text>
+          <rect x="380" y="115" width="91" height="25" rx="12" fill="#F0ECFF"/><text x="425" y="132" font-size="11" text-anchor="middle" fill="#674DB5">方法可迁移</text>
+          <text x="208" y="166" font-size="11" fill="#646C82">来源：2026 南京一模 · PDF p.7</text>
+          <text x="208" y="188" font-size="11" fill="#646C82">原题图：完整 · 答案：已核验</text>
+          <line x1="14" y1="211" x2="509" y2="211" stroke="#ECEEF4"/>
+          <text x="18" y="239" font-size="11" fill="#70788D">难度：中高</text><text x="117" y="239" font-size="11" fill="#70788D">趋势：升温</text>
+          <rect x="340" y="222" width="73" height="28" rx="14" fill="#FFF1D9"/><text x="376" y="241" font-size="11" text-anchor="middle" fill="#A66B12">P1 生产</text>
+          <rect x="421" y="222" width="84" height="28" rx="14" fill="#EEF0FF"/><text x="463" y="241" font-size="11" text-anchor="middle" fill="#4F46E5">查看证据</text>
+        </g>
+
+        <!-- card 2 -->
+        <g transform="translate(575 132)" filter="url(#soft)">
+          <rect width="523" height="270" rx="17" fill="#FFFFFF" stroke="#D8DCE9"/>
+          <rect x="14" y="14" width="24" height="24" rx="6" fill="#4F46E5"/><path d="M20 26 L25 31 L33 21" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+          <text x="49" y="33" font-size="14" font-weight="700" fill="#303953">Q22 · 数字化实验图像</text>
+          <rect x="397" y="14" width="108" height="26" rx="13" fill="#E6F6F2"/><text x="451" y="32" font-size="11" text-anchor="middle" fill="#0B7D70">教研确认好题</text>
+          <rect x="14" y="53" width="177" height="143" rx="11" fill="#EEF1F5"/>
+          <line x1="39" y1="174" x2="168" y2="174" stroke="#7F899E" stroke-width="2"/><line x1="46" y1="75" x2="46" y2="174" stroke="#7F899E" stroke-width="2"/>
+          <polyline points="47,161 76,143 105,149 133,108 168,83" fill="none" stroke="#4F46E5" stroke-width="4"/>
+          <text x="208" y="74" font-size="12" font-weight="700" fill="#4F46E5">高频 29 / 126 · 23.0%</text>
+          <text x="208" y="99" font-size="11" fill="#71798E">9 地区 · 连续 2 年 · 新设问上升</text>
+          <rect x="208" y="115" width="78" height="25" rx="12" fill="#F0ECFF"/><text x="247" y="132" font-size="11" text-anchor="middle" fill="#674DB5">图表完整</text>
+          <rect x="294" y="115" width="78" height="25" rx="12" fill="#FFF1D9"/><text x="333" y="132" font-size="11" text-anchor="middle" fill="#A66B12">新形式</text>
+          <rect x="380" y="115" width="78" height="25" rx="12" fill="#FFF1D9"/><text x="419" y="132" font-size="11" text-anchor="middle" fill="#A66B12">新设问</text>
+          <text x="208" y="166" font-size="11" fill="#646C82">来源：2025 杭州中考 · 题号 22</text>
+          <text x="208" y="188" font-size="11" fill="#646C82">风险：读图信息负荷较高</text>
+          <line x1="14" y1="211" x2="509" y2="211" stroke="#ECEEF4"/>
+          <text x="18" y="239" font-size="11" fill="#70788D">难度：中</text><text x="117" y="239" font-size="11" fill="#70788D">趋势：升温</text>
+          <rect x="340" y="222" width="73" height="28" rx="14" fill="#FFF1D9"/><text x="376" y="241" font-size="11" text-anchor="middle" fill="#A66B12">P2 补强</text>
+          <rect x="421" y="222" width="84" height="28" rx="14" fill="#EEF0FF"/><text x="463" y="241" font-size="11" text-anchor="middle" fill="#4F46E5">查看证据</text>
+        </g>
+
+        <!-- card 3 -->
+        <g transform="translate(22 422)">
+          <rect width="523" height="248" rx="17" fill="#FFFFFF" stroke="#D8DCE9"/>
+          <rect x="14" y="14" width="24" height="24" rx="6" fill="#FFFFFF" stroke="#A9B0C2"/>
+          <text x="49" y="33" font-size="14" font-weight="700" fill="#303953">Q06 · 基础装置辨认</text>
+          <rect x="14" y="53" width="145" height="126" rx="11" fill="#F0F2F5"/>
+          <circle cx="86" cy="111" r="28" fill="none" stroke="#8A93A5" stroke-width="3"/><line x1="86" y1="80" x2="86" y2="142" stroke="#8A93A5" stroke-width="2"/>
+          <text x="178" y="74" font-size="12" font-weight="700" fill="#6E768B">高频 52 / 126 · 41.3%</text>
+          <text x="178" y="100" font-size="11" fill="#70788D">但目标学生普遍已会</text>
+          <rect x="178" y="116" width="91" height="25" rx="12" fill="#F0ECFF"/><text x="223" y="133" font-size="11" text-anchor="middle" fill="#674DB5">来源可靠</text>
+          <text x="178" y="163" font-size="11" fill="#B84D4D">学习收益低 · 无新增迁移</text>
+          <line x1="14" y1="195" x2="509" y2="195" stroke="#ECEEF4"/>
+          <text x="18" y="224" font-size="11" fill="#70788D">好题：一般</text><text x="117" y="224" font-size="11" fill="#70788D">难度：基础</text>
+          <rect x="411" y="207" width="94" height="28" rx="14" fill="#ECEEF3"/><text x="458" y="226" font-size="11" text-anchor="middle" fill="#697185">P3 题库</text>
+        </g>
+
+        <!-- card 4 -->
+        <g transform="translate(575 422)">
+          <rect width="523" height="248" rx="17" fill="#FFFFFF" stroke="#D8DCE9"/>
+          <rect x="14" y="14" width="24" height="24" rx="6" fill="#4F46E5"/><path d="M20 26 L25 31 L33 21" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+          <text x="49" y="33" font-size="14" font-weight="700" fill="#303953">Q25 (4) · 项目式综合探究</text>
+          <rect x="14" y="53" width="145" height="126" rx="11" fill="#F0F2F5"/>
+          <rect x="36" y="76" width="101" height="23" rx="5" fill="#D9DDE5"/><path d="M48 121 H127 M48 141 H108 M48 161 H133" stroke="#959DAE" stroke-width="4"/>
+          <text x="178" y="74" font-size="12" font-weight="700" fill="#4F46E5">高频 18 / 126 · 14.3%</text>
+          <text x="178" y="100" font-size="11" fill="#70788D">低基数升温，不等于当前高频</text>
+          <rect x="178" y="116" width="91" height="25" rx="12" fill="#F0ECFF"/><text x="223" y="133" font-size="11" text-anchor="middle" fill="#674DB5">迁移价值高</text>
+          <rect x="277" y="116" width="78" height="25" rx="12" fill="#FFF1D9"/><text x="316" y="133" font-size="11" text-anchor="middle" fill="#A66B12">新情境</text>
+          <text x="178" y="163" font-size="11" fill="#646C82">好题：通过 · 风险：课时成本高</text>
+          <line x1="14" y1="195" x2="509" y2="195" stroke="#ECEEF4"/>
+          <text x="18" y="224" font-size="11" fill="#70788D">难度：较难</text><text x="117" y="224" font-size="11" fill="#70788D">趋势：升温</text>
+          <rect x="411" y="207" width="94" height="28" rx="14" fill="#FFF1D9"/><text x="458" y="226" font-size="11" text-anchor="middle" fill="#A66B12">P2 观察</text>
+        </g>
+
+        <rect x="22" y="695" width="1076" height="94" rx="16" fill="#EEF0FF"/>
+        <text x="41" y="727" font-size="14" font-weight="700" fill="#4149B8">已选择 3 个题目单元</text>
+        <text x="41" y="754" font-size="12" fill="#646D88">筛选条件、题目 ID 与来源快照将一起冻结；以后修改筛选不会改变已有产物</text>
+        <rect x="626" y="720" width="173" height="39" rx="19" fill="#FFFFFF" stroke="#BFC5E7"/><text x="712" y="746" font-size="13" text-anchor="middle" fill="#4F46E5">保存冻结集合 v1</text>
+        <rect x="811" y="720" width="267" height="39" rx="19" fill="#4F46E5"/><text x="944" y="746" font-size="13" font-weight="700" text-anchor="middle" fill="#FFFFFF">基于所选题目新建任务</text>
+      </g>
+
+      <!-- evidence drawer -->
+      <g transform="translate(1580 94)">
+        <rect width="670" height="812" rx="19" fill="#FBFCFE" stroke="#D7DCE9"/>
+        <text x="22" y="34" font-size="18" font-weight="700" fill="#303953">证据抽屉</text>
+        <text x="640" y="34" font-size="18" text-anchor="end" fill="#80879A">×</text>
+        <rect x="22" y="54" width="626" height="43" rx="21" fill="#F0F2F7"/>
+        <rect x="26" y="58" width="194" height="35" rx="17" fill="#FFFFFF" stroke="#0F9D8B"/>
+        <text x="123" y="82" font-size="13" font-weight="700" text-anchor="middle" fill="#0B7D70">高频证据</text>
+        <text x="331" y="82" font-size="13" text-anchor="middle" fill="#6B7388">好题证据</text>
+        <text x="535" y="82" font-size="13" text-anchor="middle" fill="#6B7388">生产价值</text>
+
+        <text x="22" y="133" font-size="14" font-weight="700" fill="#38415B">Q18 (2)(3) · 高频统计口径</text>
+        <rect x="22" y="148" width="626" height="92" rx="14" fill="#EAF7F4"/>
+        <text x="40" y="176" font-size="12" fill="#547168">试卷池：2023—2026 中考＋一模｜华东 12 地区</text>
+        <text x="40" y="201" font-size="12" fill="#547168">去重：同卷复刻去重｜考试类型一致｜截止 2026-08-31</text>
+        <text x="40" y="226" font-size="12" font-weight="700" fill="#0B7D70">38 套命中 / 126 套可比 = 30.2% · 样本充分</text>
+
+        <text x="22" y="275" font-size="14" font-weight="700" fill="#38415B">分子：38 套命中试卷</text>
+        <g font-size="12" fill="#5E667D">
+          <rect x="22" y="291" width="626" height="38" rx="9" fill="#FFFFFF" stroke="#E0E3EC"/><text x="38" y="315">2026 南京一模 · Q18 (2)(3)</text><text x="623" y="315" text-anchor="end" fill="#4F46E5">查看原题</text>
+          <rect x="22" y="337" width="626" height="38" rx="9" fill="#FFFFFF" stroke="#E0E3EC"/><text x="38" y="361">2025 杭州中考 · Q22 (3)</text><text x="623" y="361" text-anchor="end" fill="#4F46E5">查看原题</text>
+          <rect x="22" y="383" width="626" height="38" rx="9" fill="#FFFFFF" stroke="#E0E3EC"/><text x="38" y="407">2025 苏州二模 · Q19 (4)</text><text x="623" y="407" text-anchor="end" fill="#4F46E5">查看原题</text>
+        </g>
+        <text x="22" y="453" font-size="14" font-weight="700" fill="#38415B">好题结论不是由高频推导</text>
+        <rect x="22" y="468" width="626" height="126" rx="14" fill="#F5F1FF"/>
+        <g font-size="12" fill="#654EA8">
+          <text x="40" y="495">✓ 典型性：底层结构清晰，可形成母题</text>
+          <text x="40" y="519">✓ 诊断性：能区分“读数”与“误差方向”</text>
+          <text x="40" y="543">✓ 迁移性：可迁移至质量分数、产率等情境</text>
+          <text x="40" y="567">△ 风险：原装置图需完整保留，不宜文字化</text>
+        </g>
+        <text x="22" y="628" font-size="14" font-weight="700" fill="#38415B">生产优先级另算</text>
+        <rect x="22" y="643" width="626" height="96" rx="14" fill="#FFF6E8"/>
+        <text x="40" y="671" font-size="12" fill="#755C39">目标学生：中等及以上｜课程覆盖：部分</text>
+        <text x="40" y="696" font-size="12" fill="#755C39">学习收益高，但已有课程可补段，无需完整新课</text>
+        <text x="40" y="722" font-size="12" font-weight="700" fill="#A66B12">生产优先级 P2 · 最小干预：旧课补段＋母题变式</text>
+        <rect x="22" y="757" width="626" height="37" rx="18" fill="#FFFFFF" stroke="#CBD0E1"/>
+        <text x="335" y="781" font-size="12" text-anchor="middle" fill="#5E667D">查看标签来源、AI/教研差异与历史版本</text>
+      </g>
+    </g>
+
+    <!-- Task creation connector -->
+    <path d="M1140 1056 V1094 H1200 V1121" fill="none" stroke="#4F46E5" stroke-width="4"/>
+    <polygon points="1200,1128 1191,1114 1209,1114" fill="#4F46E5"/>
+    <rect x="1015" y="1070" width="250" height="36" rx="18" fill="#E9E8FF"/>
+    <text x="1140" y="1094" font-size="13" font-weight="700" text-anchor="middle" fill="#4F46E5">冻结集合 v1 → 新建任务</text>
+
+    <!-- New task modal -->
+    <g transform="translate(235 1135)" filter="url(#shadow)">
+      <rect width="1930" height="500" rx="27" fill="#FFFFFF" stroke="#D7DCE9"/>
+      <rect width="1930" height="70" rx="27" fill="#FBFCFE"/>
+      <rect y="45" width="1930" height="25" fill="#FBFCFE"/>
+      <text x="28" y="43" font-size="22" font-weight="700" fill="#27304A">基于所选题目新建任务</text>
+      <rect x="347" y="19" width="174" height="34" rx="17" fill="#E6F6F2"/>
+      <text x="434" y="42" font-size="13" text-anchor="middle" fill="#0B7D70">冻结集合 v1 · 3 题</text>
+      <text x="1898" y="43" font-size="20" text-anchor="end" fill="#7A8295">×</text>
+
+      <g transform="translate(28 91)">
+        <text x="0" y="18" font-size="15" font-weight="700" fill="#3A435C">1 选择任务类型</text>
+        <g font-size="12" text-anchor="middle">
+          <rect x="0" y="34" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="71" y="66" fill="#555E75">课程诊断</text>
+          <rect x="153" y="34" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="224" y="66" fill="#555E75">押题宣传</text>
+          <rect x="306" y="34" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="377" y="66" fill="#555E75">备考题池</text>
+          <rect x="459" y="34" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="530" y="66" fill="#555E75">学案</text>
+          <rect x="0" y="98" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="71" y="130" fill="#555E75">习题册</text>
+          <rect x="153" y="98" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="224" y="130" fill="#555E75">作业</text>
+          <rect x="306" y="98" width="143" height="54" rx="13" fill="#FFFFFF" stroke="#D6DAE7"/><text x="377" y="130" fill="#555E75">专题资料</text>
+          <rect x="459" y="98" width="143" height="54" rx="13" fill="#E9E8FF" stroke="#4F46E5" stroke-width="2"/><text x="530" y="130" font-weight="700" fill="#4F46E5">自定义</text>
+        </g>
+        <text x="0" y="190" font-size="15" font-weight="700" fill="#3A435C">2 说出你的使用需求</text>
+        <rect x="0" y="206" width="602" height="120" rx="14" fill="#F7F8FC" stroke="#D9DDE9"/>
+        <text x="18" y="233" font-size="13" fill="#535C72">给九年级中等学生做一份 20 分钟实验评价专题学案；</text>
+        <text x="18" y="258" font-size="13" fill="#535C72">3 道题按“识别变量 → 评价方案 → 分析误差”递进；</text>
+        <text x="18" y="283" font-size="13" fill="#535C72">保留完整原图，最后给一题分层作业，教师版含解析。</text>
+        <rect x="449" y="291" width="135" height="25" rx="12" fill="#E9E8FF"/><text x="516" y="308" font-size="11" text-anchor="middle" fill="#4F46E5">AI 已整理为契约 →</text>
+        <text x="0" y="359" font-size="12" fill="#8A91A3">自由文本不会直接执行；先补齐边界、风险和依赖，再由教师确认</text>
+      </g>
+
+      <path d="M660 126 H700" stroke="#AFB5C9" stroke-width="3"/><polygon points="700,126 690,120 690,132" fill="#AFB5C9"/>
+
+      <g transform="translate(720 91)">
+        <text x="0" y="18" font-size="15" font-weight="700" fill="#3A435C">3 确认任务契约</text>
+        <rect x="0" y="34" width="785" height="328" rx="16" fill="#F8F9FC" stroke="#DADDEA"/>
+        <g font-size="12">
+          <text x="20" y="64" font-weight="700" fill="#4F46E5">任务目标</text><text x="128" y="64" fill="#566077">实验评价专题学案 · 20 分钟</text>
+          <text x="20" y="94" font-weight="700" fill="#4F46E5">对象 / 场景</text><text x="128" y="94" fill="#566077">九年级 · 中等学生 · 一轮复习</text>
+          <text x="20" y="124" font-weight="700" fill="#4F46E5">输入范围</text><text x="128" y="124" fill="#566077">冻结集合 v1 · 3 个题目单元</text>
+          <text x="20" y="154" font-weight="700" fill="#4F46E5">选题编排</text><text x="128" y="154" fill="#566077">识别变量 → 评价方案 → 误差方向；不擅自改题</text>
+          <text x="20" y="184" font-weight="700" fill="#4F46E5">图表边界</text><text x="128" y="184" fill="#566077">原题图片完整保留；每个素材维持题目单元映射</text>
+          <text x="20" y="214" font-weight="700" fill="#4F46E5">输出</text><text x="128" y="214" fill="#566077">学生 Word＋教师解析版＋飞书工作副本</text>
+          <text x="20" y="244" font-weight="700" fill="#4F46E5">审核 / 截止</text><text x="128" y="244" fill="#566077">生成后教师确认 · 本任务生效</text>
+        </g>
+        <line x1="20" y1="264" x2="765" y2="264" stroke="#E0E3EC"/>
+        <text x="20" y="290" font-size="12" font-weight="700" fill="#3E475F">依赖式补跑分析</text>
+        <rect x="20" y="304" width="116" height="27" rx="13" fill="#E6F6F2"/><text x="78" y="323" font-size="11" text-anchor="middle" fill="#0B7D70">✓ 标准化</text>
+        <rect x="145" y="304" width="116" height="27" rx="13" fill="#E6F6F2"/><text x="203" y="323" font-size="11" text-anchor="middle" fill="#0B7D70">✓ 知识题型</text>
+        <rect x="270" y="304" width="116" height="27" rx="13" fill="#FFF1D9"/><text x="328" y="323" font-size="11" text-anchor="middle" fill="#A66B12">补跑：频次</text>
+        <rect x="395" y="304" width="116" height="27" rx="13" fill="#FFF1D9"/><text x="453" y="323" font-size="11" text-anchor="middle" fill="#A66B12">补跑：好题</text>
+        <rect x="520" y="304" width="223" height="27" rx="13" fill="#ECEEF3"/><text x="631" y="323" font-size="11" text-anchor="middle" fill="#6D7589">不运行：视频覆盖 / 宣传匹配</text>
+      </g>
+
+      <g transform="translate(1532 91)">
+        <rect width="370" height="363" rx="17" fill="#EEF0FF"/>
+        <circle cx="35" cy="35" r="18" fill="#4F46E5"/><path d="M27 35 L33 41 L44 29" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+        <text x="64" y="40" font-size="15" font-weight="700" fill="#3E46B2">执行前最后确认</text>
+        <text x="22" y="82" font-size="12" fill="#5D6682">确认后将生成独立任务运行：</text>
+        <text x="22" y="111" font-size="12" fill="#5D6682">• 锁定题目集合 v1</text>
+        <text x="22" y="138" font-size="12" fill="#5D6682">• 保存契约、规则与模板版本</text>
+        <text x="22" y="165" font-size="12" fill="#5D6682">• 只补跑必要分析模块</text>
+        <text x="22" y="192" font-size="12" fill="#5D6682">• 不改权威标签和其他任务结果</text>
+        <rect x="22" y="224" width="326" height="46" rx="23" fill="#4F46E5"/>
+        <text x="185" y="253" font-size="14" font-weight="700" text-anchor="middle" fill="#FFFFFF">确认契约并创建任务</text>
+        <rect x="22" y="282" width="326" height="40" rx="20" fill="#FFFFFF" stroke="#C2C7E8"/>
+        <text x="185" y="308" font-size="13" text-anchor="middle" fill="#4F46E5">返回修改需求</text>
+        <text x="185" y="346" font-size="11" text-anchor="middle" fill="#747C94">本次操作不会触发 CB 或备考工具写入</text>
+      </g>
+    </g>
+
+    <!-- footer legend -->
+    <g transform="translate(595 1672)">
+      <circle cx="0" cy="0" r="7" fill="#4F46E5"/><text x="16" y="6" font-size="14" fill="#626A80">可操作 / 当前选择</text>
+      <circle cx="190" cy="0" r="7" fill="#0F9D8B"/><text x="206" y="6" font-size="14" fill="#626A80">确认 / 已有依赖</text>
+      <circle cx="380" cy="0" r="7" fill="#F59E0B"/><text x="396" y="6" font-size="14" fill="#626A80">待补分析 / 人工判断</text>
+      <text x="680" y="6" font-size="14" fill="#8A91A4">核心原则：资产一次标准化，任务按需组合；高频、好题、生产优先级永不合并成同一结论</text>
+    </g>
+  </g>
+</svg>
