@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1080" width="1600" height="1080" font-family="Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7F9FE"/>
+      <stop offset="1" stop-color="#EFF8F6"/>
+    </linearGradient>
+    <linearGradient id="shared" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F0F2FF"/>
+      <stop offset="1" stop-color="#F6F9FF"/>
+    </linearGradient>
+    <linearGradient id="production" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ECFAF6"/>
+      <stop offset="1" stop-color="#F8FFFD"/>
+    </linearGradient>
+    <linearGradient id="promotion" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F1F2FF"/>
+      <stop offset="1" stop-color="#FAFAFF"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#26334A" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1080" fill="url(#bg)"/>
+  <circle cx="1490" cy="90" r="165" fill="#E0E7FF" opacity="0.58"/>
+  <circle cx="85" cy="1010" r="185" fill="#DDF4EE" opacity="0.65"/>
+
+  <text x="70" y="68" font-size="34" font-weight="700" fill="#18223A">资料只导入一次，分析用途在标准化后分流</text>
+  <text x="70" y="106" font-size="17" fill="#65718A">共享事实底座 · 两套判断口径 · 两套结果独立负责</text>
+  <rect x="1268" y="48" width="262" height="58" rx="29" fill="#FFFFFF" stroke="#D5DDF0" stroke-width="2"/>
+  <circle cx="1304" cy="77" r="17" fill="#E7EBFF"/>
+  <path d="M1296 77 L1303 84 L1315 70" fill="none" stroke="#4F46E5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1334" y="73" font-size="14" font-weight="700" fill="#34405A">核心体验</text>
+  <text x="1334" y="94" font-size="12" fill="#6F7890">先选择用途，结果页仍可追加</text>
+
+  <!-- 任务入口：分析用途 -->
+  <rect x="70" y="160" width="388" height="265" rx="28" fill="#FFFFFF" stroke="#D7DFF0" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="107" cy="199" r="18" fill="#4F46E5"/>
+  <text x="107" y="205" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">1</text>
+  <text x="137" y="205" font-size="21" font-weight="700" fill="#28344D">新建任务 / 资料批次</text>
+  <text x="101" y="235" font-size="14" fill="#6D7890">先选择本次分析用途</text>
+
+  <rect x="101" y="258" width="326" height="44" rx="14" fill="#4F46E5"/>
+  <circle cx="124" cy="280" r="9" fill="#FFFFFF"/>
+  <circle cx="124" cy="280" r="4" fill="#4F46E5"/>
+  <text x="145" y="286" font-size="15" font-weight="700" fill="#FFFFFF">课程生产诊断（默认）</text>
+
+  <rect x="101" y="313" width="326" height="44" rx="14" fill="#F7F8FC" stroke="#CCD4E4"/>
+  <circle cx="124" cy="335" r="9" fill="#FFFFFF" stroke="#AAB4C9" stroke-width="2"/>
+  <text x="145" y="341" font-size="15" font-weight="600" fill="#4D5971">押题宣传物料</text>
+
+  <rect x="101" y="368" width="326" height="44" rx="14" fill="#F7F8FC" stroke="#CCD4E4"/>
+  <circle cx="124" cy="390" r="9" fill="#FFFFFF" stroke="#AAB4C9" stroke-width="2"/>
+  <text x="145" y="396" font-size="15" font-weight="600" fill="#4D5971">两套口径并行</text>
+
+  <!-- 共享主干 -->
+  <polyline points="458,292 500,292" fill="none" stroke="#75819A" stroke-width="3"/>
+  <polygon points="500,292 488,285 488,299" fill="#75819A"/>
+  <rect x="500" y="160" width="1030" height="265" rx="28" fill="url(#shared)" stroke="#C8D1EF" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="537" cy="199" r="18" fill="#4F46E5"/>
+  <text x="537" y="205" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">2</text>
+  <text x="567" y="205" font-size="21" font-weight="700" fill="#28344D">共用事实底座：三步只做一次</text>
+  <text x="567" y="234" font-size="14" fill="#6D7890">不在上传阶段复制题目、图片和解析结果</text>
+
+  <rect x="542" y="270" width="246" height="108" rx="21" fill="#FFFFFF" stroke="#C6CFF0" stroke-width="2"/>
+  <circle cx="576" cy="307" r="18" fill="#E8EBFF"/>
+  <path d="M568 309 L568 297 L584 297 L584 309 M571 301 L581 301" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round"/>
+  <text x="605" y="307" font-size="16" font-weight="700" fill="#36425C">资料接入</text>
+  <text x="568" y="339" font-size="13" fill="#707A91">PDF / Word / 文件夹 / Base</text>
+  <text x="568" y="361" font-size="12" fill="#8A93A7">原始文件、截图、题源信息</text>
+
+  <polyline points="788,324 822,324" fill="none" stroke="#7482A0" stroke-width="3"/>
+  <polygon points="822,324 810,317 810,331" fill="#7482A0"/>
+  <rect x="822" y="270" width="246" height="108" rx="21" fill="#FFFFFF" stroke="#C6CFF0" stroke-width="2"/>
+  <circle cx="856" cy="307" r="18" fill="#E8EBFF"/>
+  <path d="M848 307 L853 312 L864 300" fill="none" stroke="#4F46E5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="885" y="307" font-size="16" font-weight="700" fill="#36425C">标准化</text>
+  <text x="848" y="339" font-size="13" fill="#707A91">题干、答案、原图、来源对齐</text>
+  <text x="848" y="361" font-size="12" fill="#8A93A7">去重、OCR、异常复核</text>
+
+  <polyline points="1068,324 1102,324" fill="none" stroke="#7482A0" stroke-width="3"/>
+  <polygon points="1102,324 1090,317 1090,331" fill="#7482A0"/>
+  <rect x="1102" y="270" width="246" height="108" rx="21" fill="#FFFFFF" stroke="#C6CFF0" stroke-width="2"/>
+  <circle cx="1136" cy="307" r="18" fill="#E8EBFF"/>
+  <path d="M1128 300 L1144 300 M1128 307 L1144 307 M1128 314 L1139 314" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round"/>
+  <text x="1165" y="307" font-size="16" font-weight="700" fill="#36425C">题目单元 / 结构化打标</text>
+  <text x="1128" y="339" font-size="13" fill="#707A91">整题、小问、选项、得分点</text>
+  <text x="1128" y="361" font-size="12" fill="#8A93A7">知识、任务、解法、作答边界</text>
+
+  <polyline points="1348,324 1378,324" fill="none" stroke="#7482A0" stroke-width="3"/>
+  <polygon points="1378,324 1366,317 1366,331" fill="#7482A0"/>
+  <polygon points="1432,270 1492,324 1432,378 1372,324" fill="#FFFFFF" stroke="#4F46E5" stroke-width="2.5"/>
+  <text x="1432" y="317" text-anchor="middle" font-size="15" font-weight="700" fill="#34405A">按用途</text>
+  <text x="1432" y="340" text-anchor="middle" font-size="15" font-weight="700" fill="#34405A">加载规则</text>
+
+  <!-- 生产分支 -->
+  <polyline points="1403,367 1403,454 395,454 395,488" fill="none" stroke="#0F9D8B" stroke-width="4"/>
+  <polygon points="395,488 388,476 402,476" fill="#0F9D8B"/>
+  <rect x="70" y="488" width="702" height="330" rx="30" fill="url(#production)" stroke="#66C9B7" stroke-width="2.5" filter="url(#shadow)"/>
+  <rect x="100" y="516" width="208" height="38" rx="19" fill="#0F9D8B"/>
+  <text x="204" y="542" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">课程生产诊断</text>
+  <text x="328" y="541" font-size="14" fill="#317265">目的：判断“是否值得生产”</text>
+
+  <rect x="100" y="580" width="300" height="192" rx="22" fill="#FFFFFF" stroke="#8BD4C5" stroke-width="2"/>
+  <text x="126" y="614" font-size="17" font-weight="700" fill="#245B50">保守生产覆盖：六项门禁</text>
+  <circle cx="130" cy="646" r="13" fill="#D9F4ED"/><text x="130" y="651" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">1</text>
+  <text x="151" y="651" font-size="13" fill="#4E756D">目标一致</text>
+  <circle cx="247" cy="646" r="13" fill="#D9F4ED"/><text x="247" y="651" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">2</text>
+  <text x="268" y="651" font-size="13" fill="#4E756D">前置充分</text>
+  <circle cx="130" cy="681" r="13" fill="#D9F4ED"/><text x="130" y="686" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">3</text>
+  <text x="151" y="686" font-size="13" fill="#4E756D">任务同构</text>
+  <circle cx="247" cy="681" r="13" fill="#D9F4ED"/><text x="247" y="686" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">4</text>
+  <text x="268" y="686" font-size="13" fill="#4E756D">解法同构</text>
+  <circle cx="130" cy="716" r="13" fill="#D9F4ED"/><text x="130" y="721" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">5</text>
+  <text x="151" y="721" font-size="13" fill="#4E756D">输出边界一致</text>
+  <circle cx="247" cy="751" r="13" fill="#D9F4ED"/><text x="247" y="756" text-anchor="middle" font-size="11" font-weight="700" fill="#0B806F">6</text>
+  <text x="268" y="756" font-size="13" fill="#4E756D">迁移可达</text>
+
+  <polyline points="400,676 444,676" fill="none" stroke="#4B9D8E" stroke-width="3"/>
+  <polygon points="444,676 432,669 432,683" fill="#4B9D8E"/>
+  <rect x="444" y="580" width="296" height="192" rx="22" fill="#FFFFFF" stroke="#8BD4C5" stroke-width="2"/>
+  <text x="470" y="614" font-size="17" font-weight="700" fill="#245B50">生产侧结果</text>
+  <rect x="470" y="638" width="112" height="39" rx="13" fill="#E7F8F3"/>
+  <text x="526" y="663" text-anchor="middle" font-size="14" font-weight="600" fill="#166858">视频缺口</text>
+  <rect x="596" y="638" width="112" height="39" rx="13" fill="#E7F8F3"/>
+  <text x="652" y="663" text-anchor="middle" font-size="14" font-weight="600" fill="#166858">候选好题</text>
+  <rect x="470" y="689" width="238" height="39" rx="13" fill="#0F9D8B"/>
+  <text x="589" y="714" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">P0–P3 生产优先级</text>
+  <text x="470" y="753" font-size="12" fill="#5C8179">课程缺口与排产只读取本分支</text>
+
+  <!-- 宣传分支 -->
+  <polyline points="1460,366 1460,454 1188,454 1188,488" fill="none" stroke="#4F46E5" stroke-width="4"/>
+  <polygon points="1188,488 1181,476 1195,476" fill="#4F46E5"/>
+  <rect x="828" y="488" width="702" height="330" rx="30" fill="url(#promotion)" stroke="#9EA8EA" stroke-width="2.5" filter="url(#shadow)"/>
+  <rect x="858" y="516" width="202" height="38" rx="19" fill="#4F46E5"/>
+  <text x="959" y="542" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">押题宣传物料</text>
+  <text x="1080" y="541" font-size="14" fill="#5B6290">目的：表达“有哪些可展示的命中”</text>
+
+  <rect x="858" y="580" width="222" height="192" rx="22" fill="#FFFFFF" stroke="#BFC6EF" stroke-width="2"/>
+  <text x="884" y="612" font-size="17" font-weight="700" fill="#394273">读取既有资产</text>
+  <rect x="884" y="636" width="170" height="36" rx="12" fill="#EEF0FF"/>
+  <text x="969" y="659" text-anchor="middle" font-size="13" font-weight="600" fill="#4F46E5">v5 宣传匹配规则</text>
+  <rect x="884" y="682" width="170" height="36" rx="12" fill="#EEF0FF"/>
+  <text x="969" y="705" text-anchor="middle" font-size="13" font-weight="600" fill="#4F46E5">现有提示词与白名单</text>
+  <rect x="884" y="728" width="170" height="28" rx="12" fill="#EEF0FF"/>
+  <text x="969" y="747" text-anchor="middle" font-size="12" fill="#5C6390">宣传输出模板</text>
+
+  <polyline points="1080,676 1114,676" fill="none" stroke="#7A82C7" stroke-width="3"/>
+  <polygon points="1114,676 1102,669 1102,683" fill="#7A82C7"/>
+  <polygon points="1176,615 1240,676 1176,737 1112,676" fill="#FFFFFF" stroke="#F59E0B" stroke-width="2.5"/>
+  <circle cx="1176" cy="647" r="13" fill="#FFF0D5"/>
+  <path d="M1170 647 L1175 652 L1183 642" fill="none" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1176" y="678" text-anchor="middle" font-size="15" font-weight="700" fill="#774817">老师确认</text>
+  <text x="1176" y="700" text-anchor="middle" font-size="12" fill="#93693A">才生成 / 发布</text>
+
+  <polyline points="1240,676 1270,676" fill="none" stroke="#7A82C7" stroke-width="3"/>
+  <polygon points="1270,676 1258,669 1258,683" fill="#7A82C7"/>
+  <rect x="1270" y="580" width="230" height="192" rx="22" fill="#FFFFFF" stroke="#BFC6EF" stroke-width="2"/>
+  <text x="1296" y="612" font-size="17" font-weight="700" fill="#394273">宣传侧结果</text>
+  <text x="1296" y="645" font-size="13" fill="#5F678B">逐卷双栏对比文档</text>
+  <line x1="1296" y1="656" x2="1470" y2="656" stroke="#E1E4F4"/>
+  <text x="1296" y="682" font-size="13" fill="#5F678B">命中题数 / 分值汇总</text>
+  <line x1="1296" y1="693" x2="1470" y2="693" stroke="#E1E4F4"/>
+  <text x="1296" y="719" font-size="13" fill="#5F678B">宣传总览文档</text>
+  <rect x="1296" y="735" width="174" height="24" rx="12" fill="#4F46E5"/>
+  <text x="1383" y="752" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">确认后生成，发布另留记录</text>
+
+  <!-- 隔离边界与追加用途 -->
+  <rect x="70" y="855" width="1460" height="158" rx="28" fill="#FFFFFF" stroke="#D3DBE8" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="108" cy="892" r="17" fill="#F59E0B"/>
+  <text x="108" y="898" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">!</text>
+  <text x="137" y="899" font-size="20" font-weight="700" fill="#334057">两套口径完全隔离，只有标准化题目资产共用</text>
+  <text x="137" y="926" font-size="13" fill="#6C778D">宣传“命中”不得改写生产“覆盖”；生产“缺口”也不反向篡改既有宣传规则</text>
+
+  <rect x="100" y="948" width="150" height="38" rx="19" fill="#F0F2FF" stroke="#C9CFF0"/>
+  <text x="175" y="973" text-anchor="middle" font-size="13" font-weight="600" fill="#4B53A3">规则版本隔离</text>
+  <rect x="263" y="948" width="150" height="38" rx="19" fill="#F0F2FF" stroke="#C9CFF0"/>
+  <text x="338" y="973" text-anchor="middle" font-size="13" font-weight="600" fill="#4B53A3">结果字段隔离</text>
+  <rect x="426" y="948" width="150" height="38" rx="19" fill="#ECFAF6" stroke="#A9DCCF"/>
+  <text x="501" y="973" text-anchor="middle" font-size="13" font-weight="600" fill="#247565">反馈事件隔离</text>
+  <rect x="589" y="948" width="150" height="38" rx="19" fill="#ECFAF6" stroke="#A9DCCF"/>
+  <text x="664" y="973" text-anchor="middle" font-size="13" font-weight="600" fill="#247565">效果指标隔离</text>
+
+  <rect x="795" y="940" width="694" height="54" rx="27" fill="#26334D"/>
+  <circle cx="828" cy="967" r="15" fill="#0F9D8B"/>
+  <text x="828" y="972" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">+</text>
+  <text x="858" y="965" font-size="14" font-weight="700" fill="#FFFFFF">结果页可追加另一分析用途</text>
+  <text x="858" y="984" font-size="12" fill="#CFD7E6">复用同一批标准化题目与原图，无需重新上传、OCR 或拆题</text>
+
+  <text x="70" y="1052" font-size="13" fill="#758198">一次导入 ≠ 一套结论｜共享事实，隔离判断，按用途承担结果责任</text>
+  <text x="1530" y="1052" text-anchor="end" font-size="12" fill="#98A3B7">L4 课程自进化平台 · 分析用途路由</text>
+</svg>
