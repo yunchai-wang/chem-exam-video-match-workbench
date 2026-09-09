@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1500" role="img" aria-labelledby="title desc">
+  <title id="title">视频证据、跨年度回测与 CB 备考题池界面蓝图</title>
+  <desc id="desc">展示题目视频三栏证据工作台、跨年度趋势回测仪表盘和 CB 备考候选池三个关键页面。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6F7FF"/><stop offset="1" stop-color="#EFF9F5"/></linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5148E5"/><stop offset="1" stop-color="#7167EC"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#20305C" flood-opacity="0.13"/></filter>
+  </defs>
+  <rect width="2400" height="1500" fill="url(#bg)"/>
+  <g font-family="Heiti SC, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif">
+    <rect x="66" y="48" width="62" height="62" rx="18" fill="url(#brand)"/>
+    <path d="M83 82 H111 M97 68 V96" stroke="#FFF" stroke-width="5" stroke-linecap="round"/>
+    <text x="150" y="83" font-size="38" font-weight="700" fill="#1F2742">证据可审 · 进步可证 · 题池可交接</text>
+    <text x="150" y="116" font-size="20" fill="#69718A">三张关键界面把“人工兜底、规则回测、CB 复用”连成可验证闭环</text>
+
+    <!-- Evidence workbench -->
+    <g transform="translate(66 165)" filter="url(#shadow)">
+      <rect width="2268" height="565" rx="28" fill="#FFF"/>
+      <rect width="2268" height="74" rx="28" fill="#FAFBFE"/><rect y="48" width="2268" height="26" fill="#FAFBFE"/>
+      <circle cx="31" cy="36" r="7" fill="#FF7B7B"/><circle cx="54" cy="36" r="7" fill="#F4C65E"/><circle cx="77" cy="36" r="7" fill="#5DCA9E"/>
+      <text x="108" y="45" font-size="23" font-weight="700" fill="#232B47">A. 题目—视频证据工作台</text>
+      <rect x="1890" y="20" width="170" height="36" rx="18" fill="#FFF0D6"/><text x="1975" y="44" text-anchor="middle" font-size="14" fill="#A76B17">证据级别 E3</text>
+      <rect x="2072" y="20" width="165" height="36" rx="18" fill="#E3F5EE"/><text x="2154" y="44" text-anchor="middle" font-size="14" fill="#19795E">待教师复核</text>
+
+      <g transform="translate(24 94)">
+        <rect width="690" height="438" rx="18" fill="#F8F9FC" stroke="#DEE3EF"/>
+        <text x="22" y="34" font-size="17" font-weight="700" fill="#303852">① 题目证据</text>
+        <rect x="22" y="52" width="646" height="270" rx="14" fill="#FFF" stroke="#DDE2ED"/>
+        <text x="42" y="82" font-size="14" fill="#3E465E">18. 某小组利用下图装置测定……</text>
+        <rect x="42" y="100" width="265" height="155" rx="10" fill="#EDF1F6"/>
+        <circle cx="174" cy="165" r="42" fill="none" stroke="#7F899E" stroke-width="4"/><path d="M174 123 V87 M174 207 V241 M132 165 H96 M216 165 H253" stroke="#7F899E" stroke-width="4"/>
+        <rect x="329" y="103" width="312" height="40" rx="9" fill="#EEF0FF"/><text x="347" y="129" font-size="14" font-weight="700" fill="#4A54C8">当前单元：(2) 评价实验方案</text>
+        <text x="347" y="169" font-size="13" fill="#626B82">得分点：变量控制 → 证据判断</text>
+        <text x="347" y="197" font-size="13" fill="#626B82">作答边界：指出偏差方向并说明原因</text>
+        <rect x="329" y="220" width="150" height="28" rx="14" fill="#E5F5EF"/><text x="404" y="240" text-anchor="middle" font-size="12" fill="#15785C">来源已核验</text>
+        <text x="22" y="356" font-size="14" font-weight="700" fill="#3C445F">底层结构</text>
+        <text x="22" y="382" font-size="13" fill="#687189">控制变量实验 · 数据证据评价 · 误差方向</text>
+        <rect x="22" y="397" width="208" height="28" rx="14" fill="#EEF0FF"/><text x="126" y="416" text-anchor="middle" font-size="12" fill="#4C56CB">完整原题图 · 小问高亮</text>
+      </g>
+
+      <g transform="translate(738 94)">
+        <rect width="790" height="438" rx="18" fill="#FFF" stroke="#DEE3EF"/>
+        <text x="22" y="34" font-size="17" font-weight="700" fill="#303852">② AI 判断与六项门禁</text>
+        <rect x="22" y="52" width="362" height="62" rx="13" fill="#F0F1FF"/><text x="40" y="78" font-size="13" fill="#6B7390">宣传相似</text><text x="40" y="101" font-size="17" font-weight="700" fill="#4B55C8">是 · 图像/任务相似</text>
+        <rect x="402" y="52" width="366" height="62" rx="13" fill="#FFF1E4"/><text x="420" y="78" font-size="13" fill="#776A60">生产覆盖</text><text x="420" y="101" font-size="17" font-weight="700" fill="#B75C3C">部分覆盖 · 缺 2 个台阶</text>
+        <g font-size="13">
+          <rect x="22" y="136" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="162" fill="#424A63">目标一致</text><text x="696" y="162" fill="#1A8767">通过</text>
+          <rect x="22" y="183" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="209" fill="#424A63">前置充分</text><text x="683" y="209" fill="#B57419">部分</text>
+          <rect x="22" y="230" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="256" fill="#424A63">任务同构</text><text x="696" y="256" fill="#1A8767">通过</text>
+          <rect x="22" y="277" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="303" fill="#424A63">解法同构</text><text x="683" y="303" fill="#B57419">部分</text>
+          <rect x="22" y="324" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="350" fill="#424A63">输出边界</text><text x="683" y="350" fill="#BB4646">未覆盖</text>
+          <rect x="22" y="371" width="746" height="40" rx="10" fill="#F7F8FC"/><text x="40" y="397" fill="#424A63">迁移可达</text><text x="683" y="397" fill="#BB4646">未覆盖</text>
+        </g>
+      </g>
+
+      <g transform="translate(1552 94)">
+        <rect width="692" height="438" rx="18" fill="#F8F9FC" stroke="#DEE3EF"/>
+        <text x="22" y="34" font-size="17" font-weight="700" fill="#303852">③ 视频证据</text>
+        <rect x="22" y="52" width="648" height="158" rx="14" fill="#242A3B"/>
+        <rect x="43" y="72" width="242" height="116" rx="9" fill="#3B435A"/><path d="M132 105 L132 157 L178 131 Z" fill="#FFF" opacity="0.9"/>
+        <text x="306" y="91" font-size="14" font-weight="700" fill="#FFF">实验误差分析（05:42）</text>
+        <text x="306" y="120" font-size="12" fill="#CDD3E1">命中：变量控制、装置作用</text>
+        <text x="306" y="146" font-size="12" fill="#F2C36B">缺失：证据强弱与作答边界</text>
+        <rect x="306" y="164" width="140" height="26" rx="13" fill="#4E58D5"/><text x="376" y="182" text-anchor="middle" font-size="12" fill="#FFF">跳到 05:42</text>
+        <rect x="22" y="228" width="648" height="92" rx="13" fill="#FFF" stroke="#DDE2ED"/>
+        <text x="40" y="254" font-size="13" font-weight="700" fill="#3D455E">逐字稿证据 05:38–06:10</text>
+        <text x="40" y="280" font-size="12" fill="#667087">“这里需要控制其他条件相同……”</text>
+        <text x="40" y="303" font-size="12" fill="#B45B3B">未出现：为什么偏大/偏小、答案必须写到哪一步</text>
+        <rect x="22" y="339" width="206" height="40" rx="20" fill="#EEF0FF"/><text x="125" y="365" text-anchor="middle" font-size="13" fill="#4C56CA">补充逐字稿/截图</text>
+        <rect x="242" y="339" width="206" height="40" rx="20" fill="#FFF" stroke="#CDD2E2"/><text x="345" y="365" text-anchor="middle" font-size="13" fill="#596179">修改覆盖结论</text>
+        <rect x="462" y="339" width="208" height="40" rx="20" fill="#5148E5"/><text x="566" y="365" text-anchor="middle" font-size="13" fill="#FFF">确认并进入下一项</text>
+        <text x="22" y="412" font-size="12" fill="#7D8498">无视频资产时，本栏切换为人工存在性/覆盖打标卡</text>
+      </g>
+    </g>
+
+    <!-- Dashboard -->
+    <g transform="translate(66 770)" filter="url(#shadow)">
+      <rect width="1420" height="650" rx="28" fill="#FFF"/>
+      <rect width="1420" height="70" rx="28" fill="#FAFBFE"/><rect y="46" width="1420" height="24" fill="#FAFBFE"/>
+      <text x="28" y="44" font-size="22" font-weight="700" fill="#232B47">B. 跨年度规则回测仪表盘</text>
+      <rect x="1060" y="19" width="150" height="34" rx="17" fill="#FFF" stroke="#D6DAE7"/><text x="1135" y="42" text-anchor="middle" font-size="13" fill="#5F6780">学科：初中化学</text>
+      <rect x="1220" y="19" width="170" height="34" rx="17" fill="#EEF0FF"/><text x="1305" y="42" text-anchor="middle" font-size="13" fill="#4D57CB">规则版本：全部</text>
+      <g transform="translate(24 92)">
+        <rect width="1372" height="54" rx="14" fill="#F5F6FA"/>
+        <g font-size="13" fill="#5F6780"><text x="18" y="33">年份 2023–2026</text><text x="183" y="33">地区 全国</text><text x="310" y="33">考试 中考</text><text x="432" y="33">题型 全部</text><text x="548" y="33">底层结构 全部</text><text x="712" y="33">难度 全部</text><text x="836" y="33">覆盖 全部</text></g>
+        <rect x="1160" y="11" width="190" height="32" rx="16" fill="#5148E5"/><text x="1255" y="33" text-anchor="middle" font-size="13" fill="#FFF">导出当前口径报告</text>
+      </g>
+      <g transform="translate(24 165)">
+        <rect width="270" height="92" rx="16" fill="#F2F3FF"/><text x="18" y="28" font-size="13" fill="#68708B">R23 → 未来准确率</text><text x="18" y="70" font-size="30" font-weight="700" fill="#4D57CC">68%</text><text x="100" y="70" font-size="12" fill="#7E859A">34 / 50</text>
+        <rect x="286" width="270" height="92" rx="16" fill="#EEFAF6"/><text x="304" y="28" font-size="13" fill="#68708B">R24 → 未来准确率</text><text x="304" y="70" font-size="30" font-weight="700" fill="#138263">79%</text><text x="386" y="70" font-size="12" fill="#7E859A">41 / 52</text>
+        <rect x="572" width="270" height="92" rx="16" fill="#FFF7EB"/><text x="590" y="28" font-size="13" fill="#68708B">漏判率</text><text x="590" y="70" font-size="30" font-weight="700" fill="#B36C12">14%</text><text x="672" y="70" font-size="12" fill="#7E859A">8 / 57</text>
+        <rect x="858" width="270" height="92" rx="16" fill="#FFF0F0"/><text x="876" y="28" font-size="13" fill="#68708B">误判</text><text x="876" y="70" font-size="30" font-weight="700" fill="#B34343">11</text><text x="923" y="70" font-size="12" fill="#7E859A">点击看题</text>
+        <rect x="1144" width="228" height="92" rx="16" fill="#F5F6FA"/><text x="1162" y="28" font-size="13" fill="#68708B">样本口径</text><text x="1162" y="55" font-size="15" font-weight="700" fill="#3A425D">126 套 · 18 地区</text><text x="1162" y="77" font-size="12" fill="#7E859A">同源题已去重</text>
+      </g>
+      <rect x="24" y="278" width="790" height="238" rx="16" fill="#FFF" stroke="#DFE3EE"/>
+      <text x="44" y="308" font-size="15" font-weight="700" fill="#323A55">规则版本增益（同一冻结验证集）</text>
+      <line x1="72" y1="474" x2="774" y2="474" stroke="#D8DDEA" stroke-width="2"/><line x1="72" y1="337" x2="72" y2="474" stroke="#D8DDEA" stroke-width="2"/>
+      <polyline points="92,440 257,414 422,390 587,353 752,334" fill="none" stroke="#5148E5" stroke-width="5"/>
+      <polyline points="92,367 257,380 422,399 587,427 752,446" fill="none" stroke="#F0A33A" stroke-width="4" stroke-dasharray="8 6"/>
+      <g fill="#5148E5"><circle cx="92" cy="440" r="6"/><circle cx="257" cy="414" r="6"/><circle cx="422" cy="390" r="6"/><circle cx="587" cy="353" r="6"/><circle cx="752" cy="334" r="6"/></g>
+      <g font-size="11" text-anchor="middle" fill="#7A8296"><text x="92" y="495">R22</text><text x="257" y="495">R23</text><text x="422" y="495">R24</text><text x="587" y="495">R25</text><text x="752" y="495">R26</text></g>
+      <circle cx="70" cy="532" r="5" fill="#5148E5"/><text x="83" y="536" font-size="12" fill="#626A80">Precision</text><circle cx="168" cy="532" r="5" fill="#F0A33A"/><text x="181" y="536" font-size="12" fill="#626A80">误判率</text>
+      <rect x="832" y="278" width="564" height="238" rx="16" fill="#FFF" stroke="#DFE3EE"/>
+      <text x="852" y="308" font-size="15" font-weight="700" fill="#323A55">地区 × 年份热力图</text>
+      <g font-size="11" fill="#6E768B"><text x="870" y="354">华东</text><text x="870" y="395">华北</text><text x="870" y="436">华南</text><text x="870" y="477">西南</text></g>
+      <g><rect x="930" y="332" width="88" height="31" rx="6" fill="#DDE0FF"/><rect x="1027" y="332" width="88" height="31" rx="6" fill="#B7BDF8"/><rect x="1124" y="332" width="88" height="31" rx="6" fill="#7D85EB"/><rect x="1221" y="332" width="88" height="31" rx="6" fill="#555FE0"/>
+      <rect x="930" y="373" width="88" height="31" rx="6" fill="#EEF0FF"/><rect x="1027" y="373" width="88" height="31" rx="6" fill="#D5D9FC"/><rect x="1124" y="373" width="88" height="31" rx="6" fill="#AAB0F5"/><rect x="1221" y="373" width="88" height="31" rx="6" fill="#737CEA"/>
+      <rect x="930" y="414" width="88" height="31" rx="6" fill="#F4F5FF"/><rect x="1027" y="414" width="88" height="31" rx="6" fill="#E0E3FF"/><rect x="1124" y="414" width="88" height="31" rx="6" fill="#C0C5F9"/><rect x="1221" y="414" width="88" height="31" rx="6" fill="#969EF1"/>
+      <rect x="930" y="455" width="88" height="31" rx="6" fill="#EDF8F4"/><rect x="1027" y="455" width="88" height="31" rx="6" fill="#D7EFE7"/><rect x="1124" y="455" width="88" height="31" rx="6" fill="#A9DDCE"/><rect x="1221" y="455" width="88" height="31" rx="6" fill="#6FC8B0"/></g>
+      <g font-size="11" text-anchor="middle" fill="#737B91"><text x="974" y="507">2023</text><text x="1071" y="507">2024</text><text x="1168" y="507">2025</text><text x="1265" y="507">2026</text></g>
+      <rect x="24" y="535" width="1372" height="87" rx="15" fill="#F7F8FC"/>
+      <text x="44" y="563" font-size="14" font-weight="700" fill="#38405B">证据题墙 · 当前筛选 23 道</text>
+      <g><rect x="44" y="576" width="105" height="30" rx="8" fill="#E1E5EC"/><rect x="160" y="576" width="105" height="30" rx="8" fill="#E1E5EC"/><rect x="276" y="576" width="105" height="30" rx="8" fill="#E1E5EC"/><rect x="392" y="576" width="105" height="30" rx="8" fill="#E1E5EC"/></g>
+      <text x="525" y="597" font-size="12" fill="#737B90">点击图表数据点即可展开原题、标签、教师结论与视频证据</text>
+    </g>
+
+    <!-- CB pool -->
+    <g transform="translate(1520 770)" filter="url(#shadow)">
+      <rect width="814" height="650" rx="28" fill="#FFF"/>
+      <rect width="814" height="70" rx="28" fill="#FAFBFE"/><rect y="46" width="814" height="24" fill="#FAFBFE"/>
+      <text x="28" y="44" font-size="22" font-weight="700" fill="#232B47">C. CB 备考候选池</text>
+      <rect x="624" y="18" width="162" height="36" rx="18" fill="#5148E5"/><text x="705" y="42" text-anchor="middle" font-size="13" fill="#FFF">下载交接包</text>
+      <rect x="24" y="91" width="766" height="52" rx="13" fill="#F5F6FA"/>
+      <text x="41" y="123" font-size="13" fill="#60687F">初中化学</text><text x="137" y="123" font-size="13" fill="#60687F">九年级</text><text x="220" y="123" font-size="13" fill="#60687F">考试：期末</text><text x="334" y="123" font-size="13" fill="#60687F">地区：全国</text><text x="444" y="123" font-size="13" fill="#60687F">仅看教师已通过</text>
+      <g transform="translate(24 163)">
+        <rect width="766" height="335" rx="15" fill="#FFF" stroke="#DFE3EE"/>
+        <rect width="766" height="42" rx="15" fill="#F3F5F9"/><rect y="27" width="766" height="15" fill="#F3F5F9"/>
+        <g font-size="12" fill="#717990"><text x="18" y="27">题目</text><text x="204" y="27">考试分类</text><text x="346" y="27">CB 状态</text><text x="530" y="27">出口</text></g>
+        <g font-size="12" fill="#3C445D">
+          <rect x="16" y="57" width="150" height="60" rx="9" fill="#EBEFF4"/><text x="186" y="80">实验评价题</text><text x="186" y="101" fill="#737B91">P1 · 教师通过</text><text x="204" y="87">期末 · 九年级</text><rect x="346" y="69" width="154" height="28" rx="14" fill="#E4F5EE"/><text x="423" y="88" text-anchor="middle" fill="#19795E">ID 已确认</text><text x="530" y="87" fill="#4D57C8">CB 直用清单</text>
+          <rect x="16" y="133" width="150" height="60" rx="9" fill="#EBEFF4"/><text x="186" y="156">物质鉴别题</text><text x="186" y="177" fill="#737B91">P2 · 教师通过</text><text x="204" y="163">二模 · 九年级</text><rect x="346" y="145" width="154" height="28" rx="14" fill="#FFF2D8"/><text x="423" y="164" text-anchor="middle" fill="#A66B16">疑似同题待确认</text><text x="530" y="163" fill="#4D57C8">核验后导出</text>
+          <rect x="16" y="209" width="150" height="60" rx="9" fill="#EBEFF4"/><text x="186" y="232">流程图综合题</text><text x="186" y="253" fill="#737B91">P1 · 教师通过</text><text x="204" y="239">中考 · 九年级</text><rect x="346" y="221" width="154" height="28" rx="14" fill="#FFE8E8"/><text x="423" y="240" text-anchor="middle" fill="#B34848">CB 未找到</text><text x="530" y="239" fill="#4D57C8">可编辑 Word</text>
+          <rect x="16" y="285" width="150" height="34" rx="9" fill="#EBEFF4"/><text x="186" y="307">图像模糊题</text><text x="204" y="307">一模 · 九年级</text><rect x="346" y="289" width="154" height="26" rx="13" fill="#F1F2F6"/><text x="423" y="307" text-anchor="middle" fill="#6D7488">尚未检索</text><text x="530" y="307" fill="#4D57C8">图片/PDF 兜底</text>
+        </g>
+      </g>
+      <rect x="24" y="517" width="766" height="108" rx="15" fill="#EEF8F4" stroke="#CDE8DE"/>
+      <text x="43" y="546" font-size="14" font-weight="700" fill="#2D6657">导出分层交接包</text>
+      <text x="43" y="572" font-size="12" fill="#5C756E">① CB ID 已确认：题目 ID＋建议章节/专题包/题型</text>
+      <text x="43" y="595" font-size="12" fill="#5C756E">② 外部题：可编辑 Word＋原图＋答案解析＋来源</text>
+      <text x="43" y="618" font-size="12" fill="#5C756E">③ 识别失败：图片/PDF＋检索词；绝不伪造 CB ID</text>
+    </g>
+  </g>
+</svg>
