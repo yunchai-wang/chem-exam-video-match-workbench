@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import wraps
+from time import sleep
 from typing import Any
 from uuid import uuid4
 
 from .domain import INTERVENTION_STRATEGIES, STAGE_LABELS, STAGES, ValidationError
+from .backtest import create_prediction_freeze, evaluate_prediction_freeze
 from .engine import affected_stages, classify_feedback, recommend_priority, release_decision
-from .store import JsonStore
+from .jobs import StageExecutionError, StageJobRunner
+from .pipeline import SourceSnapshotManager
+from .store import ConcurrentUpdateError, JsonStore
 
 
 PROJECT_FIELDS = {
@@ -26,16 +31,34 @@ def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid4().hex[:10]}"
 
 
+def retry_concurrent_updates(function):
+    """Retry a pure local state mutation when another request committed first."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        last_error = None
+        for attempt in range(4):
+            try:
+                return function(*args, **kwargs)
+            except ConcurrentUpdateError as error:
+                last_error = error
+                sleep(0.005 * (attempt + 1))
+        raise last_error
+    return wrapped
+
+
 class WorkbenchService:
     def __init__(self, store: JsonStore) -> None:
         self.store = store
         self.store.initialize()
+        self.snapshots = SourceSnapshotManager(self.store.path.parent / "source_snapshots")
+        self.jobs = StageJobRunner()
 
     def get_state(self) -> dict[str, Any]:
         state = self.store.load()
         state["summary"] = self._summary(state)
         return state
 
+    @retry_concurrent_updates
     def update_project(self, patch: dict[str, Any]) -> dict[str, Any]:
         state = self.store.load()
         project = state["project"]
@@ -65,6 +88,29 @@ class WorkbenchService:
         self.store.save(state)
         return self.get_state()
 
+    def create_source_snapshot(self, request: dict[str, Any]) -> dict[str, Any]:
+        snapshot = self.snapshots.capture(request)
+        with self.store.transaction() as state:
+            state["source_snapshots"].append(snapshot)
+            self._event(state, "source.snapshot_created", f"已冻结来源快照：{snapshot['source_label']}")
+        return snapshot
+
+    def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
+        freeze = create_prediction_freeze(request)
+        with self.store.transaction() as state:
+            state["prediction_freezes"].append(freeze)
+            self._event(state, "backtest.predictions_frozen", f"已冻结预测：{freeze['id']}")
+        return freeze
+
+    def evaluate_predictions(self, freeze_id: str, request: dict[str, Any]) -> dict[str, Any]:
+        with self.store.transaction() as state:
+            freeze = self._find(state["prediction_freezes"], freeze_id, "prediction freeze")
+            result = evaluate_prediction_freeze(freeze, request)
+            state["backtest_results"].append(result)
+            self._event(state, "backtest.completed", f"已完成真实后验回测：{freeze_id}")
+        return result
+
+    @retry_concurrent_updates
     def update_question(self, question_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         state = self.store.load()
         question = self._find(state["questions"], question_id, "question")
@@ -98,6 +144,7 @@ class WorkbenchService:
         self.store.save(state)
         return question
 
+    @retry_concurrent_updates
     def start_run(self) -> dict[str, Any]:
         state = self.store.load()
         for question in state["questions"]:
@@ -109,6 +156,7 @@ class WorkbenchService:
             "id": new_id("run"), "mode": "full", "status": "running", "created_at": now(),
             "current_stage": STAGES[0], "stage_states": {stage: "pending" for stage in STAGES},
             "rule_version": state["project"]["rule_version"],
+            "source_snapshot_ids": [item["id"] for item in state["source_snapshots"]],
             "selected_question_ids": [q["id"] for q in state["questions"] if q.get("selected_for_candidate")],
         }
         state["runs"].append(run)
@@ -117,6 +165,7 @@ class WorkbenchService:
         self.store.save(state)
         return run
 
+    @retry_concurrent_updates
     def approve_review(self, review_id: str) -> dict[str, Any]:
         state = self.store.load()
         review = self._find(state["reviews"], review_id, "review")
@@ -126,6 +175,16 @@ class WorkbenchService:
         review["resolved_at"] = now()
         run = self._find(state["runs"], review["run_id"], "run")
         stage = review["stage"]
+        if run["stage_states"].get(stage) == "blocked":
+            try:
+                self.jobs.execute(state, run, stage)
+            except StageExecutionError as error:
+                run["stage_states"][stage] = "failed"
+                run["status"] = "failed"
+                run["error"] = str(error)
+                self._event(state, "run.failed", f"{STAGE_LABELS[stage]}执行失败：{error}", run["id"])
+                self.store.save(state)
+                return run
         run["stage_states"][stage] = "completed"
         run["status"] = "running"
         self._event(state, "review.approved", f"已通过{STAGE_LABELS[stage]}节点", run["id"])
@@ -133,6 +192,7 @@ class WorkbenchService:
         self.store.save(state)
         return run
 
+    @retry_concurrent_updates
     def add_artifact_feedback(self, artifact_id: str, text: str) -> dict[str, Any]:
         if not text.strip():
             raise ValidationError("feedback text is required")
@@ -158,25 +218,41 @@ class WorkbenchService:
             "evidence_feedback_id": feedback["id"], "created_at": now(),
         }
         state["rules"].append(experiment)
-        artifact["version"] += 1
-        artifact["updated_at"] = now()
-        artifact["status"] = "局部重跑完成"
-        artifact["revision_notes"].append({
-            "version": artifact["version"], "feedback_id": feedback["id"], "rerun_stages": rerun_stages,
-            "summary": f"已从{STAGE_LABELS[root_stage]}开始重跑，不重复运行无关上游",
-        })
+        source_run = self._find(state["runs"], artifact["run_id"], "run")
         rerun = {
-            "id": new_id("run"), "mode": "targeted_rerun", "status": "completed", "created_at": now(),
-            "current_stage": rerun_stages[-1],
-            "stage_states": {stage: ("completed" if stage in rerun_stages else "not_affected") for stage in STAGES},
+            "id": new_id("run"), "mode": "targeted_rerun", "status": "running", "created_at": now(),
+            "current_stage": rerun_stages[0],
+            "stage_states": {stage: ("pending" if stage in rerun_stages else "not_affected") for stage in STAGES},
             "rule_version": experiment["id"], "selected_question_ids": artifact["question_ids"],
-            "feedback_id": feedback["id"],
+            "source_snapshot_ids": source_run.get("source_snapshot_ids", []), "feedback_id": feedback["id"],
         }
         state["runs"].append(rerun)
+        for stage in rerun_stages:
+            rerun["current_stage"] = stage
+            try:
+                self.jobs.execute(state, rerun, stage)
+            except StageExecutionError as error:
+                rerun["stage_states"][stage] = "failed"
+                rerun["status"] = "failed"
+                rerun["error"] = str(error)
+                artifact["status"] = "局部重跑失败"
+                self._event(state, "feedback.rerun_failed", f"{STAGE_LABELS[stage]}重跑失败：{error}", rerun["id"])
+                self.store.save(state)
+                return {"feedback": feedback, "rule": experiment, "artifact": artifact, "run": rerun}
+            rerun["stage_states"][stage] = "completed"
+        rerun["status"] = "completed"
+        artifact["version"] += 1
+        artifact["updated_at"] = now()
+        artifact["status"] = "执行契约重跑预览（非正式生产成品）"
+        artifact["revision_notes"].append({
+            "version": artifact["version"], "feedback_id": feedback["id"], "rerun_stages": rerun_stages,
+            "summary": f"已从{STAGE_LABELS[root_stage]}开始执行重跑契约；实际执行模式见任务记录",
+        })
         self._event(state, "feedback.rerun_completed", artifact["revision_notes"][-1]["summary"], rerun["id"])
         self.store.save(state)
         return {"feedback": feedback, "rule": experiment, "artifact": artifact, "run": rerun}
 
+    @retry_concurrent_updates
     def request_publication(self, rule_id: str) -> dict[str, Any]:
         state = self.store.load()
         rule = self._find(state["rules"], rule_id, "rule")
@@ -197,6 +273,15 @@ class WorkbenchService:
             has_exception = self._stage_has_exception(state, stage)
             strategy = state["project"]["intervention_strategies"][stage]
             decision = release_decision(strategy, has_exception)
+            if decision != "blocked":
+                try:
+                    self.jobs.execute(state, run, stage)
+                except StageExecutionError as error:
+                    run["stage_states"][stage] = "failed"
+                    run["status"] = "failed"
+                    run["error"] = str(error)
+                    self._event(state, "run.failed", f"{STAGE_LABELS[stage]}执行失败：{error}", run["id"])
+                    return
             if decision in {"wait", "blocked"}:
                 run["stage_states"][stage] = "waiting" if decision == "wait" else "blocked"
                 run["status"] = "waiting" if decision == "wait" else "blocked"
@@ -216,7 +301,7 @@ class WorkbenchService:
             self._event(state, "stage.completed", f"AI 已完成{STAGE_LABELS[stage]}", run["id"])
         run["status"] = "completed"
         self._create_artifact(state, run)
-        self._event(state, "run.completed", "纵向闭环已生成成品", run["id"])
+        self._event(state, "run.completed", "纵向闭环执行契约已完成；真实生产执行器待接入", run["id"])
 
     def _stage_has_exception(self, state: dict[str, Any], stage: str) -> bool:
         if stage == "standardization":
@@ -241,9 +326,9 @@ class WorkbenchService:
         artifact = {
             "id": new_id("artifact"), "run_id": run["id"],
             "title": f"{state['project']['name']}｜成品草案", "kind": state["project"]["planned_artifact"],
-            "status": "AI 成品待使用/反馈", "version": 1,
+            "status": "执行契约预览（非正式生产成品）", "version": 1,
             "question_ids": [q["id"] for q in selected], "created_at": now(), "updated_at": now(),
-            "summary": f"围绕 {len(selected)} 道已入选题目生成，保留原题图表要求与逐页分镜交接信息。",
+            "summary": f"围绕 {len(selected)} 道已入选题目生成结构预览；真实 AI/Skill 执行器尚未接入，不能作为正式教案或逐字稿使用。",
             "outline": ["学习目标与学生卡点", "经典母题与原题图表", "方法建构与作答边界", "变式迁移与反馈点", "逐页分镜、清保增说明与素材清单"],
             "revision_notes": [],
         }
@@ -259,6 +344,11 @@ class WorkbenchService:
             "exception_count": sum(bool(q.get("exception")) for q in state["questions"]),
             "waiting_review_count": sum(r["status"] == "待确认" for r in state["reviews"]),
             "rule_iteration": len(state["rules"]),
+            "source_snapshot_count": len(state["source_snapshots"]),
+            "job_count": len(state["jobs"]),
+            "failed_job_count": sum(job["status"] == "failed" for job in state["jobs"]),
+            "backtest_count": len(state["backtest_results"]),
+            "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
         }

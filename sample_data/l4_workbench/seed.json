@@ -1,5 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "metadata": {
+    "state_revision": 0,
+    "updated_at": null
+  },
   "project": {
     "id": "project-demo-001",
     "name": "2026 初中化学视频迭代演示项目",
@@ -198,5 +202,9 @@
     }
   ],
   "publications": [],
+  "source_snapshots": [],
+  "jobs": [],
+  "prediction_freezes": [],
+  "backtest_results": [],
   "events": []
 }

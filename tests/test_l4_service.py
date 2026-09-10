@@ -46,6 +46,10 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(result["feedback"]["root_stage"], "transcript")
         self.assertEqual(result["run"]["stage_states"]["selection"], "not_affected")
         self.assertEqual(result["artifact"]["version"], 2)
+        self.assertIn("非正式生产成品", result["artifact"]["status"])
+        rerun_jobs = [job for job in self.service.get_state()["jobs"] if job["run_id"] == result["run"]["id"]]
+        self.assertEqual([job["stage"] for job in rerun_jobs], ["transcript", "storyboard"])
+        self.assertTrue(all(job["execution_mode"] == "dry_run" for job in rerun_jobs))
         self.assertIn("待真实保留集回测", result["rule"]["status"])
         self.assertIsNone(result["rule"]["experiment_precision"])
 

@@ -52,9 +52,35 @@ function render() {
   renderReviews();
   renderEvents();
   renderQuestions();
+  renderDataFoundation();
   renderArtifacts();
   renderRules();
   renderSettings();
+}
+
+function renderDataFoundation() {
+  document.querySelector("#state-revision").textContent = `状态修订 r${state.summary.state_revision}`;
+  document.querySelector("#snapshot-list").innerHTML = state.source_snapshots.length ? [...state.source_snapshots].reverse().map(item => `
+    <div class="snapshot-card"><strong>${esc(item.source_label)} <span class="tag">${esc(item.status)}</span></strong><small>${esc(item.source_type)} · ${item.file_count} 个文件 · ${item.total_bytes} bytes<br>${esc(item.created_at)} · 截止 ${esc(item.data_cutoff || "未填写")}</small><small class="checksum">SHA ${esc(item.immutable_checksum.slice(0, 16))}…</small></div>`).join("") : `<p class="quiet">尚未冻结来源。正式诊断前至少需要一个可追溯输入快照。</p>`;
+
+  const failed = state.jobs.filter(job => job.status === "failed").length;
+  const health = document.querySelector("#job-health");
+  health.textContent = failed ? `${failed} 个失败任务` : `${state.jobs.length} 个任务 · 无失败`;
+  health.className = `status ${failed ? "waiting" : "completed"}`;
+  document.querySelector("#job-list").innerHTML = state.jobs.length ? [...state.jobs].reverse().slice(0, 14).map(job => `
+    <div class="job-row"><strong>${esc(job.stage)}</strong><small>${esc(job.idempotency_key.slice(0, 16))}…</small><span class="job-mode ${job.execution_mode}">${job.execution_mode === "dry_run" ? "契约预演" : "正式执行"}</span><span>${esc(job.status)}</span><span>尝试 ${job.attempts}</span></div>`).join("") : `<p class="quiet">启动一轮运行后，每个阶段都会生成幂等任务记录。</p>`;
+
+  const resultsByFreeze = Object.fromEntries(state.backtest_results.map(item => [item.freeze_id, item]));
+  document.querySelector("#backtest-list").innerHTML = state.prediction_freezes.length ? [...state.prediction_freezes].reverse().map(freeze => {
+    const result = resultsByFreeze[freeze.id];
+    if (result) return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${result.observation_year}</strong><small>Precision ${metric(result.precision, result.precision_numerator, result.precision_denominator)} · Recall ${metric(result.recall, result.recall_numerator, result.recall_denominator)}<br>误判 ${result.false_positive_ids.length} · 漏判 ${result.false_negative_ids.length} · 样本 ${result.sample_count}</small><small class="checksum">${esc(freeze.immutable_checksum.slice(0, 16))}…</small></div>`;
+    return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${freeze.validation_years.join("、")} <span class="tag">待后验数据</span></strong><small>规则 ${esc(freeze.rule_version)} · 截止 ${esc(freeze.data_cutoff)}</small><textarea data-observations="${freeze.id}" style="width:100%;margin-top:8px;min-height:58px">[{"entity_id":"structure-a","actual_positive":true},{"entity_id":"structure-b","actual_positive":false}]</textarea><div style="display:flex;gap:6px;margin-top:6px"><input data-observation-year="${freeze.id}" value="${freeze.validation_years[0]}" style="width:80px"><button class="button secondary small" data-evaluate="${freeze.id}">用后验观察集计算</button></div></div>`;
+  }).join("") : `<p class="quiet">尚未冻结预测。没有冻结记录时，未来年份不能用于证明规则进步。</p>`;
+  document.querySelectorAll("[data-evaluate]").forEach(button => button.onclick = () => evaluateFreeze(button.dataset.evaluate));
+}
+
+function metric(value, numerator, denominator) {
+  return value == null ? `—（${numerator}/${denominator}）` : `${(value * 100).toFixed(1)}%（${numerator}/${denominator}）`;
 }
 
 function renderMetrics() {
@@ -179,7 +205,7 @@ async function updateQuestion(id, patch) {
 }
 async function submitFeedback(id) {
   const text = document.querySelector(`[data-feedback="${id}"]`).value;
-  try { const result = await api(`/api/artifacts/${id}/feedback`, {method: "POST", body: JSON.stringify({text})}); await load(); toast(`已归因到“${result.feedback.root_stage_label}”，局部重跑完成`); }
+  try { const result = await api(`/api/artifacts/${id}/feedback`, {method: "POST", body: JSON.stringify({text})}); await load(); toast(`已归因到“${result.feedback.root_stage_label}”，重跑契约已执行`); }
   catch (error) { toast(error.message, true); }
 }
 async function requestPublication(id) {
@@ -202,6 +228,42 @@ async function setFullAuto() {
   catch (error) { toast(error.message, true); }
 }
 
+async function createSnapshot(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const sourceType = form.get("source_type");
+  const location = String(form.get("location") || "").trim();
+  const payload = {source_type: sourceType, source_label: form.get("source_label"), data_cutoff: form.get("data_cutoff") || null};
+  if (sourceType === "local_folder") payload.path = location;
+  else if (sourceType === "feishu_base") payload.url = location;
+  else payload.paths = location.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
+  try { await api("/api/source-snapshots", {method: "POST", body: JSON.stringify(payload)}); await load(); toast("来源快照已冻结，原始文件哈希已记录"); }
+  catch (error) { toast(error.message, true); }
+}
+
+async function freezePredictions(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  try {
+    const payload = {
+      training_years: String(form.get("training_years")).split(",").map(Number),
+      validation_years: String(form.get("validation_years")).split(",").map(Number),
+      data_cutoff: form.get("data_cutoff"), rule_version: form.get("rule_version"),
+      sample_scope: {subject: state.project.subject, region: state.project.target_region, exam_type: state.project.target_exam_type},
+      predictions: JSON.parse(form.get("predictions")),
+    };
+    await api("/api/backtests/freezes", {method: "POST", body: JSON.stringify(payload)}); await load(); toast("预测已冻结；后续验证不会改写本轮记录");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function evaluateFreeze(id) {
+  try {
+    const observations = JSON.parse(document.querySelector(`[data-observations="${id}"]`).value);
+    const observation_year = Number(document.querySelector(`[data-observation-year="${id}"]`).value);
+    await api(`/api/backtests/${id}/evaluate`, {method: "POST", body: JSON.stringify({observation_year, observations})}); await load(); toast("已按冻结预测计算真实分子、分母、误判和漏判");
+  } catch (error) { toast(error.message, true); }
+}
+
 document.querySelectorAll(".nav-item").forEach(button => button.onclick = () => {
   document.querySelectorAll(".nav-item").forEach(x => x.classList.remove("active"));
   document.querySelectorAll(".page").forEach(x => x.classList.remove("active"));
@@ -211,6 +273,8 @@ document.querySelectorAll(".nav-item").forEach(button => button.onclick = () => 
 document.querySelector("#start-run").onclick = startRun;
 document.querySelector("#auto-mode").onclick = setFullAuto;
 document.querySelector("#project-form").onsubmit = saveProject;
+document.querySelector("#snapshot-form").onsubmit = createSnapshot;
+document.querySelector("#freeze-form").onsubmit = freezePredictions;
 document.querySelector("#question-search").oninput = renderQuestions;
 document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看已入选"; renderQuestions(); };
 load().catch(error => toast(error.message, true));

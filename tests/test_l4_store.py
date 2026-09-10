@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -39,6 +40,56 @@ class JsonStoreTests(unittest.TestCase):
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             with self.assertRaises(ValidationError):
                 JsonStore(path).load()
+
+    def test_migrates_v1_state_without_changing_source_file(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.json"
+            state = json.loads(SEED.read_text(encoding="utf-8"))
+            state["schema_version"] = 1
+            for key in ["metadata", "source_snapshots", "jobs", "prediction_freezes", "backtest_results"]:
+                state.pop(key, None)
+            path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+            loaded = JsonStore(path).load()
+            self.assertEqual(loaded["schema_version"], 2)
+            self.assertEqual(loaded["metadata"]["state_revision"], 0)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["schema_version"], 1)
+
+    def test_save_creates_recoverable_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            store = JsonStore(Path(folder) / "state.json", SEED)
+            state = store.initialize()
+            state["project"]["name"] = "修改后"
+            store.save(state)
+            backups = store.available_backups()
+            self.assertEqual(len(backups), 1)
+            restored = store.restore_backup(backups[0])
+            self.assertEqual(restored["project"]["name"], "2026 初中化学视频迭代演示项目")
+            self.assertGreater(restored["metadata"]["state_revision"], state["metadata"]["state_revision"])
+
+    def test_concurrent_service_updates_do_not_lose_fields(self) -> None:
+        from apps.l4_workbench.service import WorkbenchService
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.json"
+            first = WorkbenchService(JsonStore(path, SEED))
+            second = WorkbenchService(JsonStore(path, SEED))
+            barrier = threading.Barrier(2)
+
+            def update(service, patch):
+                barrier.wait()
+                service.update_project(patch)
+
+            threads = [
+                threading.Thread(target=update, args=(first, {"target_region": "南京"})),
+                threading.Thread(target=update, args=(second, {"target_year": "2028"})),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            project = first.get_state()["project"]
+            self.assertEqual(project["target_region"], "南京")
+            self.assertEqual(project["target_year"], "2028")
 
 
 if __name__ == "__main__":

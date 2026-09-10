@@ -15,6 +15,7 @@ from .service import WorkbenchService
 
 STATIC_DIR = Path(__file__).with_name("static")
 CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
+MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
@@ -61,6 +62,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/runs":
                 self._json(201, self.service.start_run())
                 return
+            if path == "/api/source-snapshots":
+                self._json(201, self.service.create_source_snapshot(payload))
+                return
+            if path == "/api/backtests/freezes":
+                self._json(201, self.service.freeze_predictions(payload))
+                return
             if path == "/api/reviews/batch-pass":
                 self._json(200, self.service.approve_review(str(payload.get("review_id", ""))))
                 return
@@ -72,12 +79,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if match:
                 self._json(201, self.service.request_publication(match.group(1)))
                 return
+            match = re.fullmatch(r"/api/backtests/([^/]+)/evaluate", path)
+            if match:
+                self._json(201, self.service.evaluate_predictions(match.group(1), payload))
+                return
             self._json(404, {"error": "not found"})
         except (ValidationError, ValueError, json.JSONDecodeError) as error:
             self._json(400, {"error": str(error)})
 
     def _payload(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))
+        if length < 0 or length > MAX_JSON_BODY_BYTES:
+            raise ValidationError("JSON body exceeds the 2 MiB limit")
         if length == 0:
             return {}
         value = json.loads(self.rfile.read(length).decode("utf-8"))

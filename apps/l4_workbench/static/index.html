@@ -15,6 +15,7 @@
     <nav>
       <button class="nav-item active" data-page="dashboard"><span>⌂</span>项目驾驶舱</button>
       <button class="nav-item" data-page="questions"><span>◫</span>题目资产与候选池</button>
+      <button class="nav-item" data-page="data"><span>▦</span>数据快照与回测</button>
       <button class="nav-item" data-page="artifacts"><span>◇</span>成品与后验反馈</button>
       <button class="nav-item" data-page="rules"><span>↗</span>规则进化实验室</button>
       <button class="nav-item" data-page="settings"><span>⚙</span>生产项目设置</button>
@@ -74,6 +75,40 @@
         <div class="filter-bar"><input id="question-search" placeholder="筛选题名、理由、标签"><button class="button secondary" id="show-selected">只看已入选</button></div>
       </div>
       <div class="question-list" id="question-list"></div>
+    </section>
+
+    <section class="page" id="page-data">
+      <div class="section-heading"><div><p class="eyebrow">生产基建 Sprint 0</p><h2>先冻结证据，再允许 AI 派生与学习</h2><p>原始资料只复制、计算哈希和记录来源；远程 Base/CB 在适配器接入前只登记契约，不自动抓取。</p></div><span class="rule-pill" id="state-revision">状态修订 —</span></div>
+      <div class="grid two data-grid">
+        <form id="snapshot-form" class="panel compact-form">
+          <div class="panel-title"><div><p class="eyebrow">来源快照</p><h3>登记本轮原始输入</h3></div></div>
+          <label>来源类型<select name="source_type"><option value="local_files">本地文件</option><option value="local_folder">本地文件夹</option><option value="feishu_base">Feishu Base</option><option value="cb_export">CB 导出文件</option></select></label>
+          <label>来源名称<input name="source_label" value="试产资料包" required></label>
+          <label>路径或 Base 地址<textarea name="location" placeholder="文件可每行一个；文件夹填写目录路径；Base 填写 https 地址" required></textarea></label>
+          <label>数据截止时间<input name="data_cutoff" type="date"></label>
+          <p class="form-hint">允许 PDF、Word、表格、JSON、文本和题图；不会保存 token、cookie 或密码。</p>
+          <button class="button primary" type="submit">冻结来源快照</button>
+        </form>
+        <article class="panel"><div class="panel-title"><div><p class="eyebrow">不可变清单</p><h3>已登记来源</h3></div></div><div id="snapshot-list" class="snapshot-list"></div></article>
+      </div>
+
+      <article class="panel">
+        <div class="panel-title"><div><p class="eyebrow">执行健康</p><h3>幂等任务与失败恢复</h3></div><span class="status" id="job-health">—</span></div>
+        <div class="job-table" id="job-list"></div>
+      </article>
+
+      <div class="grid two data-grid">
+        <form id="freeze-form" class="panel compact-form">
+          <div class="panel-title"><div><p class="eyebrow">冻结预测</p><h3>先预测，后查看未来年份</h3></div></div>
+          <div class="form-grid mini"><label>训练年份<input name="training_years" value="2023,2024"></label><label>验证年份<input name="validation_years" value="2025,2026"></label></div>
+          <label>数据截止时间<input name="data_cutoff" value="2024-12-31"></label>
+          <label>规则版本<input name="rule_version" value="project-rule-v1.0"></label>
+          <label>预测对象（JSON）<textarea name="predictions">[{"entity_id":"structure-a","predicted_positive":true,"score":0.82},{"entity_id":"structure-b","predicted_positive":false,"score":0.31}]</textarea></label>
+          <p class="form-hint">这是契约示例；真实回测必须替换为当时冻结的题型/底层结构预测。</p>
+          <button class="button primary" type="submit">冻结本轮预测</button>
+        </form>
+        <article class="panel"><div class="panel-title"><div><p class="eyebrow">后验验证</p><h3>分子、分母与误判清单</h3></div></div><div id="backtest-list" class="snapshot-list"></div></article>
+      </div>
     </section>
 
     <section class="page" id="page-artifacts">

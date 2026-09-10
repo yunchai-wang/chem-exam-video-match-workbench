@@ -60,12 +60,50 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(context.exception.code, 400)
         context.exception.close()
 
+    def test_oversized_json_body_is_rejected_before_read(self) -> None:
+        request = urllib.request.Request(
+            self.base + "/api/project",
+            data=b"{}",
+            method="PATCH",
+            headers={"Content-Type": "application/json", "Content-Length": str(2 * 1024 * 1024 + 1)},
+        )
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            urllib.request.urlopen(request)
+        self.assertEqual(context.exception.code, 400)
+        context.exception.close()
+
     def test_publication_request_stays_manual(self) -> None:
         _, state = self.request("/api/state")
         rule_id = state["rules"][-1]["id"]
         status, publication = self.request(f"/api/rules/{rule_id}/request-publication", "POST", {})
         self.assertEqual(status, 201)
         self.assertEqual(publication["status"], "待人工批准")
+
+    def test_remote_snapshot_and_backtest_contract(self) -> None:
+        status, snapshot = self.request("/api/source-snapshots", "POST", {
+            "source_type": "feishu_base",
+            "source_label": "个人闭环 Base",
+            "url": "https://example.feishu.cn/base/demo",
+            "data_cutoff": "2026-09-10",
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(snapshot["status"], "pending_adapter")
+
+        status, freeze = self.request("/api/backtests/freezes", "POST", {
+            "training_years": [2023, 2024],
+            "validation_years": [2025],
+            "data_cutoff": "2024-12-31",
+            "rule_version": "v1",
+            "sample_scope": {"subject": "初中化学"},
+            "predictions": [{"entity_id": "a", "predicted_positive": True}],
+        })
+        self.assertEqual(status, 201)
+        status, result = self.request(f"/api/backtests/{freeze['id']}/evaluate", "POST", {
+            "observation_year": 2025,
+            "observations": [{"entity_id": "a", "actual_positive": True}],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(result["precision"], 1.0)
 
 
 if __name__ == "__main__":

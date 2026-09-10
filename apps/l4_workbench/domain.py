@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
+
+
+CURRENT_SCHEMA_VERSION = 2
 
 
 STAGES = [
@@ -48,7 +52,28 @@ class ValidationError(ValueError):
     """Raised when persisted or incoming state violates a domain boundary."""
 
 
+def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
+    """Return a current-schema copy without mutating the persisted source."""
+    state = deepcopy(value)
+    version = int(state.get("schema_version", 1))
+    if version > CURRENT_SCHEMA_VERSION:
+        raise ValidationError(f"state schema {version} is newer than supported {CURRENT_SCHEMA_VERSION}")
+    if version == 1:
+        state.setdefault("metadata", {"state_revision": 0, "updated_at": None})
+        state.setdefault("source_snapshots", [])
+        state.setdefault("jobs", [])
+        state.setdefault("prediction_freezes", [])
+        state.setdefault("backtest_results", [])
+        state["schema_version"] = 2
+    return state
+
+
 def validate_state(state: dict[str, Any]) -> None:
+    if state.get("schema_version") != CURRENT_SCHEMA_VERSION:
+        raise ValidationError(f"state must use schema {CURRENT_SCHEMA_VERSION}")
+    metadata = state.get("metadata")
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("state_revision"), int):
+        raise ValidationError("metadata.state_revision must be an integer")
     project = state.get("project")
     if not isinstance(project, dict):
         raise ValidationError("project must be an object")
@@ -73,3 +98,7 @@ def validate_state(state: dict[str, Any]) -> None:
     for publication in state.get("publications", []):
         if publication.get("status") not in {"待人工批准", "已批准", "已拒绝"}:
             raise ValidationError("public rule publication must have a governed status")
+
+    for key in ("source_snapshots", "jobs", "prediction_freezes", "backtest_results"):
+        if not isinstance(state.get(key), list):
+            raise ValidationError(f"{key} must be a list")
