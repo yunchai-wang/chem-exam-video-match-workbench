@@ -1,4 +1,4 @@
-# Exam Video Match Workbench
+# Exam Video Match Workbench / L4 课程自进化平台
 
 中考化学试卷与洋葱视频课的相似题审计工作台。
 
@@ -13,11 +13,33 @@
 - 一键运行本地校验：`--prepare`、`sop_scan.py`、`crop_scan.py`
 - 对飞书整卷重发加确认门禁，避免覆盖手调右列
 
-## Quick Start
+## L4 课程自进化平台（一期可运行版本）
+
+当前仓库已经新增一条独立的 L4 纵向闭环，用于验证：
+
+- 生产项目目标与教师介入策略；
+- 高频、好题、内容健康、视频生产覆盖和生产优先级的独立判断；
+- “组合支撑但缺综合迁移”的保守覆盖口径；
+- 自动推进、只看异常、每次确认、禁止自动执行四种节点策略；
+- 成品后验反馈、上游归因、项目规则实验和最小范围重跑；
+- 跨项目公共规则/公共 Skill 始终需要人工批准。
+
+启动：
 
 ```bash
 cd chem-exam-video-match-workbench
-.venv/bin/python apps/exam_match_workbench.py
+python3 apps/l4_course_evolution_workbench.py
+```
+
+打开 `http://127.0.0.1:8766`。首次启动会将 `sample_data/l4_workbench/seed.json` 复制成被 Git 忽略的本地状态文件 `outputs/l4_workbench/state.json`，刷新页面后设置和反馈仍会保留。
+
+一期使用脱敏样例验证产品结构。Feishu Base、PMO、CB、素材库和正式云文档写入暂时只展示连接与授权状态，不会误写真实业务数据。
+
+## 原押题宣传审计工作台
+
+```bash
+cd chem-exam-video-match-workbench
+python3 apps/exam_match_workbench.py
 ```
 
 打开终端输出里的本地地址，默认是 `http://127.0.0.1:8765`。

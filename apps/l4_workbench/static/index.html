@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>L4 课程自进化平台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">L4</div>
+      <div><strong>课程自进化平台</strong><span>Course Evolution OS</span></div>
+    </div>
+    <nav>
+      <button class="nav-item active" data-page="dashboard"><span>⌂</span>项目驾驶舱</button>
+      <button class="nav-item" data-page="questions"><span>◫</span>题目资产与候选池</button>
+      <button class="nav-item" data-page="artifacts"><span>◇</span>成品与后验反馈</button>
+      <button class="nav-item" data-page="rules"><span>↗</span>规则进化实验室</button>
+      <button class="nav-item" data-page="settings"><span>⚙</span>生产项目设置</button>
+    </nav>
+    <div class="sidebar-note">
+      <span class="live-dot"></span> AI 默认持续运行
+      <small>教师反馈是增强信号，不是默认前置条件</small>
+    </div>
+    <a class="legacy-link" href="http://127.0.0.1:8765" target="_blank">打开原押题宣传审计 ↗</a>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">当前生产项目</p>
+        <h1 id="project-title">正在读取项目…</h1>
+      </div>
+      <div class="top-actions">
+        <span class="rule-pill" id="rule-version">规则版本 —</span>
+        <button class="button secondary" id="auto-mode">切换为完全自动</button>
+        <button class="button primary" id="start-run">开始 AI 运行</button>
+      </div>
+    </header>
+
+    <section class="page active" id="page-dashboard">
+      <div class="hero">
+        <div>
+          <p class="eyebrow light">AI 下一动作</p>
+          <h2 id="next-action">—</h2>
+          <p id="project-contract">—</p>
+        </div>
+        <div class="hero-orbit"><span>诊断</span><span>生产</span><span>验证</span><strong>进化</strong></div>
+      </div>
+
+      <div class="metrics" id="metrics"></div>
+
+      <div class="grid two">
+        <article class="panel">
+          <div class="panel-title"><div><p class="eyebrow">运行路径</p><h3>本轮阶段与放行状态</h3></div><span class="status" id="run-status">尚未运行</span></div>
+          <div class="stage-list" id="stage-list"></div>
+        </article>
+        <article class="panel accent-panel">
+          <div class="panel-title"><div><p class="eyebrow">教师介入</p><h3>只呈现真正需要处理的节点</h3></div></div>
+          <div id="review-list" class="review-list"></div>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="panel-title"><div><p class="eyebrow">可解释自动化</p><h3>最近运行记录</h3></div></div>
+        <div class="event-stream" id="event-stream"></div>
+      </article>
+    </section>
+
+    <section class="page" id="page-questions">
+      <div class="section-heading">
+        <div><p class="eyebrow">标准题目资产</p><h2>高频、好题、覆盖和优先级各自独立</h2><p>频次回答“出现得多不多”，好题回答“值不值得用”，优先级回答“当前项目要不要先生产”。教师修正须附理由，供规则归因。</p></div>
+        <div class="filter-bar"><input id="question-search" placeholder="筛选题名、理由、标签"><button class="button secondary" id="show-selected">只看已入选</button></div>
+      </div>
+      <div class="question-list" id="question-list"></div>
+    </section>
+
+    <section class="page" id="page-artifacts">
+      <div class="section-heading"><div><p class="eyebrow">最小干预反馈</p><h2>老师可以只看最终成品</h2><p>AI 自动识别反馈应回写到哪个环节，只重跑受影响的下游。</p></div></div>
+      <div id="artifact-list" class="artifact-list"></div>
+      <div class="empty-state" id="artifact-empty"><strong>还没有成品</strong><span>完成一次 AI 运行后，这里会出现教案、逐字稿或分镜成品。</span></div>
+    </section>
+
+    <section class="page" id="page-rules">
+      <div class="section-heading"><div><p class="eyebrow">黑盒外显</p><h2>规则如何变化、为何变化、效果怎样</h2><p>项目内实验版本可自动回测；跨项目公共规则和公共 Skill 永远需要人工批准。</p></div></div>
+      <div id="rule-list" class="rule-list"></div>
+      <article class="panel governance">
+        <div><strong>公共规则治理边界</strong><p>局部反馈不会自动污染其他老师或其他学科。平台只创建发布申请，不会自行批准。</p></div>
+        <span class="lock">人工批准锁</span>
+      </article>
+    </section>
+
+    <section class="page" id="page-settings">
+      <div class="section-heading"><div><p class="eyebrow">当前生产项目</p><h2>目标、介入方式与连接配置</h2><p>项目默认可以随时调整；单次任务设置将优先覆盖项目默认。</p></div></div>
+      <form id="project-form" class="panel settings-form">
+        <div class="form-grid" id="project-fields"></div>
+        <div class="settings-section">
+          <h3>教师介入节点</h3>
+          <p>自动推进 / 只看异常 / 每次确认 / 禁止自动执行。未选中的人工节点不会等待老师。</p>
+          <div id="strategy-grid" class="strategy-grid"></div>
+        </div>
+        <div class="settings-section">
+          <h3>外部动作预授权</h3>
+          <p>一期只记录授权与待执行动作，不写入真实 Feishu、PMO、CB 或素材库。</p>
+          <div id="permission-grid" class="permission-grid"></div>
+        </div>
+        <div class="form-actions"><button class="button primary" type="submit">保存项目设置</button></div>
+      </form>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

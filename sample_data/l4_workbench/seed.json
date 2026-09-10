@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "project": {
+    "id": "project-demo-001",
+    "name": "2026 初中化学视频迭代演示项目",
+    "subject": "初中化学",
+    "grade": "九年级",
+    "target_students": "中等及以上",
+    "target_region": "全国（可切换地区）",
+    "target_exam_type": "中考",
+    "target_year": "2027",
+    "content_scope": "水与溶液、实验探究",
+    "planned_artifact": "解题课逐字稿 + PPT 分镜",
+    "problem_to_solve": "找出真题趋势中的实质视频缺口，并用最小充分方式补强",
+    "maturity": "逐项校准",
+    "rule_version": "project-rule-v1.0",
+    "intervention_scope": "当前生产项目",
+    "intervention_strategies": {
+      "standardization": "exceptions",
+      "diagnosis": "exceptions",
+      "selection": "confirm",
+      "mother_question": "exceptions",
+      "lesson_plan": "auto",
+      "transcript": "auto",
+      "storyboard": "auto"
+    },
+    "preauthorizations": {
+      "feishu_write": false,
+      "pmo_update": false,
+      "notify_contractor": false,
+      "project_rule_promotion": true
+    },
+    "connections": {
+      "question_base": "待连接个人闭环 Base",
+      "pmo_base": "待连接",
+      "cb": "未连接",
+      "material_library": "待连接"
+    }
+  },
+  "questions": [
+    {
+      "id": "q-water-01",
+      "title": "净水流程与证据链综合题",
+      "source": "脱敏中考样例｜2025｜全国",
+      "image": null,
+      "units": [
+        {"id": "q-water-01-a", "label": "净化步骤判断", "selected": true},
+        {"id": "q-water-01-b", "label": "现象解释与证据", "selected": true},
+        {"id": "q-water-01-c", "label": "综合迁移设问", "selected": true}
+      ],
+      "frequency": {
+        "level": "高频",
+        "numerator": 38,
+        "denominator": 126,
+        "rate": 0.302,
+        "scope": "2023—2026 全国可比中考试卷，按底层结构去重",
+        "reason": "126 套可比试卷中 38 套出现，覆盖 12 个地区，近 3 年连续出现"
+      },
+      "quality": {
+        "ai_conclusion": "是",
+        "teacher_conclusion": "待复核",
+        "dimensions": ["结构完整", "典型母题", "诊断性强", "方法可迁移"],
+        "reason": "同一情境中串联流程识别、证据解释与迁移决策",
+        "risk": "第三问情境信息较长，需保留原图",
+        "confidence": 0.88
+      },
+      "content_health": {"status": "无明显问题", "reason": "题图、答案与解析一致"},
+      "coverage": {
+        "status": "组合支撑但缺综合迁移",
+        "evidence_level": "E3",
+        "videos": [
+          {"id": "video-101", "title": "水的净化", "evidence": "逐字稿 + 第 12、16 页截图"},
+          {"id": "video-118", "title": "实验现象与结论", "evidence": "逐字稿片段"}
+        ],
+        "covered_units": ["净化步骤判断", "常见现象"],
+        "missing_units": ["把多步证据用于完整综合任务"],
+        "teacher_conclusion": "待复核",
+        "reason": "两节旧课分别讲到局部知识，但未完成同一综合任务的串联与作答边界"
+      },
+      "trend": {"label": "稳定高频", "score": 0.84, "reason": "近四年多地区连续出现"},
+      "difficulty": {"level": "中等", "reason": "跨两个知识单元组织证据"},
+      "learner_value": {"stable_barrier": true, "key_prerequisite": false, "reason": "学生能认步骤但不会组织完整证据链"},
+      "migration_value": "高",
+      "cross_region_reuse": "高",
+      "score": 8,
+      "production_priority": "P1",
+      "priority_reason": "综合结构高频、分值高且存在稳定迁移卡点",
+      "intervention": "完整新课",
+      "teacher_feedback_reason": "",
+      "selected_for_candidate": true,
+      "exception": false
+    },
+    {
+      "id": "q-air-02",
+      "title": "空气中氧气含量基础判断",
+      "source": "脱敏月考样例｜2026｜江苏",
+      "image": null,
+      "units": [{"id": "q-air-02-a", "label": "基础结论判断", "selected": true}],
+      "frequency": {
+        "level": "高频",
+        "numerator": 51,
+        "denominator": 80,
+        "rate": 0.638,
+        "scope": "2025—2026 江苏月考卷，按试卷去重",
+        "reason": "80 套试卷中 51 套出现，但多为直接识记"
+      },
+      "quality": {
+        "ai_conclusion": "是",
+        "teacher_conclusion": "待复核",
+        "dimensions": ["答案可靠", "基础典型"],
+        "reason": "适合快速诊断基础掌握",
+        "risk": "认知价值和迁移价值有限",
+        "confidence": 0.91
+      },
+      "content_health": {"status": "无明显问题", "reason": "来源与答案完整"},
+      "coverage": {
+        "status": "未覆盖",
+        "evidence_level": "E2",
+        "videos": [],
+        "covered_units": [],
+        "missing_units": ["基础结论判断"],
+        "teacher_conclusion": "待复核",
+        "reason": "元数据召回未发现对应视频，尚缺逐字稿证据"
+      },
+      "trend": {"label": "稳定", "score": 0.62, "reason": "高频但设问变化小"},
+      "difficulty": {"level": "基础", "reason": "单一事实判断"},
+      "learner_value": {"stable_barrier": false, "key_prerequisite": false, "reason": "中等及以上学生普遍掌握"},
+      "migration_value": "低",
+      "cross_region_reuse": "中",
+      "score": 2,
+      "production_priority": "P3",
+      "priority_reason": "虽高频且未覆盖，但对目标学生学习增益低",
+      "intervention": "仅题库保留",
+      "teacher_feedback_reason": "",
+      "selected_for_candidate": false,
+      "exception": true
+    },
+    {
+      "id": "q-error-03",
+      "title": "溶液配制实验题（解析冲突样例）",
+      "source": "脱敏期末样例｜2026｜山东",
+      "image": null,
+      "units": [{"id": "q-error-03-a", "label": "误差归因", "selected": false}],
+      "frequency": {
+        "level": "中频",
+        "numerator": 12,
+        "denominator": 64,
+        "rate": 0.188,
+        "scope": "2024—2026 山东期末卷，按底层结构去重",
+        "reason": "64 套可比试卷中 12 套出现"
+      },
+      "quality": {
+        "ai_conclusion": "待判断",
+        "teacher_conclusion": "待复核",
+        "dimensions": ["实验分析"],
+        "reason": "需先解决解析冲突",
+        "risk": "题图读数与文字解析不一致",
+        "confidence": 0.42
+      },
+      "content_health": {"status": "疑似问题", "reason": "题图读数与解析中的体积数值冲突"},
+      "coverage": {
+        "status": "无法判断",
+        "evidence_level": "E0",
+        "videos": [],
+        "covered_units": [],
+        "missing_units": ["误差归因"],
+        "teacher_conclusion": "待复核",
+        "reason": "无视频逐字稿、截图或人工覆盖结论"
+      },
+      "trend": {"label": "证据不足", "score": 0.35, "reason": "有效样本不足"},
+      "difficulty": {"level": "中等", "reason": "需要结合操作与误差方向"},
+      "learner_value": {"stable_barrier": true, "key_prerequisite": false, "reason": "误差方向判断是常见卡点"},
+      "migration_value": "高",
+      "cross_region_reuse": "中",
+      "score": 4,
+      "production_priority": "暂不生产",
+      "priority_reason": "内容健康检查未通过，先进入独立纠错队列",
+      "intervention": "纠错后再评估",
+      "teacher_feedback_reason": "",
+      "selected_for_candidate": false,
+      "exception": true
+    }
+  ],
+  "runs": [],
+  "reviews": [],
+  "artifacts": [],
+  "feedback": [],
+  "rules": [
+    {
+      "id": "project-rule-v1.0",
+      "name": "好题与课程生产优先级规则",
+      "scope": "当前生产项目",
+      "status": "项目正式版",
+      "baseline_precision": 0.58,
+      "experiment_precision": null,
+      "change_summary": "初始冻结版本",
+      "created_at": "2026-09-10 09:00:00"
+    }
+  ],
+  "publications": [],
+  "events": []
+}
