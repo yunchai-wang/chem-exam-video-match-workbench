@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from .domain import ValidationError
 from .service import WorkbenchService
@@ -28,6 +29,19 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/state":
             self._json(200, self.service.get_state())
+            return
+        if path.startswith("/api/assets/"):
+            try:
+                target = self.service.asset_path(unquote(path.removeprefix("/api/assets/")))
+            except ValidationError as error:
+                self._json(404, {"error": str(error)})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+            self.send_header("Content-Length", str(target.stat().st_size))
+            self.send_header("Cache-Control", "private, max-age=300")
+            self.end_headers()
+            self.wfile.write(target.read_bytes())
             return
         static_path = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/app.js": "app.js"}.get(path)
         if static_path:
@@ -65,6 +79,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/source-snapshots":
                 self._json(201, self.service.create_source_snapshot(payload))
                 return
+            if path == "/api/base/previews":
+                self._json(200, self.service.preview_base(payload))
+                return
+            if path == "/api/base/imports":
+                self._json(201, self.service.import_base(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return
@@ -74,6 +94,10 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             match = re.fullmatch(r"/api/artifacts/([^/]+)/feedback", path)
             if match:
                 self._json(201, self.service.add_artifact_feedback(match.group(1), str(payload.get("text", ""))))
+                return
+            match = re.fullmatch(r"/api/source-snapshots/([^/]+)/standardize", path)
+            if match:
+                self._json(201, self.service.standardize_snapshot(match.group(1)))
                 return
             match = re.fullmatch(r"/api/rules/([^/]+)/request-publication", path)
             if match:

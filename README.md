@@ -33,7 +33,7 @@ python3 apps/l4_course_evolution_workbench.py
 
 打开 `http://127.0.0.1:8766`。首次启动会将 `sample_data/l4_workbench/seed.json` 复制成被 Git 忽略的本地状态文件 `outputs/l4_workbench/state.json`，刷新页面后设置和反馈仍会保留。
 
-一期使用脱敏样例验证产品结构。Feishu Base、PMO、CB、素材库和正式云文档写入暂时只展示连接与授权状态，不会误写真实业务数据。
+一期使用脱敏样例验证产品结构。Feishu Base 已支持通过本机 `lark-cli` 做只读预览、字段映射和本地冻结导入；PMO、CB、素材库和正式云文档写入仍只展示连接与授权状态，不会误写真实业务数据。
 
 ### 当前生产就绪边界
 
@@ -41,18 +41,23 @@ python3 apps/l4_course_evolution_workbench.py
 
 - 本地 JSON 状态的跨线程/跨进程写锁、乐观版本校验、原子写入、自动备份与恢复；
 - PDF、Word、表格、题图、本地文件夹和 CB 导出文件的不可变输入快照，含文件清单、大小与 SHA-256；
-- Feishu Base 来源登记（仅冻结地址与截止时间，正式读取适配器尚未接入）；
+- Word、PDF、图片、文本、CSV、JSON 和 XLSX 的标准化入口；Word 会保留段落、公式文本、表格及内嵌原图，题干声明含图但未解析到图片时会阻断并报错；
+- Feishu Base 只读预览、当前视图筛选回显、字段映射与本地冻结导入；原字段和标准字段并存，不覆盖原表；
+- 标准题目资产的内容块、来源定位、指纹去重、图片完整性与异常清单；
 - 分阶段幂等任务记录、失败状态与重试基础；
 - 按“训练年份早于验证年份”冻结预测，并用真实后验标签计算 TP/FP/FN/TN、精确率和召回率；
 - 数据快照、任务健康和回测结果的工作台页面。
 
 仍是明确标注的契约预演：
 
-- 资料标准化、题型诊断、选题、母题、教案、逐字稿、分镜和 PPT/HTML 的真实 AI/Skill 执行器；
-- Feishu Base、PMO、CB、素材库、云文档及兼职触达的正式读写连接；
+- 扫描 PDF 的中文 OCR、Base 远程题图下载物化、复杂数学公式的完整 OOXML/LaTeX 还原；
+- 题型诊断、选题、母题、教案、逐字稿、分镜和 PPT/HTML 的真实 AI/Skill 执行器；
+- Feishu Base 写回、PMO、CB、素材库、云文档及兼职触达的正式写入连接；
 - 真实教师项目数据上的规则 A/B 结论。
 
-因此当前版本适合开始受控接入真实执行器与脱敏小样本，不应把自动生成的结构预览当作正式教案、逐字稿或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)。
+因此当前版本适合开始受控接入真实执行器与脱敏小样本，不应把自动生成的结构预览当作正式教案、逐字稿或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)，完整路线与工期见 [`docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md`](docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md)。
+
+资料解析可选依赖见 `requirements-l4.txt`。没有安装 `pypdf` 或 `openpyxl` 时，系统会显式报告相应解析能力缺失；PDF 页面原图仍优先通过本机 `pdftoppm` 保留，不会静默丢图。
 
 ## 原押题宣传审计工作台
 

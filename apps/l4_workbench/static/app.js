@@ -16,6 +16,7 @@ const PERMISSIONS = {
 };
 let state = null;
 let selectedOnly = false;
+let basePreview = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {headers: {"Content-Type": "application/json"}, ...options});
@@ -60,8 +61,19 @@ function render() {
 
 function renderDataFoundation() {
   document.querySelector("#state-revision").textContent = `状态修订 r${state.summary.state_revision}`;
-  document.querySelector("#snapshot-list").innerHTML = state.source_snapshots.length ? [...state.source_snapshots].reverse().map(item => `
-    <div class="snapshot-card"><strong>${esc(item.source_label)} <span class="tag">${esc(item.status)}</span></strong><small>${esc(item.source_type)} · ${item.file_count} 个文件 · ${item.total_bytes} bytes<br>${esc(item.created_at)} · 截止 ${esc(item.data_cutoff || "未填写")}</small><small class="checksum">SHA ${esc(item.immutable_checksum.slice(0, 16))}…</small></div>`).join("") : `<p class="quiet">尚未冻结来源。正式诊断前至少需要一个可追溯输入快照。</p>`;
+  const runsBySnapshot = Object.fromEntries(state.standardization_runs.map(item => [item.source_snapshot_id, item]));
+  document.querySelector("#snapshot-list").innerHTML = state.source_snapshots.length ? [...state.source_snapshots].reverse().map(item => {
+    const run = runsBySnapshot[item.id];
+    const canStandardize = ["local_files", "local_folder", "cb_export"].includes(item.source_type) && item.file_count > 0;
+    const action = run
+      ? `<span class="tag good">已形成 ${run.question_asset_count} 个题目资产</span>`
+      : canStandardize ? `<button class="button secondary small" data-standardize="${item.id}">开始标准化</button>` : `<span class="tag">等待适配器</span>`;
+    return `<div class="snapshot-card"><strong>${esc(item.source_label)} <span class="tag">${esc(item.status)}</span></strong><small>${esc(item.source_type)} · ${item.file_count} 个文件 · ${item.total_bytes} bytes<br>${esc(item.created_at)} · 截止 ${esc(item.data_cutoff || "未填写")}</small><small class="checksum">SHA ${esc(item.immutable_checksum.slice(0, 16))}…</small><div class="snapshot-action">${action}</div></div>`;
+  }).join("") : `<p class="quiet">尚未冻结来源。正式诊断前至少需要一个可追溯输入快照。</p>`;
+  document.querySelectorAll("[data-standardize]").forEach(button => button.onclick = () => standardizeSnapshot(button.dataset.standardize));
+
+  renderStandardAssets();
+  renderBasePreview();
 
   const failed = state.jobs.filter(job => job.status === "failed").length;
   const health = document.querySelector("#job-health");
@@ -77,6 +89,60 @@ function renderDataFoundation() {
     return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${freeze.validation_years.join("、")} <span class="tag">待后验数据</span></strong><small>规则 ${esc(freeze.rule_version)} · 截止 ${esc(freeze.data_cutoff)}</small><textarea data-observations="${freeze.id}" style="width:100%;margin-top:8px;min-height:58px">[{"entity_id":"structure-a","actual_positive":true},{"entity_id":"structure-b","actual_positive":false}]</textarea><div style="display:flex;gap:6px;margin-top:6px"><input data-observation-year="${freeze.id}" value="${freeze.validation_years[0]}" style="width:80px"><button class="button secondary small" data-evaluate="${freeze.id}">用后验观察集计算</button></div></div>`;
   }).join("") : `<p class="quiet">尚未冻结预测。没有冻结记录时，未来年份不能用于证明规则进步。</p>`;
   document.querySelectorAll("[data-evaluate]").forEach(button => button.onclick = () => evaluateFreeze(button.dataset.evaluate));
+}
+
+function renderStandardAssets() {
+  const issues = state.standardization_runs.reduce((sum, item) => sum + (item.issue_count || 0), 0);
+  const health = document.querySelector("#standardization-health");
+  health.textContent = issues ? `${issues} 个问题待处理` : `${state.question_assets.length} 个资产 · 无阻断`;
+  health.className = `status ${issues ? "waiting" : "completed"}`;
+  const items = [...state.question_assets].reverse().slice(0, 24);
+  document.querySelector("#standard-asset-list").innerHTML = items.length ? items.map(asset => {
+    const types = [...new Set(asset.content_blocks.map(block => block.type))];
+    const firstImage = asset.content_blocks.find(block => block.type === "image" && block.path);
+    const visual = firstImage
+      ? `<img src="${assetUrl(firstImage.path)}" alt="${esc(asset.title)}的原题图片" loading="lazy">`
+      : `<div class="asset-visual-placeholder">${asset.image_integrity === "remote_reference_unmaterialized" ? "远程图片待物化" : asset.image_integrity === "missing" ? "检测到缺图" : "本题未声明图表"}</div>`;
+    const issueTags = asset.issue_codes.map(code => `<span class="tag risk">${esc(code)}</span>`).join("");
+    const normalized = Object.entries(asset.normalized_fields || {}).filter(([, value]) => value != null && value !== "").slice(0, 5).map(([key, value]) => `<span class="tag">${esc(key)}：${esc(Array.isArray(value) ? value.join("、") : value)}</span>`).join("");
+    return `<article class="standard-asset-card"><div class="standard-asset-visual">${visual}</div><div><p class="eyebrow">${esc(asset.source_name)} · ${esc(asset.question_no || `第 ${asset.ordinal} 项`)}</p><h4>${esc(asset.title)}</h4><div class="chip-row"><span class="tag good">${types.map(typeLabel).join("＋")}</span><span class="tag">图片：${esc(imageIntegrityLabel(asset.image_integrity))}</span><span class="tag">重复 ${asset.duplicate_count || 1} 条</span>${issueTags}</div><div class="chip-row">${normalized}</div><p>${esc(asset.raw_text || "无可提取文字；请查看保留的原题图片。")}</p></div></article>`;
+  }).join("") : `<p class="quiet">尚无标准题目资产。请先冻结本地资料并点击“开始标准化”，或从 Base 只读预览后导入。</p>`;
+}
+
+function renderBasePreview() {
+  const node = document.querySelector("#base-preview");
+  if (!basePreview) return;
+  const mappingKeys = [
+    ["question_text", "题目文本（必选）"], ["question_image", "题目截图"], ["question_no", "题号"],
+    ["year", "年份"], ["province", "省份"], ["city", "城市/地区"], ["exam_type", "考试类型"],
+    ["knowledge_tags", "知识点"], ["difficulty", "难度"], ["historical_ai_quality", "历史 AI 好题"],
+    ["historical_teacher_quality", "历史教研好题"], ["historical_production_choice", "历史生产入选"],
+    ["library_has_video", "历史是否有视频"],
+  ];
+  const options = basePreview.fields.map(field => `<option value="${esc(field.name)}">${esc(field.name)}</option>`).join("");
+  const rows = basePreview.records.slice(0, 3).map(record => `<tr><td>${esc(record.record_id)}</td><td>${esc(JSON.stringify(record.fields).slice(0, 260))}</td></tr>`).join("");
+  node.innerHTML = `<div class="base-meta"><strong>${esc(basePreview.view_name || "全表 / 未识别视图名")}</strong><span>${basePreview.record_count} 条预览${basePreview.has_more ? " · 后续还有记录" : ""}</span></div>
+    <p class="quiet">视图筛选：${esc(basePreview.view_filter ? JSON.stringify(basePreview.view_filter) : "无或未读取")}</p>
+    <div class="mapping-grid">${mappingKeys.map(([key, label]) => `<label><span>${label}</span><select data-mapping="${key}"><option value="">不映射</option>${options}</select></label>`).join("")}</div>
+    <details><summary>查看原始字段与记录样本</summary><div class="chip-row">${basePreview.fields.map(field => `<span class="tag">${esc(field.name)}</span>`).join("")}</div><table class="preview-table"><tbody>${rows}</tbody></table></details>
+    <button class="button primary" id="import-base" type="button">按当前映射冻结并导入</button>`;
+  Object.entries(basePreview.suggested_mapping || {}).forEach(([key, value]) => {
+    const select = node.querySelector(`[data-mapping="${key}"]`);
+    if (select) select.value = value;
+  });
+  node.querySelector("#import-base").onclick = importBase;
+}
+
+function assetUrl(path) {
+  return `/api/assets/${String(path).split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function typeLabel(type) {
+  return ({text: "文字", formula: "公式", table: "表格", image: "原图", image_reference: "远程图引用"})[type] || type;
+}
+
+function imageIntegrityLabel(value) {
+  return ({preserved: "已保留", remote_reference_unmaterialized: "待物化", missing: "缺失", no_visual_declared: "无图"})[value] || value;
 }
 
 function metric(value, numerator, denominator) {
@@ -241,6 +307,33 @@ async function createSnapshot(event) {
   catch (error) { toast(error.message, true); }
 }
 
+async function standardizeSnapshot(id) {
+  try { await api(`/api/source-snapshots/${id}/standardize`, {method: "POST", body: "{}"}); await load(); toast("资料已标准化；文字、表格和原题图片已建立关联"); }
+  catch (error) { toast(error.message, true); }
+}
+
+async function previewBase(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  try {
+    basePreview = await api("/api/base/previews", {method: "POST", body: JSON.stringify({url: form.get("url"), limit: Number(form.get("limit"))})});
+    renderBasePreview();
+    toast("只读预览完成，请确认字段映射后再导入");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function importBase() {
+  const form = new FormData(document.querySelector("#base-preview-form"));
+  const mapping = {};
+  document.querySelectorAll("[data-mapping]").forEach(select => { if (select.value) mapping[select.dataset.mapping] = select.value; });
+  try {
+    await api("/api/base/imports", {method: "POST", body: JSON.stringify({url: form.get("url"), limit: Number(form.get("limit")), source_label: form.get("source_label"), data_cutoff: form.get("data_cutoff") || null, mapping})});
+    basePreview = null;
+    await load();
+    toast("Base 当前读取结果已冻结；原字段、标准字段和映射契约均已保存");
+  } catch (error) { toast(error.message, true); }
+}
+
 async function freezePredictions(event) {
   event.preventDefault();
   const form = new FormData(event.target);
@@ -274,6 +367,7 @@ document.querySelector("#start-run").onclick = startRun;
 document.querySelector("#auto-mode").onclick = setFullAuto;
 document.querySelector("#project-form").onsubmit = saveProject;
 document.querySelector("#snapshot-form").onsubmit = createSnapshot;
+document.querySelector("#base-preview-form").onsubmit = previewBase;
 document.querySelector("#freeze-form").onsubmit = freezePredictions;
 document.querySelector("#question-search").oninput = renderQuestions;
 document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看已入选"; renderQuestions(); };

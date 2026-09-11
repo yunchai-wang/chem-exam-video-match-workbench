@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 STAGES = [
@@ -65,6 +65,13 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
         state.setdefault("prediction_freezes", [])
         state.setdefault("backtest_results", [])
         state["schema_version"] = 2
+        version = 2
+    if version == 2:
+        state.setdefault("standardization_runs", [])
+        state.setdefault("documents", [])
+        state.setdefault("question_assets", [])
+        state.setdefault("field_mappings", [])
+        state["schema_version"] = 3
     return state
 
 
@@ -99,6 +106,9 @@ def validate_state(state: dict[str, Any]) -> None:
         if publication.get("status") not in {"待人工批准", "已批准", "已拒绝"}:
             raise ValidationError("public rule publication must have a governed status")
 
-    for key in ("source_snapshots", "jobs", "prediction_freezes", "backtest_results"):
+    for key in (
+        "source_snapshots", "jobs", "prediction_freezes", "backtest_results",
+        "standardization_runs", "documents", "question_assets", "field_mappings",
+    ):
         if not isinstance(state.get(key), list):
             raise ValidationError(f"{key} must be a list")

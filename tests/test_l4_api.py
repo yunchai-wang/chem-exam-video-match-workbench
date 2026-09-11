@@ -105,6 +105,37 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual(result["precision"], 1.0)
 
+    def test_local_snapshot_can_be_standardized_through_api(self) -> None:
+        source = Path(self.temp.name) / "questions.txt"
+        source.write_text("1. 第一题\n\n2. 第二题", encoding="utf-8")
+        status, snapshot = self.request("/api/source-snapshots", "POST", {
+            "source_type": "local_files", "source_label": "本地题目", "paths": [str(source)],
+        })
+        self.assertEqual(status, 201)
+        status, result = self.request(f"/api/source-snapshots/{snapshot['id']}/standardize", "POST", {})
+        self.assertEqual(status, 201)
+        self.assertEqual(result["run"]["question_asset_count"], 2)
+        _, state = self.request("/api/state")
+        self.assertEqual(state["summary"]["standardized_asset_count"], 2)
+
+    def test_standardized_image_can_be_served_but_traversal_is_rejected(self) -> None:
+        source = Path(self.temp.name) / "question.png"
+        source.write_bytes(b"\x89PNG\r\n\x1a\nmock")
+        _, snapshot = self.request("/api/source-snapshots", "POST", {
+            "source_type": "local_files", "source_label": "题图", "paths": [str(source)],
+        })
+        _, result = self.request(f"/api/source-snapshots/{snapshot['id']}/standardize", "POST", {})
+        image_path = result["question_assets"][0]["content_blocks"][0]["path"]
+        with urllib.request.urlopen(f"{self.base}/api/assets/{image_path}") as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.read(), source.read_bytes())
+
+        request = urllib.request.Request(self.base + "/api/assets/%2e%2e/secret.txt")
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            urllib.request.urlopen(request)
+        self.assertEqual(context.exception.code, 404)
+        context.exception.close()
+
 
 if __name__ == "__main__":
     unittest.main()

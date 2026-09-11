@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -206,5 +206,9 @@
   "jobs": [],
   "prediction_freezes": [],
   "backtest_results": [],
+  "standardization_runs": [],
+  "documents": [],
+  "question_assets": [],
+  "field_mappings": [],
   "events": []
 }

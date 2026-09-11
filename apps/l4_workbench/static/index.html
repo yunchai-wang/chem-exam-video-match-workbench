@@ -78,7 +78,7 @@
     </section>
 
     <section class="page" id="page-data">
-      <div class="section-heading"><div><p class="eyebrow">生产基建 Sprint 0</p><h2>先冻结证据，再允许 AI 派生与学习</h2><p>原始资料只复制、计算哈希和记录来源；远程 Base/CB 在适配器接入前只登记契约，不自动抓取。</p></div><span class="rule-pill" id="state-revision">状态修订 —</span></div>
+      <div class="section-heading"><div><p class="eyebrow">真实资料入口</p><h2>先冻结证据，再标准化为可复用题目资产</h2><p>本地资料保留文字、公式、表格与原题图片；Feishu Base 先只读预览字段和当前视图筛选，再由老师确认映射。任何缺图或解析失败都会显式提示。</p></div><span class="rule-pill" id="state-revision">状态修订 —</span></div>
       <div class="grid two data-grid">
         <form id="snapshot-form" class="panel compact-form">
           <div class="panel-title"><div><p class="eyebrow">来源快照</p><h3>登记本轮原始输入</h3></div></div>
@@ -91,6 +91,26 @@
         </form>
         <article class="panel"><div class="panel-title"><div><p class="eyebrow">不可变清单</p><h3>已登记来源</h3></div></div><div id="snapshot-list" class="snapshot-list"></div></article>
       </div>
+
+      <div class="grid two data-grid">
+        <form id="base-preview-form" class="panel compact-form">
+          <div class="panel-title"><div><p class="eyebrow">既有资产复用</p><h3>只读预览 Feishu Base</h3></div><span class="safe-badge">不写原表</span></div>
+          <label>Base 表格或视图地址<textarea name="url" placeholder="粘贴包含 table / view 参数的 Base 地址" required></textarea></label>
+          <div class="form-grid mini"><label>预览行数<input name="limit" type="number" min="1" max="200" value="5"></label><label>来源名称<input name="source_label" value="已有真题 Base"></label></div>
+          <label>数据截止时间<input name="data_cutoff" type="date"></label>
+          <p class="form-hint">预览会读取字段、当前视图筛选和少量记录；不会保存登录凭证，也不会修改原表。</p>
+          <button class="button primary" type="submit">读取字段并建议映射</button>
+        </form>
+        <article class="panel">
+          <div class="panel-title"><div><p class="eyebrow">字段契约</p><h3>原字段与平台标准字段并存</h3></div></div>
+          <div id="base-preview" class="base-preview"><p class="quiet">粘贴 Base 地址后，平台会回显当前视图、筛选条件、原字段和映射建议，再决定是否导入。</p></div>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="panel-title"><div><p class="eyebrow">标准化结果</p><h3>题目内容块、图片完整性与重复组</h3></div><span class="status" id="standardization-health">—</span></div>
+        <div id="standard-asset-list" class="standard-asset-list"></div>
+      </article>
 
       <article class="panel">
         <div class="panel-title"><div><p class="eyebrow">执行健康</p><h3>幂等任务与失败恢复</h3></div><span class="status" id="job-health">—</span></div>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from functools import wraps
 from time import sleep
@@ -10,9 +11,11 @@ from uuid import uuid4
 
 from .domain import INTERVENTION_STRATEGIES, STAGE_LABELS, STAGES, ValidationError
 from .backtest import create_prediction_freeze, evaluate_prediction_freeze
+from .base_adapter import LarkBaseAdapter
 from .engine import affected_stages, classify_feedback, recommend_priority, release_decision
 from .jobs import StageExecutionError, StageJobRunner
 from .pipeline import SourceSnapshotManager
+from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
 
 
@@ -47,10 +50,12 @@ def retry_concurrent_updates(function):
 
 
 class WorkbenchService:
-    def __init__(self, store: JsonStore) -> None:
+    def __init__(self, store: JsonStore, base_adapter: LarkBaseAdapter | None = None) -> None:
         self.store = store
         self.store.initialize()
         self.snapshots = SourceSnapshotManager(self.store.path.parent / "source_snapshots")
+        self.standardizer = DocumentStandardizer(self.store.path.parent)
+        self.base_adapter = base_adapter or LarkBaseAdapter()
         self.jobs = StageJobRunner()
 
     def get_state(self) -> dict[str, Any]:
@@ -94,6 +99,63 @@ class WorkbenchService:
             state["source_snapshots"].append(snapshot)
             self._event(state, "source.snapshot_created", f"已冻结来源快照：{snapshot['source_label']}")
         return snapshot
+
+    def standardize_snapshot(self, snapshot_id: str) -> dict[str, Any]:
+        state = self.store.load()
+        snapshot = self._find(state["source_snapshots"], snapshot_id, "source snapshot")
+        existing = next((item for item in state["standardization_runs"] if item["source_snapshot_id"] == snapshot_id and item["source_checksum"] == snapshot["immutable_checksum"]), None)
+        if existing:
+            return self._standardization_payload(state, existing)
+        result = self.standardizer.standardize(snapshot)
+        with self.store.transaction() as current:
+            existing = next((item for item in current["standardization_runs"] if item["id"] == result["run"]["id"]), None)
+            if existing:
+                return self._standardization_payload(current, existing)
+            self._merge_standardization(current, result)
+            self._event(current, "source.standardized", f"已形成 {result['run']['question_asset_count']} 个标准题目资产")
+        return result
+
+    def preview_base(self, request: dict[str, Any]) -> dict[str, Any]:
+        return self.base_adapter.preview(request)
+
+    def import_base(self, request: dict[str, Any]) -> dict[str, Any]:
+        preview = self.base_adapter.preview(request)
+        mapping = request.get("mapping") or preview["suggested_mapping"]
+        if not isinstance(mapping, dict):
+            raise ValidationError("mapping must be an object")
+        known_fields = {field["name"] for field in preview["fields"]}
+        unknown = {str(value) for value in mapping.values() if value and value not in known_fields}
+        if unknown:
+            raise ValidationError(f"mapping references unknown Base fields: {', '.join(sorted(unknown))}")
+        if not mapping.get("question_text"):
+            raise ValidationError("mapping.question_text is required")
+        snapshot_request = {
+            "source_type": "feishu_base", "source_label": request.get("source_label") or "Feishu Base 题目",
+            "url": request.get("url"), "data_cutoff": request.get("data_cutoff"), "limit": request.get("limit", 20),
+        }
+        snapshot = self.snapshots.capture_remote_export(snapshot_request, preview)
+        result = self.standardizer.standardize_base_records(snapshot, preview, mapping)
+        mapping_record = {
+            "id": stable_id("mapping", preview["base_token"], preview["table_id"], preview.get("view_id"), json.dumps(mapping, ensure_ascii=False, sort_keys=True)),
+            "source_type": "feishu_base", "base_token": preview["base_token"], "table_id": preview["table_id"],
+            "view_id": preview.get("view_id"), "view_filter": preview.get("view_filter"), "mapping": mapping,
+            "source_fields": preview["fields"], "created_at": now(),
+        }
+        with self.store.transaction() as state:
+            state["source_snapshots"].append(snapshot)
+            state["field_mappings"] = [item for item in state["field_mappings"] if item["id"] != mapping_record["id"]]
+            state["field_mappings"].append(mapping_record)
+            self._merge_standardization(state, result)
+            suffix = "（当前仅为截断样本）" if snapshot.get("has_more") else ""
+            self._event(state, "base.imported", f"已从 Base 冻结并标准化 {len(result['question_assets'])} 条记录{suffix}")
+        return {"snapshot": snapshot, "mapping": mapping_record, **result}
+
+    def asset_path(self, relative_path: str) -> Path:
+        target = (self.store.path.parent / relative_path).resolve()
+        root = self.store.path.parent.resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            raise ValidationError("unknown local asset")
+        return target
 
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
@@ -348,6 +410,8 @@ class WorkbenchService:
             "job_count": len(state["jobs"]),
             "failed_job_count": sum(job["status"] == "failed" for job in state["jobs"]),
             "backtest_count": len(state["backtest_results"]),
+            "standardized_asset_count": len(state["question_assets"]),
+            "standardization_issue_count": sum(item.get("issue_count", 0) for item in state["standardization_runs"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
@@ -363,6 +427,33 @@ class WorkbenchService:
         if run["status"] == "completed":
             return "监测成品反馈与后验数据，主动生成下一轮规则实验"
         return f"继续运行{STAGE_LABELS[run['current_stage']]}"
+
+    @staticmethod
+    def _merge_standardization(state: dict[str, Any], result: dict[str, Any]) -> None:
+        if not any(item["id"] == result["run"]["id"] for item in state["standardization_runs"]):
+            state["standardization_runs"].append(result["run"])
+        document_ids = {item["id"] for item in result["documents"]}
+        asset_ids = {item["id"] for item in result["question_assets"]}
+        state["documents"] = [item for item in state["documents"] if item["id"] not in document_ids] + result["documents"]
+        state["question_assets"] = [item for item in state["question_assets"] if item["id"] not in asset_ids] + result["question_assets"]
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for asset in state["question_assets"]:
+            groups.setdefault(asset["fingerprint"], []).append(asset)
+        for fingerprint, assets in groups.items():
+            duplicate_id = f"duplicate-{fingerprint[:12]}" if len(assets) > 1 else None
+            for asset in assets:
+                asset["duplicate_group_id"] = duplicate_id
+                asset["duplicate_count"] = len(assets)
+
+    @staticmethod
+    def _standardization_payload(state: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+        document_ids = set(run["document_ids"])
+        asset_ids = set(run["question_asset_ids"])
+        return {
+            "run": run,
+            "documents": [item for item in state["documents"] if item["id"] in document_ids],
+            "question_assets": [item for item in state["question_assets"] if item["id"] in asset_ids],
+        }
 
     @staticmethod
     def _find(items: list[dict[str, Any]], item_id: str, label: str) -> dict[str, Any]:

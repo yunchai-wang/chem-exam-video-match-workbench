@@ -102,6 +102,52 @@ class SourceSnapshotManager:
             shutil.rmtree(snapshot_dir, ignore_errors=True)
             raise
 
+    def capture_remote_export(self, request: dict[str, Any], export_payload: dict[str, Any]) -> dict[str, Any]:
+        """Freeze the exact read-only Base result used by downstream standardization."""
+        self._reject_sensitive_values(request)
+        if request.get("source_type") != "feishu_base":
+            raise ValidationError("remote export currently supports feishu_base only")
+        url = str(request.get("url", "")).strip()
+        if not url.startswith("https://"):
+            raise ValidationError("feishu_base requires an https URL")
+        snapshot_id = f"snapshot-{uuid4().hex[:12]}"
+        snapshot_dir = self.root / snapshot_id
+        raw_dir = snapshot_dir / "raw"
+        snapshot_dir.mkdir(parents=True, exist_ok=False)
+        try:
+            raw_dir.mkdir(parents=True)
+            target = raw_dir / "base-export.json"
+            target.write_text(json.dumps(export_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            file_record = {
+                "name": target.name,
+                "relative_path": target.relative_to(self.root.parent).as_posix(),
+                "size_bytes": target.stat().st_size,
+                "sha256": sha256_file(target),
+                "extension": ".json",
+            }
+            config = {
+                "source_type": "feishu_base", "source_label": str(request.get("source_label", "Feishu Base")),
+                "url": url, "base_token": export_payload.get("base_token"), "table_id": export_payload.get("table_id"),
+                "view_id": export_payload.get("view_id"), "record_limit": request.get("limit"),
+            }
+            manifest = {
+                "id": snapshot_id, "source_type": "feishu_base", "source_label": config["source_label"],
+                "status": "partial" if export_payload.get("has_more") else "frozen", "created_at": timestamp(),
+                "data_cutoff": request.get("data_cutoff"), "config": config, "files": [file_record],
+                "file_count": 1, "total_bytes": file_record["size_bytes"],
+                "record_count": export_payload.get("record_count", 0), "has_more": bool(export_payload.get("has_more")),
+            }
+            manifest["immutable_checksum"] = hashlib.sha256(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+            (snapshot_dir / "manifest.json").write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            return manifest
+        except Exception:
+            shutil.rmtree(snapshot_dir, ignore_errors=True)
+            raise
+
     def _resolve_local_candidates(self, source_type: str, request: dict[str, Any]) -> list[tuple[Path, Path]]:
         if source_type == "local_folder":
             folder = Path(str(request.get("path", ""))).expanduser().resolve()
