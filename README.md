@@ -33,7 +33,7 @@ python3 apps/l4_course_evolution_workbench.py
 
 打开 `http://127.0.0.1:8766`。首次启动会将 `sample_data/l4_workbench/seed.json` 复制成被 Git 忽略的本地状态文件 `outputs/l4_workbench/state.json`，刷新页面后设置和反馈仍会保留。
 
-一期使用脱敏样例验证产品结构。Feishu Base 已支持通过本机 `lark-cli` 做只读预览、字段映射和本地冻结导入；PMO、CB、素材库和正式云文档写入仍只展示连接与授权状态，不会误写真实业务数据。
+一期使用脱敏样例验证产品结构。Feishu Base 已支持通过本机 `lark-cli` 做只读预览、字段映射和本地冻结导入；本地 JSON/CSV 题目清单也可映射既有字段并优先复用本机题图。PMO、CB、素材库和正式云文档写入仍只展示连接与授权状态，不会误写真实业务数据。
 
 ### 当前生产就绪边界
 
@@ -42,6 +42,7 @@ python3 apps/l4_course_evolution_workbench.py
 - 本地 JSON 状态的跨线程/跨进程写锁、乐观版本校验、原子写入、自动备份与恢复；
 - PDF、Word、表格、题图、本地文件夹和 CB 导出文件的不可变输入快照，含文件清单、大小与 SHA-256；
 - Word、PDF、图片、文本、CSV、JSON 和 XLSX 的标准化入口；Word 会保留段落、公式文本、表格及内嵌原图，题干声明含图但未解析到图片时会阻断并报错；
+- 本地 JSON/CSV 结构化题目清单预览、字段映射、题图覆盖检查与冻结导入；原始文件保持只读，重复题图按内容复用，缺图和疑似整卷长图进入异常清单；
 - Feishu Base 只读预览、当前视图筛选回显、字段映射与本地冻结导入；原字段和标准字段并存，不覆盖原表；
 - 标准题目资产的内容块、来源定位、指纹去重、图片完整性与异常清单；
 - 分阶段幂等任务记录、失败状态与重试基础；
@@ -55,7 +56,7 @@ python3 apps/l4_course_evolution_workbench.py
 - Feishu Base 写回、PMO、CB、素材库、云文档及兼职触达的正式写入连接；
 - 真实教师项目数据上的规则 A/B 结论。
 
-因此当前版本适合开始受控接入真实执行器与脱敏小样本，不应把自动生成的结构预览当作正式教案、逐字稿或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)，完整路线与工期见 [`docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md`](docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md)。
+因此当前版本适合直接用本地清单和题图建立受控真实样本，再接入教研执行器；不应把自动生成的结构预览当作正式教案、逐字稿或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)，完整路线与工期见 [`docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md`](docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md)。
 
 资料解析可选依赖见 `requirements-l4.txt`。没有安装 `pypdf` 或 `openpyxl` 时，系统会显式报告相应解析能力缺失；PDF 页面原图仍优先通过本机 `pdftoppm` 保留，不会静默丢图。
 

@@ -17,6 +17,7 @@ const PERMISSIONS = {
 let state = null;
 let selectedOnly = false;
 let basePreview = null;
+let manifestPreview = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {headers: {"Content-Type": "application/json"}, ...options});
@@ -74,6 +75,7 @@ function renderDataFoundation() {
 
   renderStandardAssets();
   renderBasePreview();
+  renderManifestPreview();
 
   const failed = state.jobs.filter(job => job.status === "failed").length;
   const health = document.querySelector("#job-health");
@@ -96,7 +98,11 @@ function renderStandardAssets() {
   const health = document.querySelector("#standardization-health");
   health.textContent = issues ? `${issues} 个问题待处理` : `${state.question_assets.length} 个资产 · 无阻断`;
   health.className = `status ${issues ? "waiting" : "completed"}`;
-  const items = [...state.question_assets].reverse().slice(0, 24);
+  const search = (document.querySelector("#standard-asset-search")?.value || "").trim().toLowerCase();
+  const integrity = document.querySelector("#asset-integrity-filter")?.value || "";
+  const filtered = state.question_assets.filter(asset => (!integrity || asset.image_integrity === integrity) && (!search || JSON.stringify(asset).toLowerCase().includes(search)));
+  const items = [...filtered].reverse().slice(0, 48);
+  document.querySelector("#asset-filter-count").textContent = `显示 ${items.length} / 命中 ${filtered.length} / 共 ${state.question_assets.length}`;
   document.querySelector("#standard-asset-list").innerHTML = items.length ? items.map(asset => {
     const types = [...new Set(asset.content_blocks.map(block => block.type))];
     const firstImage = asset.content_blocks.find(block => block.type === "image" && block.path);
@@ -107,6 +113,32 @@ function renderStandardAssets() {
     const normalized = Object.entries(asset.normalized_fields || {}).filter(([, value]) => value != null && value !== "").slice(0, 5).map(([key, value]) => `<span class="tag">${esc(key)}：${esc(Array.isArray(value) ? value.join("、") : value)}</span>`).join("");
     return `<article class="standard-asset-card"><div class="standard-asset-visual">${visual}</div><div><p class="eyebrow">${esc(asset.source_name)} · ${esc(asset.question_no || `第 ${asset.ordinal} 项`)}</p><h4>${esc(asset.title)}</h4><div class="chip-row"><span class="tag good">${types.map(typeLabel).join("＋")}</span><span class="tag">图片：${esc(imageIntegrityLabel(asset.image_integrity))}</span><span class="tag">重复 ${asset.duplicate_count || 1} 条</span>${issueTags}</div><div class="chip-row">${normalized}</div><p>${esc(asset.raw_text || "无可提取文字；请查看保留的原题图片。")}</p></div></article>`;
   }).join("") : `<p class="quiet">尚无标准题目资产。请先冻结本地资料并点击“开始标准化”，或从 Base 只读预览后导入。</p>`;
+}
+
+function renderManifestPreview() {
+  const node = document.querySelector("#manifest-preview");
+  if (!manifestPreview) return;
+  const report = manifestPreview.image_report;
+  const mappingKeys = [
+    ["source_id", "题目 ID"], ["source_paper", "试卷"], ["question_no", "题号"],
+    ["question_text", "题目文本（必选）"], ["question_image", "本地题图路径"], ["difficulty", "难度"],
+    ["knowledge_tags", "知识点"], ["question_type", "题型"], ["score", "分值"],
+    ["visual_forms", "视觉形态"], ["background_tags", "背景素材"], ["task_tags", "设问任务"],
+    ["method_models", "解法模型"], ["source_page", "来源页码"],
+  ];
+  const options = manifestPreview.fields.map(field => `<option value="${esc(field.name)}">${esc(field.name)}</option>`).join("");
+  const rate = report.coverage_rate == null ? "未映射题图字段" : `${(report.coverage_rate * 100).toFixed(1)}%`;
+  const rows = manifestPreview.records.slice(0, 3).map(record => `<tr><td>${esc(record.record_id)}</td><td>${esc(JSON.stringify(record.fields).slice(0, 260))}</td></tr>`).join("");
+  node.innerHTML = `<div class="local-health-grid"><div><b>${manifestPreview.record_count}</b><span>题目记录</span></div><div><b>${report.unique_existing_local_images}</b><span>唯一可用题图</span></div><div><b>${rate}</b><span>有图记录覆盖率</span></div><div class="${report.records_with_missing_local_image || report.suspicious_local_images ? "health-risk" : ""}"><b>${report.records_with_missing_local_image} / ${report.suspicious_local_images}</b><span>缺失 / 疑似误裁</span></div></div>
+    <div class="mapping-grid">${mappingKeys.map(([key, label]) => `<label><span>${label}</span><select data-manifest-mapping="${key}"><option value="">不映射</option>${options}</select></label>`).join("")}</div>
+    <details><summary>查看原始字段与记录样本</summary><div class="chip-row">${manifestPreview.fields.map(field => `<span class="tag">${esc(field.name)}</span>`).join("")}</div><table class="preview-table"><tbody>${rows}</tbody></table></details>
+    <p class="quiet">导入时只冻结实际存在的本地题图；缺失项保留原引用并进入异常复核，不会伪装成“图片完整”。</p>
+    <button class="button primary" id="import-manifest" type="button">冻结清单与本地题图</button>`;
+  Object.entries(manifestPreview.suggested_mapping || {}).forEach(([key, value]) => {
+    const select = node.querySelector(`[data-manifest-mapping="${key}"]`);
+    if (select) select.value = value;
+  });
+  node.querySelector("#import-manifest").onclick = importManifest;
 }
 
 function renderBasePreview() {
@@ -142,7 +174,7 @@ function typeLabel(type) {
 }
 
 function imageIntegrityLabel(value) {
-  return ({preserved: "已保留", remote_reference_unmaterialized: "待物化", missing: "缺失", no_visual_declared: "无图"})[value] || value;
+  return ({preserved: "已保留", partial: "部分缺失", remote_reference_unmaterialized: "待物化", missing: "缺失", no_visual_declared: "无图"})[value] || value;
 }
 
 function metric(value, numerator, denominator) {
@@ -151,7 +183,7 @@ function metric(value, numerator, denominator) {
 
 function renderMetrics() {
   const s = state.summary;
-  const items = [[s.question_count, "标准题目资产"], [s.candidate_count, "已入选候选"], [s.p1_count, "P1 重点生产"], [s.waiting_review_count, "待教师处理"], [s.rule_iteration, "规则迭代轮次"]];
+  const items = [[s.standardized_asset_count, "已标准化题目"], [s.candidate_count, "已入选候选"], [s.p1_count, "P1 重点生产"], [s.waiting_review_count, "待教师处理"], [s.rule_iteration, "规则迭代轮次"]];
   document.querySelector("#metrics").innerHTML = items.map(([value, label]) => `<div class="metric"><b>${esc(value)}</b><span>${label}</span></div>`).join("");
 }
 
@@ -325,13 +357,44 @@ async function previewBase(event) {
 async function importBase() {
   const form = new FormData(document.querySelector("#base-preview-form"));
   const mapping = {};
-  document.querySelectorAll("[data-mapping]").forEach(select => { if (select.value) mapping[select.dataset.mapping] = select.value; });
+  document.querySelector("#base-preview").querySelectorAll("[data-mapping]").forEach(select => { if (select.value) mapping[select.dataset.mapping] = select.value; });
   try {
     await api("/api/base/imports", {method: "POST", body: JSON.stringify({url: form.get("url"), limit: Number(form.get("limit")), source_label: form.get("source_label"), data_cutoff: form.get("data_cutoff") || null, mapping})});
     basePreview = null;
     await load();
     toast("Base 当前读取结果已冻结；原字段、标准字段和映射契约均已保存");
   } catch (error) { toast(error.message, true); }
+}
+
+async function previewManifest(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  try {
+    manifestPreview = await api("/api/manifests/previews", {method: "POST", body: JSON.stringify({path: form.get("path"), limit: Number(form.get("limit"))})});
+    renderManifestPreview();
+    toast("本地清单与题图路径检查完成，请确认字段映射");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function importManifest() {
+  const form = new FormData(document.querySelector("#manifest-preview-form"));
+  const button = document.querySelector("#import-manifest");
+  const mapping = {};
+  document.querySelector("#manifest-preview").querySelectorAll("[data-manifest-mapping]").forEach(select => {
+    if (select.value) mapping[select.dataset.manifestMapping] = select.value;
+  });
+  button.disabled = true;
+  button.textContent = "正在冻结题图…";
+  try {
+    const result = await api("/api/manifests/imports", {method: "POST", body: JSON.stringify({path: form.get("path"), source_label: form.get("source_label"), data_cutoff: form.get("data_cutoff") || null, mapping})});
+    manifestPreview = null;
+    await load();
+    toast(`已接入 ${result.run.question_asset_count} 道题和 ${result.image_report.unique_existing_local_images} 张唯一题图`);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "冻结清单与本地题图";
+    toast(error.message, true);
+  }
 }
 
 async function freezePredictions(event) {
@@ -368,7 +431,10 @@ document.querySelector("#auto-mode").onclick = setFullAuto;
 document.querySelector("#project-form").onsubmit = saveProject;
 document.querySelector("#snapshot-form").onsubmit = createSnapshot;
 document.querySelector("#base-preview-form").onsubmit = previewBase;
+document.querySelector("#manifest-preview-form").onsubmit = previewManifest;
 document.querySelector("#freeze-form").onsubmit = freezePredictions;
+document.querySelector("#standard-asset-search").oninput = renderStandardAssets;
+document.querySelector("#asset-integrity-filter").onchange = renderStandardAssets;
 document.querySelector("#question-search").oninput = renderQuestions;
 document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看已入选"; renderQuestions(); };
 load().catch(error => toast(error.message, true));

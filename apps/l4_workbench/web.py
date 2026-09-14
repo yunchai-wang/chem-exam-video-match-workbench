@@ -85,6 +85,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/base/imports":
                 self._json(201, self.service.import_base(payload))
                 return
+            if path == "/api/manifests/previews":
+                self._json(200, self.service.preview_manifest(payload))
+                return
+            if path == "/api/manifests/imports":
+                self._json(201, self.service.import_manifest(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return

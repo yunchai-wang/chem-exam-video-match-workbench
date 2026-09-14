@@ -18,7 +18,7 @@ ALLOWED_EXTENSIONS = {
     ".xls", ".xlsx", ".png", ".jpg", ".jpeg", ".webp",
 }
 REMOTE_SOURCE_TYPES = {"feishu_base"}
-LOCAL_SOURCE_TYPES = {"local_files", "local_folder", "cb_export"}
+LOCAL_SOURCE_TYPES = {"local_files", "local_folder", "cb_export", "local_manifest"}
 SENSITIVE_KEYS = {"token", "password", "secret", "cookie", "authorization", "api_key"}
 
 

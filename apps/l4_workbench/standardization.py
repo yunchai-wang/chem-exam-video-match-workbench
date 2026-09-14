@@ -18,6 +18,7 @@ from uuid import uuid4
 from xml.etree import ElementTree as ET
 
 from .domain import ValidationError
+from .manifest_adapter import LocalManifestAdapter
 from .pipeline import sha256_file
 
 
@@ -161,6 +162,110 @@ class DocumentStandardizer:
             "question_asset_count": len(assets), "issue_count": len(issues), "issues": issues, "created_at": now(),
         }
         run["result_checksum"] = hashlib.sha256(json.dumps({"assets": assets, "issues": issues}, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+        return {"run": run, "documents": [document], "question_assets": assets}
+
+    def standardize_manifest_records(
+        self,
+        snapshot: dict[str, Any],
+        manifest_path: Path,
+        records: list[dict[str, Any]],
+        mapping: dict[str, str],
+    ) -> dict[str, Any]:
+        """Build question assets from a local row manifest and its frozen images."""
+        mapping_json = json.dumps(mapping, sort_keys=True, ensure_ascii=False)
+        run_id = stable_id("standardization", snapshot["immutable_checksum"], PARSER_VERSION, mapping_json)
+        document_id = stable_id("document", snapshot["id"], manifest_path.name)
+        document = {
+            "id": document_id,
+            "source_snapshot_id": snapshot["id"],
+            "source_kind": "local_manifest",
+            "source_name": manifest_path.name,
+            "source_file_sha256": snapshot["immutable_checksum"],
+            "record_count": len(records),
+            "content_blocks": [],
+            "parser_version": PARSER_VERSION,
+        }
+        captured_by_sha = {
+            item["sha256"]: item
+            for item in snapshot.get("files", [])
+            if item.get("extension") in {".png", ".jpg", ".jpeg", ".webp"}
+        }
+        adapter = LocalManifestAdapter()
+        assets = []
+        issues = []
+        image_field = mapping.get("question_image")
+        for index, record in enumerate(records, 1):
+            record_id = self._plain_value(record.get(mapping.get("source_id"))) or adapter.record_id(record, index)
+            text = self._plain_value(record.get(mapping.get("question_text")))
+            blocks = []
+            if text:
+                blocks.append({"type": "text", "text": text, "sequence": 1, "source_locator": f"record:{record_id}"})
+            image_values = adapter.path_values(record.get(image_field)) if image_field else []
+            missing_image_values = []
+            suspicious_images = []
+            for raw_value in image_values:
+                source_image = adapter.resolve_image_path(raw_value, manifest_path.parent)
+                captured = None
+                if source_image and source_image.is_file():
+                    captured = captured_by_sha.get(sha256_file(source_image))
+                if captured:
+                    blocks.append({
+                        "type": "image", "path": captured["relative_path"], "sha256": captured["sha256"],
+                        "mime_type": mimetypes.guess_type(captured["name"])[0] or "application/octet-stream",
+                        "sequence": len(blocks) + 1, "source_locator": f"record:{record_id}",
+                    })
+                    inspection = adapter.inspect_image(source_image)
+                    if inspection.get("suspicious"):
+                        suspicious_images.append(inspection)
+                else:
+                    missing_image_values.append(raw_value)
+                    blocks.append({
+                        "type": "image_reference", "value": raw_value, "materialized": False,
+                        "sequence": len(blocks) + 1, "source_locator": f"record:{record_id}",
+                    })
+            asset = self._asset_from_blocks(
+                snapshot, document, blocks, index, str(record_id), source_fields=record,
+                normalized_fields={canonical: record.get(source) for canonical, source in mapping.items() if source},
+            )
+            mapped_paper = self._plain_value(record.get(mapping.get("source_paper")))
+            mapped_question_no = self._plain_value(record.get(mapping.get("question_no")))
+            if mapped_paper:
+                asset["source_name"] = mapped_paper
+            if mapped_question_no:
+                asset["question_no"] = mapped_question_no
+            if not text:
+                issue = self._issue("error", "question_text_missing", "记录缺少可映射的题目文本", document_id, asset["id"])
+                issues.append(issue)
+                asset["issue_codes"].append(issue["code"])
+            if missing_image_values:
+                fully_missing = not any(block["type"] == "image" for block in blocks)
+                code = "local_image_missing" if fully_missing else "local_image_partial"
+                message = "清单引用的本地题图不存在或未进入冻结快照" if fully_missing else "清单中的部分本地题图缺失"
+                issue = self._issue("error", code, message, document_id, asset["id"])
+                issues.append(issue)
+                asset["issue_codes"].append(issue["code"])
+                asset["image_integrity"] = "missing" if fully_missing else "partial"
+            elif not image_values and IMAGE_HINT.search(text or ""):
+                issue = self._issue("error", "declared_image_missing", "题干声明含图，但清单没有可用题图字段", document_id, asset["id"])
+                issues.append(issue)
+                asset["issue_codes"].append(issue["code"])
+                asset["image_integrity"] = "missing"
+            if suspicious_images:
+                issue = self._issue("warning", "image_extreme_aspect_ratio", "题图纵横比异常，可能误裁为整份试卷", document_id, asset["id"])
+                issues.append(issue)
+                asset["issue_codes"].append(issue["code"])
+            assets.append(asset)
+
+        status = "completed_with_blockers" if any(item["severity"] == "error" for item in issues) else ("completed_with_issues" if issues else "completed")
+        run = {
+            "id": run_id, "source_snapshot_id": snapshot["id"], "source_checksum": snapshot["immutable_checksum"],
+            "parser_version": PARSER_VERSION, "status": status, "document_ids": [document_id],
+            "question_asset_ids": [item["id"] for item in assets], "document_count": 1,
+            "question_asset_count": len(assets), "issue_count": len(issues), "issues": issues, "created_at": now(),
+        }
+        run["result_checksum"] = hashlib.sha256(
+            json.dumps({"assets": assets, "issues": issues}, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         return {"run": run, "documents": [document], "question_assets": assets}
 
     def _parse_file(

@@ -93,6 +93,21 @@
       </div>
 
       <div class="grid two data-grid">
+        <form id="manifest-preview-form" class="panel compact-form">
+          <div class="panel-title"><div><p class="eyebrow">本地题图优先</p><h3>预览结构化题库清单</h3></div><span class="safe-badge">只读源文件</span></div>
+          <label>JSON 或 CSV 清单路径<textarea name="path" placeholder="例如：/本地目录/exam_records.json" required></textarea></label>
+          <div class="form-grid mini"><label>预览行数<input name="limit" type="number" min="1" max="200" value="5"></label><label>来源名称<input name="source_label" value="本地结构化题库"></label></div>
+          <label>数据截止时间<input name="data_cutoff" type="date"></label>
+          <p class="form-hint">平台先检查字段和题图路径覆盖率；确认后才把清单与实际存在的题图复制进不可变快照。不会移动或改名原文件。</p>
+          <button class="button primary" type="submit">检查字段与本地题图</button>
+        </form>
+        <article class="panel">
+          <div class="panel-title"><div><p class="eyebrow">本地资产体检</p><h3>够用则直接复用，缺失再回退下载</h3></div></div>
+          <div id="manifest-preview" class="base-preview"><p class="quiet">支持 JSON 行列表或 CSV。平台会自动识别题目 ID、试卷、题号、题干、本地题图、难度和已有标签。</p></div>
+        </article>
+      </div>
+
+      <div class="grid two data-grid">
         <form id="base-preview-form" class="panel compact-form">
           <div class="panel-title"><div><p class="eyebrow">既有资产复用</p><h3>只读预览 Feishu Base</h3></div><span class="safe-badge">不写原表</span></div>
           <label>Base 表格或视图地址<textarea name="url" placeholder="粘贴包含 table / view 参数的 Base 地址" required></textarea></label>
@@ -109,6 +124,7 @@
 
       <article class="panel">
         <div class="panel-title"><div><p class="eyebrow">标准化结果</p><h3>题目内容块、图片完整性与重复组</h3></div><span class="status" id="standardization-health">—</span></div>
+        <div class="asset-toolbar"><input id="standard-asset-search" placeholder="搜索试卷、题干、题型、知识点"><select id="asset-integrity-filter"><option value="">全部图片状态</option><option value="preserved">题图已保留</option><option value="partial">题图部分缺失</option><option value="missing">题图缺失</option><option value="remote_reference_unmaterialized">远程题图待下载</option><option value="no_visual_declared">未声明题图</option></select><span id="asset-filter-count">—</span></div>
         <div id="standard-asset-list" class="standard-asset-list"></div>
       </article>
 

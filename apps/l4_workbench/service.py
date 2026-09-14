@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from time import sleep
 from typing import Any
 from uuid import uuid4
@@ -14,6 +15,7 @@ from .backtest import create_prediction_freeze, evaluate_prediction_freeze
 from .base_adapter import LarkBaseAdapter
 from .engine import affected_stages, classify_feedback, recommend_priority, release_decision
 from .jobs import StageExecutionError, StageJobRunner
+from .manifest_adapter import LocalManifestAdapter
 from .pipeline import SourceSnapshotManager
 from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
@@ -50,12 +52,18 @@ def retry_concurrent_updates(function):
 
 
 class WorkbenchService:
-    def __init__(self, store: JsonStore, base_adapter: LarkBaseAdapter | None = None) -> None:
+    def __init__(
+        self,
+        store: JsonStore,
+        base_adapter: LarkBaseAdapter | None = None,
+        manifest_adapter: LocalManifestAdapter | None = None,
+    ) -> None:
         self.store = store
         self.store.initialize()
         self.snapshots = SourceSnapshotManager(self.store.path.parent / "source_snapshots")
         self.standardizer = DocumentStandardizer(self.store.path.parent)
         self.base_adapter = base_adapter or LarkBaseAdapter()
+        self.manifest_adapter = manifest_adapter or LocalManifestAdapter()
         self.jobs = StageJobRunner()
 
     def get_state(self) -> dict[str, Any]:
@@ -149,6 +157,48 @@ class WorkbenchService:
             suffix = "（当前仅为截断样本）" if snapshot.get("has_more") else ""
             self._event(state, "base.imported", f"已从 Base 冻结并标准化 {len(result['question_assets'])} 条记录{suffix}")
         return {"snapshot": snapshot, "mapping": mapping_record, **result}
+
+    def preview_manifest(self, request: dict[str, Any]) -> dict[str, Any]:
+        return self.manifest_adapter.preview(request)
+
+    def import_manifest(self, request: dict[str, Any]) -> dict[str, Any]:
+        preview = self.manifest_adapter.preview(request)
+        mapping = request.get("mapping") or preview["suggested_mapping"]
+        if not isinstance(mapping, dict):
+            raise ValidationError("mapping must be an object")
+        known_fields = {field["name"] for field in preview["fields"]}
+        unknown = {str(value) for value in mapping.values() if value and value not in known_fields}
+        if unknown:
+            raise ValidationError(f"mapping references unknown manifest fields: {', '.join(sorted(unknown))}")
+        if not mapping.get("question_text"):
+            raise ValidationError("mapping.question_text is required")
+
+        manifest_path = Path(preview["path"])
+        records = self.manifest_adapter.load_records(manifest_path)
+        image_paths = self.manifest_adapter.image_paths(records, mapping.get("question_image"), manifest_path.parent)
+        snapshot = self.snapshots.capture({
+            "source_type": "local_manifest",
+            "source_label": request.get("source_label") or manifest_path.stem,
+            "data_cutoff": request.get("data_cutoff"),
+            "manifest_name": manifest_path.name,
+            "paths": [str(manifest_path), *(str(path) for path in image_paths)],
+        })
+        result = self.standardizer.standardize_manifest_records(snapshot, manifest_path, records, mapping)
+        mapping_record = {
+            "id": stable_id("mapping", snapshot["immutable_checksum"], json.dumps(mapping, ensure_ascii=False, sort_keys=True)),
+            "source_type": "local_manifest", "manifest_name": manifest_path.name,
+            "mapping": mapping, "source_fields": preview["fields"], "image_report": preview["image_report"], "created_at": now(),
+        }
+        with self.store.transaction() as state:
+            state["source_snapshots"].append(snapshot)
+            state["field_mappings"].append(mapping_record)
+            self._merge_standardization(state, result)
+            self._event(
+                state,
+                "manifest.imported",
+                f"已从本地结构化清单冻结 {len(records)} 条记录和 {len(image_paths)} 张唯一题图",
+            )
+        return {"snapshot": snapshot, "mapping": mapping_record, "image_report": preview["image_report"], **result}
 
     def asset_path(self, relative_path: str) -> Path:
         target = (self.store.path.parent / relative_path).resolve()

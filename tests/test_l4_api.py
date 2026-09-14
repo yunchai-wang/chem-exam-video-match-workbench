@@ -136,6 +136,24 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(context.exception.code, 404)
         context.exception.close()
 
+    def test_local_manifest_preview_and_import_api(self) -> None:
+        image = Path(self.temp.name) / "q1.png"
+        image.write_bytes(b"\x89PNG\r\n\x1a\nquestion")
+        manifest = Path(self.temp.name) / "records.json"
+        manifest.write_text(json.dumps([{
+            "question_id": "paper-Q1", "paper": "试卷", "qnum": 1,
+            "stem": "1. 根据图回答", "pdf_crop_path": str(image),
+        }], ensure_ascii=False), encoding="utf-8")
+        status, preview = self.request("/api/manifests/previews", "POST", {"path": str(manifest), "limit": 5})
+        self.assertEqual(status, 200)
+        self.assertEqual(preview["image_report"]["coverage_rate"], 1.0)
+        status, result = self.request("/api/manifests/imports", "POST", {
+            "path": str(manifest), "source_label": "结构化题库", "mapping": preview["suggested_mapping"],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(result["run"]["question_asset_count"], 1)
+        self.assertEqual(result["question_assets"][0]["image_integrity"], "preserved")
+
 
 if __name__ == "__main__":
     unittest.main()
