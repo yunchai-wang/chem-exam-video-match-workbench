@@ -22,6 +22,7 @@ from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
 from .video_evidence import build_coverage_run, build_video_import, load_video_records
 from .calibration import build_calibration_review
+from .selection import build_selection_review, build_selection_run
 
 
 PROJECT_FIELDS = {
@@ -273,9 +274,26 @@ class WorkbenchService:
         existing = next((item for item in state["coverage_runs"] if item["id"] == result["id"]), None)
         if existing:
             return existing
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == diagnostic_run["source_snapshot_id"]]
         with self.store.transaction() as current:
             current["coverage_runs"].append(result)
+            selection = build_selection_run(diagnostic_run, gold_sample, result, assets, current["calibration_reviews"])
+            current["selection_runs"].append(selection)
             self._event(current, "coverage.completed", f"已对 {result['result_count']} 道金样本题运行保守视频覆盖候选")
+            self._event(current, "selection.completed", f"已自动形成 {selection['result_count']} 道真实题目的生产候选判断")
+        return result
+
+    def create_selection_run(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        diagnostic_run, gold_sample, coverage_run = self._calibration_context(state, request)
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == diagnostic_run["source_snapshot_id"]]
+        result = build_selection_run(diagnostic_run, gold_sample, coverage_run, assets, state["calibration_reviews"])
+        existing = next((item for item in state["selection_runs"] if item["id"] == result["id"]), None)
+        if existing:
+            return existing
+        with self.store.transaction() as current:
+            current["selection_runs"].append(result)
+            self._event(current, "selection.completed", f"已形成 {result['result_count']} 道真实题目的生产候选判断")
         return result
 
     def save_calibration(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -288,6 +306,7 @@ class WorkbenchService:
             current["calibration_reviews"].append(review)
             action = "纠正" if review["corrected_fields"] else "确认"
             self._event(current, "calibration.saved", f"已{action}金样本：{review['source_name']} 第 {review['question_no']} 题")
+            self._append_refreshed_selection(current, diagnostic_run, gold_sample, coverage_run)
         return review
 
     def batch_pass_calibrations(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -314,7 +333,35 @@ class WorkbenchService:
             passed_ids = {item["id"] for item in passed}
             current["calibration_reviews"] = [item for item in current["calibration_reviews"] if item["id"] not in passed_ids] + passed
             self._event(current, "calibration.batch_passed", f"已批量通过 {len(passed)} 题，保留 {len(skipped)} 个异常对象待复核")
+            self._append_refreshed_selection(current, diagnostic_run, gold_sample, coverage_run)
         return {"passed_count": len(passed), "skipped_count": len(skipped), "skipped_asset_ids": skipped, "reviews": passed}
+
+    def save_selection_review(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        selection_run = self._find(state["selection_runs"], str(request.get("selection_run_id") or ""), "selection run")
+        review = build_selection_review(selection_run, request)
+        with self.store.transaction() as current:
+            current["selection_reviews"] = [item for item in current["selection_reviews"] if item["id"] != review["id"]]
+            current["selection_reviews"].append(review)
+            action = "纠正" if review["status"] == "corrected" else "确认"
+            self._event(current, "selection.reviewed", f"已{action}候选题生产去向：{review['asset_id']}")
+        return review
+
+    def batch_pass_selections(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        selection_run = self._find(state["selection_runs"], str(request.get("selection_run_id") or ""), "selection run")
+        existing = {item["candidate_id"]: item for item in state["selection_reviews"] if item["selection_run_id"] == selection_run["id"]}
+        passed, skipped = [], []
+        for candidate in selection_run["results"]:
+            if candidate["exception"] or existing.get(candidate["id"], {}).get("status") == "corrected":
+                skipped.append(candidate["id"])
+                continue
+            passed.append(build_selection_review(selection_run, {"candidate_id": candidate["id"]}, mode="batch_pass"))
+        with self.store.transaction() as current:
+            passed_ids = {item["id"] for item in passed}
+            current["selection_reviews"] = [item for item in current["selection_reviews"] if item["id"] not in passed_ids] + passed
+            self._event(current, "selection.batch_passed", f"已批量通过 {len(passed)} 个非异常候选，保留 {len(skipped)} 个对象")
+        return {"passed_count": len(passed), "skipped_count": len(skipped), "reviews": passed}
 
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
@@ -558,10 +605,20 @@ class WorkbenchService:
 
     def _summary(self, state: dict[str, Any]) -> dict[str, Any]:
         latest_run = state["runs"][-1] if state["runs"] else None
+        latest_selection = state["selection_runs"][-1] if state["selection_runs"] else None
+        selection_results = latest_selection["results"] if latest_selection else []
+        selection_reviews = {
+            item["candidate_id"]: item for item in state["selection_reviews"]
+            if latest_selection and item.get("selection_run_id") == latest_selection["id"]
+        }
+        selected_candidate_count = sum(
+            selection_reviews.get(item["id"], {}).get("decision", item["ai_next_route"]) == "进入课程生产"
+            for item in selection_results
+        )
         return {
             "question_count": len(state["questions"]),
-            "candidate_count": sum(bool(q.get("selected_for_candidate")) for q in state["questions"]),
-            "p1_count": sum(q["production_priority"] == "P1" for q in state["questions"]),
+            "candidate_count": selected_candidate_count if latest_selection else sum(bool(q.get("selected_for_candidate")) for q in state["questions"]),
+            "p1_count": sum(item["production_priority"]["recommendation"] == "P1" for item in selection_results) if latest_selection else sum(q["production_priority"] == "P1" for q in state["questions"]),
             "exception_count": sum(bool(q.get("exception")) for q in state["questions"]),
             "waiting_review_count": sum(r["status"] == "待确认" for r in state["reviews"]),
             "rule_iteration": len(state["rules"]),
@@ -576,6 +633,8 @@ class WorkbenchService:
             "video_asset_count": len(state["video_assets"]),
             "coverage_run_count": len(state["coverage_runs"]),
             "calibration_review_count": len(state["calibration_reviews"]),
+            "selection_run_count": len(state["selection_runs"]),
+            "selection_review_count": len(state["selection_reviews"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
@@ -588,6 +647,14 @@ class WorkbenchService:
         if gold_sample["diagnostic_run_id"] != diagnostic_run["id"] or coverage_run["diagnostic_run_id"] != diagnostic_run["id"] or coverage_run["gold_sample_id"] != gold_sample["id"]:
             raise ValidationError("calibration context ids do not belong to the same run")
         return diagnostic_run, gold_sample, coverage_run
+
+    @staticmethod
+    def _append_refreshed_selection(state: dict[str, Any], diagnostic_run: dict[str, Any], gold_sample: dict[str, Any], coverage_run: dict[str, Any]) -> None:
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == diagnostic_run["source_snapshot_id"]]
+        result = build_selection_run(diagnostic_run, gold_sample, coverage_run, assets, state["calibration_reviews"])
+        if not any(item["id"] == result["id"] for item in state["selection_runs"]):
+            state["selection_runs"].append(result)
+            WorkbenchService._event(state, "selection.refreshed", "教师校准已归因，候选池按隔离规则刷新；AI 主流程未被阻塞")
 
     def _next_action(self, run: dict[str, Any] | None) -> str:
         if not run:

@@ -50,6 +50,7 @@ python3 apps/l4_course_evolution_workbench.py
 - 首轮真实教研诊断：只按显式底层结构计算同年跨地区复现度，高频与好题分别给出；单年数据不冒充多年趋势，缺视频或学生证据时不强行生成生产优先级；
 - 30/40/50 题待校准金样本自动抽样，覆盖试卷、题型、难度、图表形态和异常门禁，并保留每题入样理由；
 - 教材同步、重难点培优和中考总复习培优三类视频目录的统一冻结；同一视频实体可保留多个课库归属，跨课库同名簇只占一个候选位置且等待身份核对，不以重复目录虚增覆盖；视频逐字稿证据分级后，旧宣传匹配结论不写入生产覆盖字段，自动结果最高只到“部分覆盖候选”；
+- 基于真实金样本与保守视频覆盖生成题目单元级候选池；高频、好题、内容健康、覆盖、学生价值和生产优先级分别存储，缺学生数据时只给“教研预测”；基础题默认 P3，非好题及异常题不会因高频或视频缺口升档；教师可按整题、小问或选项调整去向，批量通过与无反馈继续运行并存；
 - 分阶段幂等任务记录、失败状态与重试基础；
 - 按“训练年份早于验证年份”冻结预测，并用真实后验标签计算 TP/FP/FN/TN、精确率和召回率；
 - 数据快照、任务健康和回测结果的工作台页面。
@@ -57,11 +58,11 @@ python3 apps/l4_course_evolution_workbench.py
 仍是明确标注的契约预演：
 
 - 扫描 PDF 的中文 OCR、Base 远程题图下载物化、复杂数学公式的完整 OOXML/LaTeX 还原；
-- 多年份趋势、最终生产优先级、母题、教案、逐字稿、分镜和 PPT/HTML 的真实 AI/Skill 执行器；
+- 多年份趋势、学生行为实证优先级、母题、教案、逐字稿、分镜和 PPT/HTML 的真实 AI/Skill 执行器；
 - Feishu Base 写回、PMO、CB、素材库、云文档及兼职触达的正式写入连接；
 - 真实教师项目数据上的规则 A/B 结论。
 
-因此当前版本适合直接用本地清单和题图建立受控真实样本，并开始教研校准；AI 候选好题仍须核验科学性，不应把单年复现度、结构预览或待补证据字段包装成正式趋势、生产优先级或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)，完整路线与工期见 [`docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md`](docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md)。
+因此当前版本适合直接用本地清单和题图建立受控真实样本，生成金样本候选池并开始教研校准；AI 候选好题仍须核验科学性，“教研预测”优先级也不能包装成学生实证或比赛效果数据。实施清单见 [`docs/superpowers/plans/2026-09-10-l4-production-foundation.md`](docs/superpowers/plans/2026-09-10-l4-production-foundation.md)，完整路线与工期见 [`docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md`](docs/superpowers/plans/2026-09-11-l4-full-delivery-roadmap.md)。
 
 资料解析可选依赖见 `requirements-l4.txt`。没有安装 `pypdf` 或 `openpyxl` 时，系统会显式报告相应解析能力缺失；PDF 页面原图仍优先通过本机 `pdftoppm` 保留，不会静默丢图。
 

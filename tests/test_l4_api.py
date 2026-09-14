@@ -181,6 +181,21 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 201)
         self.assertEqual(coverage["result_count"], 1)
+        _, state = self.request("/api/state")
+        self.assertEqual(state["summary"]["selection_run_count"], 1)
+        selection = state["selection_runs"][-1]
+        self.assertEqual(selection["result_count"], 1)
+        candidate = selection["results"][0]
+        status, selection_review = self.request("/api/selection-reviews", "POST", {
+            "selection_run_id": selection["id"], "candidate_id": candidate["id"],
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(selection_review["status"], "accepted")
+        status, selection_batch = self.request("/api/selection-reviews/batch-pass", "POST", {
+            "selection_run_id": selection["id"],
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(selection_batch["passed_count"], 1)
         calibration_context = {
             "diagnostic_run_id": diagnosis["id"], "gold_sample_id": sample["id"],
             "coverage_run_id": coverage["id"],
@@ -196,6 +211,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(batch["passed_count"], 1)
         _, state = self.request("/api/state")
         self.assertEqual(state["summary"]["calibration_review_count"], 1)
+        self.assertEqual(state["summary"]["selection_review_count"], 1)
+        self.assertEqual(state["summary"]["selection_run_count"], 2)
 
 
 if __name__ == "__main__":

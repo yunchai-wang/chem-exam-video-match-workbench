@@ -353,6 +353,19 @@ function renderEvents() {
 
 function renderQuestions() {
   const search = (document.querySelector("#question-search")?.value || "").toLowerCase();
+  const selection = (state.selection_runs || []).at(-1);
+  if (selection) {
+    renderSelectionOverview(selection);
+    const reviews = Object.fromEntries((state.selection_reviews || []).filter(item => item.selection_run_id === selection.id).map(item => [item.candidate_id, item]));
+    const questions = selection.results.filter(item => {
+      const decision = reviews[item.id]?.decision || item.ai_next_route;
+      return (!selectedOnly || decision === "进入课程生产") && JSON.stringify(item).toLowerCase().includes(search);
+    });
+    document.querySelector("#question-list").innerHTML = questions.map(item => selectionCard(item, reviews[item.id])).join("") || `<div class="empty-state"><strong>没有符合条件的真实候选</strong><span>调整筛选条件后再试。</span></div>`;
+    document.querySelectorAll("[data-selection-review]").forEach(form => form.onsubmit = saveSelectionReview);
+    return;
+  }
+  renderSelectionOverview(null);
   const questions = state.questions.filter(q => (!selectedOnly || q.selected_for_candidate) && JSON.stringify(q).toLowerCase().includes(search));
   document.querySelector("#question-list").innerHTML = questions.map(questionCard).join("") || `<div class="empty-state"><strong>没有符合条件的题目</strong><span>调整筛选条件后再试。</span></div>`;
   document.querySelectorAll("[data-candidate]").forEach(input => input.onchange = () => updateQuestion(input.dataset.candidate, {selected_for_candidate: input.checked}));
@@ -369,6 +382,64 @@ function renderQuestions() {
       teacher_feedback_reason: card.querySelector("[data-review-reason]").value,
     });
   });
+}
+
+function selectionContext() {
+  const coverage = (state.coverage_runs || []).at(-1);
+  if (!coverage) return null;
+  return {
+    coverage,
+    diagnosis: (state.diagnostic_runs || []).find(item => item.id === coverage.diagnostic_run_id),
+    sample: (state.gold_sample_sets || []).find(item => item.id === coverage.gold_sample_id),
+  };
+}
+
+function renderSelectionOverview(selection) {
+  const node = document.querySelector("#selection-foundation");
+  if (!selection) {
+    const context = selectionContext();
+    node.innerHTML = context ? `<div class="panel-title"><div><p class="eyebrow">真实候选池</p><h3>历史覆盖结果尚未形成生产排序</h3></div><span class="status waiting">可补算</span></div><div class="calibration-actions"><p class="quiet">将基于 ${context.sample.actual_size} 道金样本生成题目单元、好题判断和教研预测优先级；无教师反馈也会继续。</p><button class="button primary small" id="create-selection">形成真实候选池</button></div>` : `<div class="panel-title"><div><p class="eyebrow">真实候选池</p><h3>等待真实诊断与视频覆盖</h3></div><span class="status waiting">未就绪</span></div><p class="quiet">当前下方仍为脱敏交互样例。完成数据页中的真实诊断、金样本和保守覆盖后会自动切换为真实候选。</p>`;
+    node.querySelector("#create-selection")?.addEventListener("click", createSelectionRun);
+    return;
+  }
+  const s = selection.summary;
+  const reviewCount = (state.selection_reviews || []).filter(item => item.selection_run_id === selection.id).length;
+  node.innerHTML = `<div class="panel-title"><div><p class="eyebrow">真实候选池 · ${esc(selection.rule_version)}</p><h3>${s.evaluated_count} 道金样本已完成独立判断</h3></div><span class="status completed">教研预测</span></div>
+    <div class="diagnosis-summary selection-summary"><div><b>${s.high_frequency_count}</b><span>高频</span></div><div><b>${s.good_question_count}</b><span>好题候选</span></div><div><b>${s.high_frequency_and_good_count}</b><span>高频且好题</span></div><div><b>${s.p1_count} / ${s.p2_count}</b><span>P1 / P2</span></div><div><b>${reviewCount}</b><span>教师已介入</span></div></div>
+    <div class="evidence-limit"><strong>证据边界</strong><span>${esc(selection.evidence_limits.join(" "))}</span></div>
+    <div class="calibration-actions"><p class="quiet">“只看已入选”按当前有效去向筛选“进入课程生产”。批量通过只接受非异常项，不覆盖老师已纠正的结果。</p><button class="button secondary small" id="batch-pass-selections">批量通过非异常项</button></div>`;
+  node.querySelector("#batch-pass-selections").onclick = () => batchPassSelections(selection.id);
+}
+
+function selectionCard(item, review) {
+  const asset = state.question_assets.find(candidate => candidate.id === item.asset_id);
+  const firstImage = asset?.content_blocks?.find(block => block.type === "image" && block.path);
+  const visual = firstImage ? `<img src="${assetUrl(firstImage.path)}" alt="${esc(item.title)}的原题图" loading="lazy">` : `<div class="asset-visual-placeholder">${asset?.image_integrity === "missing" ? "检测到缺图" : "本题未声明独立题图"}</div>`;
+  const priority = item.production_priority.recommendation;
+  const priorityClass = priority.startsWith("P") ? priority : "stop";
+  const decision = review?.decision || item.ai_next_route;
+  const selectedUnits = new Set(review?.selected_unit_ids || item.units.map(unit => unit.id));
+  const unitInputs = item.units.map(unit => `<label><input type="checkbox" data-selection-unit="${esc(unit.id)}" ${selectedUnits.has(unit.id) ? "checked" : ""}>${esc(unit.label)}</label>`).join("");
+  const coverage = item.coverage.candidates?.[0];
+  const videoEvidence = coverage ? `${coverage.video_name || coverage.video_id} · ${(coverage.catalogs || []).join("、")} · ${coverage.evidence_level}` : "暂无可核验视频候选";
+  const saved = review ? `<span class="tag ${review.status === "corrected" ? "risk" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入 · 不阻塞</span>`;
+  return `<form class="question-card real-candidate" data-selection-review="${esc(item.id)}">
+    <div class="question-visual">${visual}<div class="question-source">${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</div></div>
+    <div class="question-body">
+      <div class="question-head"><div><p class="eyebrow">${esc(item.id)}</p><h3>${esc(item.title)}</h3></div><div class="priority ${priorityClass}">${esc(priority)}</div></div>
+      <div class="chip-row"><span class="tag frequency">频次：${esc(item.frequency.level)} · ${item.frequency.numerator}/${item.frequency.denominator}</span><span class="tag ${item.quality.is_good_candidate ? "good" : ""}">好题：${esc(item.quality.recommendation)}</span><span class="tag">难度：${esc(item.difficulty.level)}</span><span class="tag ${item.exception ? "risk" : ""}">${esc(item.content_health.status)}</span>${saved}</div>
+      <div class="evidence-grid selection-evidence">
+        <div class="evidence-block"><label>好题理由 · 与高频独立</label><strong>${item.quality.score}/${item.quality.score_denominator} 项支持</strong><p>${esc(item.quality.reason)}</p></div>
+        <div class="evidence-block"><label>视频覆盖 · ${esc(item.coverage.best_evidence_level)}</label><strong>${esc(item.coverage.status)}</strong><p>${esc(item.coverage.reason)}<br>${esc(videoEvidence)}</p></div>
+        <div class="evidence-block"><label>学生价值 · ${esc(item.learner_value.evidence_status)}</label><strong>${esc(item.learner_value.level)}</strong><p>${esc(item.learner_value.reason)}</p></div>
+        <div class="evidence-block"><label>优先级 · ${esc(item.production_priority.status)}</label><strong>${esc(item.production_priority.minimum_intervention)}</strong><p>${esc(item.production_priority.reason)}</p></div>
+      </div>
+      <div class="candidate-dimensions"><span>迁移价值：<b>${esc(item.migration_value)}</b></span><span>跨地区复用：<b>${esc(item.cross_region_reuse)}</b></span><span>既有资产替代：<b>${esc(item.existing_asset_substitutability)}</b></span><span>预计成本：<b>${esc(item.production_cost.level)}</b></span></div>
+      <div class="unit-row"><strong>进入后续的题目单元：</strong>${unitInputs}</div>
+      <div class="teacher-review selection-review-row"><select name="decision" aria-label="候选题生产去向">${["按 AI 建议推进","进入课程生产","仅保留好题池","进入母题改造","暂不使用"].map(value => `<option ${value === (review ? decision : "按 AI 建议推进") ? "selected" : ""}>${value}</option>`).join("")}</select><input name="reason" value="${esc(review?.status === "corrected" ? review.reason : "")}" placeholder="改去向或裁剪小问时填写理由"><button class="button secondary small" type="submit">保存本题决定</button></div>
+      <p class="selection-footnote">AI 建议去向：${esc(item.ai_next_route)}。没有教师反馈也不会阻塞下一环节；纠正只进入当前项目隔离实验。</p>
+    </div>
+  </form>`;
 }
 
 function questionCard(q) {
@@ -601,6 +672,47 @@ async function batchPassCalibrations(diagnosticRunId, goldSampleId, coverageRunI
     const result = await api("/api/calibrations/batch-pass", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, gold_sample_id: goldSampleId, coverage_run_id: coverageRunId})});
     await load();
     toast(`已批量通过 ${result.passed_count} 题，保留 ${result.skipped_count} 个异常或已纠正对象`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function createSelectionRun() {
+  const context = selectionContext();
+  if (!context) return;
+  const button = document.querySelector("#create-selection");
+  if (button) { button.disabled = true; button.textContent = "计算中…"; }
+  try {
+    await api("/api/selections", {method: "POST", body: JSON.stringify({
+      diagnostic_run_id: context.diagnosis.id, gold_sample_id: context.sample.id,
+      coverage_run_id: context.coverage.id,
+    })});
+    await load();
+    toast("真实候选池已生成；学生价值与优先级均保留证据等级");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function saveSelectionReview(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const selection = state.selection_runs.at(-1);
+  const values = new FormData(form);
+  const selectedUnitIds = [...form.querySelectorAll("[data-selection-unit]:checked")].map(node => node.dataset.selectionUnit);
+  try {
+    await api("/api/selection-reviews", {method: "POST", body: JSON.stringify({
+      selection_run_id: selection.id, candidate_id: form.dataset.selectionReview,
+      decision: values.get("decision"), selected_unit_ids: selectedUnitIds, reason: values.get("reason"),
+    })});
+    await load();
+    toast("候选题决定已保存；纠正理由只进入当前项目隔离规则");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function batchPassSelections(selectionRunId) {
+  const button = document.querySelector("#batch-pass-selections");
+  if (button) { button.disabled = true; button.textContent = "处理中…"; }
+  try {
+    const result = await api("/api/selection-reviews/batch-pass", {method: "POST", body: JSON.stringify({selection_run_id: selectionRunId})});
+    await load();
+    toast(`已批量通过 ${result.passed_count} 题，保留 ${result.skipped_count} 个异常或人工纠正对象`);
   } catch (error) { toast(error.message, true); }
 }
 

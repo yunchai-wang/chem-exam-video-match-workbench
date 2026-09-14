@@ -50,7 +50,7 @@ class JsonStoreTests(unittest.TestCase):
                 state.pop(key, None)
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 6)
+            self.assertEqual(loaded["schema_version"], 7)
             self.assertEqual(loaded["metadata"]["state_revision"], 0)
             self.assertEqual(loaded["question_assets"], [])
             self.assertEqual(loaded["diagnostic_runs"], [])
@@ -58,6 +58,8 @@ class JsonStoreTests(unittest.TestCase):
             self.assertEqual(loaded["video_assets"], [])
             self.assertEqual(loaded["coverage_runs"], [])
             self.assertEqual(loaded["calibration_reviews"], [])
+            self.assertEqual(loaded["selection_runs"], [])
+            self.assertEqual(loaded["selection_reviews"], [])
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["schema_version"], 1)
 
     def test_save_creates_recoverable_backup(self) -> None:

@@ -109,6 +109,15 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/calibrations/batch-pass":
                 self._json(200, self.service.batch_pass_calibrations(payload))
                 return
+            if path == "/api/selections":
+                self._json(201, self.service.create_selection_run(payload))
+                return
+            if path == "/api/selection-reviews":
+                self._json(200, self.service.save_selection_review(payload))
+                return
+            if path == "/api/selection-reviews/batch-pass":
+                self._json(200, self.service.batch_pass_selections(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return
