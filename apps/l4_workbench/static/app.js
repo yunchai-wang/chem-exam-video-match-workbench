@@ -165,13 +165,19 @@ function renderVideoEvidence() {
   const rows = coverage ? coverage.results.slice(0, 12).map(item => {
     const best = item.candidates[0];
     const candidate = best
-      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><small>${esc(best.reason)}</small>`
+      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><span class="catalog-line">课库：${esc((best.catalogs || []).join("、") || "未标注")}${best.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><small>${esc(best.reason)}</small>`
       : `<strong>暂无视频候选</strong><small>${esc(item.reason)}</small>`;
     return `<div class="coverage-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.status)}：${esc(item.reason)}</small></div><div>${candidate}</div></div>`;
   }).join("") : "";
   const transcriptUnmatched = state.video_assets.filter(item => item.transcript_status === "未匹配").length;
-  node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.video_asset_count}</b><span>唯一视频资产</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${videoImport.duplicate_video_ids.length}</b><span>重复视频 ID</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
-    <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。旧 matches 和宣传白名单不作为生产覆盖结论；自动判断最高只到“部分覆盖候选”。</p><div>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
+  const catalogCounts = videoImport.catalog_counts || {};
+  const catalogCards = Object.entries(catalogCounts).map(([catalog, count]) => `<span class="tag catalog-tag"><b>${esc(catalog)}</b> ${count} 条目录记录</span>`).join("");
+  const overlapBreakdown = videoImport.cross_catalog_entity_count
+    ? `已确认 ${videoImport.confirmed_cross_catalog_entity_count || 0} 组 · 待核对 ${videoImport.candidate_cross_catalog_entity_count ?? videoImport.cross_catalog_entity_count} 组`
+    : "没有跨课库同名簇";
+  node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.listing_count || videoImport.record_count}</b><span>课库目录记录</span></div><div><b>${videoImport.video_asset_count}</b><span>去重视频实体</span></div><div><b>${videoImport.cross_catalog_entity_count || 0}</b><span>跨课库同名簇</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
+    <div class="catalog-strip">${catalogCards || `<span class="quiet">旧版清单未记录课库统计，重新导入后补齐。</span>`}<span class="tag catalog-tag">${esc(overlapBreakdown)}</span></div>
+    <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。候选会同时检索教材同步课、重难点培优和中考总复习培优；跨课库同名视频只占一个候选位置，但保留全部目录归属。旧 matches 和宣传白名单不作为生产覆盖结论。</p><div>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
   if (action) node.querySelector("#run-coverage-diagnosis").onclick = () => runCoverageDiagnosis(diagnostic.id, sample.id, videoImport.id);
 }
 
@@ -212,7 +218,7 @@ function renderCalibrationWorkbench() {
     };
     const image = asset?.content_blocks.find(block => block.type === "image" && block.path);
     const visual = image ? `<a href="${assetUrl(image.path)}" target="_blank" rel="noopener"><img src="${assetUrl(image.path)}" alt="${esc(asset.title)}原题图" loading="lazy"></a>` : `<div class="asset-visual-placeholder">本题没有已物化题图</div>`;
-    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
+    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>课库：${esc((candidate.catalogs || []).join("、") || "未标注")}${candidate.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
     const issue = asset?.issue_codes?.length ? `<span class="tag risk">异常复核</span>` : "";
     const saved = review ? `<span class="tag ${review.status === "corrected" ? "frequency" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入</span>`;
     const teacherReason = review?.reason_source === "teacher" ? review.reason : "";

@@ -252,9 +252,15 @@ class WorkbenchService:
         with self.store.transaction() as state:
             state["source_snapshots"].append(snapshot)
             state["video_imports"].append({key: value for key, value in result.items() if key != "video_assets"})
-            new_ids = {item["id"] for item in result["video_assets"]}
-            state["video_assets"] = [item for item in state["video_assets"] if item["id"] not in new_ids] + result["video_assets"]
-            self._event(state, "video_manifest.imported", f"已冻结并标准化 {result['video_asset_count']} 条唯一视频证据")
+            # The workbench has one active evidence library. Historical coverage
+            # runs keep their embedded candidates, while the active library is
+            # replaced atomically so re-imports cannot inflate asset counts.
+            state["video_assets"] = result["video_assets"]
+            self._event(
+                state,
+                "video_manifest.imported",
+                f"已冻结 {result['listing_count']} 条课库目录记录，形成 {result['video_asset_count']} 个去重视频实体",
+            )
         return {"snapshot": snapshot, **result}
 
     def diagnose_coverage(self, request: dict[str, Any]) -> dict[str, Any]:

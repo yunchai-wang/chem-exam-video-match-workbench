@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -13,8 +15,8 @@ from .diagnosis import GENERIC_METHODS, split_tags
 from .domain import ValidationError
 
 
-VIDEO_ADAPTER_VERSION = "video-manifest-v0.1"
-COVERAGE_RULE_VERSION = "production-coverage-v0.2"
+VIDEO_ADAPTER_VERSION = "video-manifest-v0.2"
+COVERAGE_RULE_VERSION = "production-coverage-v0.3"
 STRONG_TRANSCRIPT_STATES = {"强匹配-文件名", "强匹配-文件名+正文", "本地素材直接匹配"}
 WEAK_TRANSCRIPT_STATES = {"弱匹配待人工复核", "弱匹配待复核"}
 
@@ -65,45 +67,110 @@ def build_video_import(snapshot: dict[str, Any], records: list[dict[str, Any]]) 
     grouped: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         grouped.setdefault(str(record["video_id"]), []).append(record)
-    assets = []
+    listings = []
     duplicate_ids = []
     for video_id, rows in grouped.items():
         if len(rows) > 1:
             duplicate_ids.append(video_id)
         record = max(rows, key=_evidence_rank)
+        listings.append({"video_id": video_id, "record": record, "rows": rows})
+
+    title_groups: dict[str, list[dict[str, Any]]] = {}
+    for listing in listings:
+        key = normalize_video_title(str(listing["record"].get("video_name") or ""))
+        title_groups.setdefault(key, []).append(listing)
+
+    clusters: list[list[dict[str, Any]]] = []
+    for title_key, title_listings in title_groups.items():
+        catalogs = {_catalog_name(item["record"]) for item in title_listings}
+        if title_key and len(catalogs) > 1:
+            clusters.append(title_listings)
+        else:
+            clusters.extend([[item] for item in title_listings])
+
+    assets = []
+    overlap_groups = []
+    for cluster in clusters:
+        cluster_rows = [row for listing in cluster for row in listing["rows"]]
+        record = max(cluster_rows, key=_evidence_rank)
+        video_ids = sorted({str(listing["video_id"]) for listing in cluster})
+        video_id = str(record["video_id"])
+        catalogs = sorted({_catalog_name(row) for row in cluster_rows})
+        is_cross_catalog_cluster = len(catalogs) > 1
+        confirmed_identity = is_cross_catalog_cluster and _identity_is_confirmed(cluster_rows, catalogs)
+        canonical_key = (
+            f"title:{normalize_video_title(str(record['video_name']))}"
+            if is_cross_catalog_cluster else f"video-id:{video_id}"
+        )
         transcript_status = str(record.get("transcript_match_status_v5") or record.get("transcript_match_status") or "未匹配")
-        screenshot_tokens = split_tags(record.get("screenshot_tokens"))
+        screenshot_tokens = sorted({token for row in cluster_rows for token in split_tags(row.get("screenshot_tokens"))})
         evidence_level = "E2" if transcript_status in STRONG_TRANSCRIPT_STATES else ("E1" if transcript_status in WEAK_TRANSCRIPT_STATES or screenshot_tokens else "E0")
         issues = []
-        if len(rows) > 1:
+        if any(len(listing["rows"]) > 1 for listing in cluster):
             issues.append("duplicate_video_id")
+        if is_cross_catalog_cluster and not confirmed_identity:
+            issues.append("cross_catalog_identity_needs_review")
         if transcript_status in WEAK_TRANSCRIPT_STATES:
             issues.append("transcript_match_needs_review")
         elif transcript_status in {"未匹配", "None", ""}:
             issues.append("transcript_not_verified")
         if not screenshot_tokens:
             issues.append("video_screenshot_not_materialized")
-        signatures = split_tags(record.get("signatures"))
-        method = str(record.get("method_skeleton") or "").strip()
-        structures = signatures or ([] if method in GENERIC_METHODS else [method])
+        structures = sorted({
+            value
+            for row in cluster_rows
+            for value in (
+                split_tags(row.get("signatures"))
+                or ([] if str(row.get("method_skeleton") or "").strip() in GENERIC_METHODS else [str(row.get("method_skeleton") or "").strip()])
+            )
+            if value
+        })
+        memberships = _catalog_memberships(cluster_rows)
+        identity_status = (
+            "已确认同一视频" if confirmed_identity
+            else ("候选同一视频" if is_cross_catalog_cluster else "单一目录实体")
+        )
         assets.append({
-            "id": f"video-{hashlib.sha256(video_id.encode('utf-8')).hexdigest()[:14]}",
+            "id": f"video-{hashlib.sha256(canonical_key.encode('utf-8')).hexdigest()[:14]}",
             "source_snapshot_id": snapshot["id"], "video_id": video_id,
             "video_name": record["video_name"], "source": record.get("source"),
+            "catalogs": catalogs, "catalog_memberships": memberships,
+            "alias_video_ids": video_ids, "identity_status": identity_status,
+            "identity_basis": (
+                "backend_id_or_explicit_reuse" if confirmed_identity
+                else ("exact_normalized_title_across_catalogs" if is_cross_catalog_cluster else "video_id")
+            ),
             "hierarchy": record.get("hierarchy"), "question_type": record.get("primary_type") or record.get("question_type"),
-            "structural_keys": structures, "task_tags": split_tags(record.get("task_tags")),
-            "visual_forms": split_tags(record.get("visual_forms")), "method_models": split_tags(record.get("method_models")),
+            "structural_keys": structures,
+            "task_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("task_tags"))}),
+            "visual_forms": sorted({value for row in cluster_rows for value in split_tags(row.get("visual_forms"))}),
+            "method_models": sorted({value for row in cluster_rows for value in split_tags(row.get("method_models"))}),
             "content_summary": record.get("content_summary") or "", "transcript_evidence": record.get("transcript_evidence") or "",
             "transcript_status": transcript_status, "screenshot_refs": record.get("screenshot_refs") or "",
             "screenshot_tokens": screenshot_tokens, "evidence_level": evidence_level,
-            "issue_codes": issues, "duplicate_source_rows": len(rows), "raw_fields": record,
+            "issue_codes": issues, "duplicate_source_rows": len(cluster_rows), "raw_fields": record,
         })
+        if is_cross_catalog_cluster:
+            overlap_groups.append({
+                "entity_id": assets[-1]["id"], "video_name": record["video_name"],
+                "catalogs": catalogs, "alias_video_ids": video_ids,
+                "identity_status": identity_status,
+            })
     status_counts = Counter(asset["transcript_status"] for asset in assets)
+    catalog_counts = Counter(_catalog_name(record) for record in records)
+    catalog_unique_counts = Counter(catalog for asset in assets for catalog in asset["catalogs"])
+    confirmed_overlap_count = sum(item["identity_status"] == "已确认同一视频" for item in overlap_groups)
     import_id = hashlib.sha256(f"{snapshot['immutable_checksum']}|{VIDEO_ADAPTER_VERSION}".encode("utf-8")).hexdigest()
     return {
         "id": f"video-import-{import_id[:14]}", "source_snapshot_id": snapshot["id"],
         "adapter_version": VIDEO_ADAPTER_VERSION, "status": "completed_with_issues" if any(asset["issue_codes"] for asset in assets) else "completed",
-        "record_count": len(records), "video_asset_count": len(assets), "duplicate_video_ids": duplicate_ids,
+        "record_count": len(records), "listing_count": len(records), "video_asset_count": len(assets),
+        "catalog_counts": dict(catalog_counts), "catalog_unique_entity_counts": dict(catalog_unique_counts),
+        "cross_catalog_entity_count": len(overlap_groups),
+        "confirmed_cross_catalog_entity_count": confirmed_overlap_count,
+        "candidate_cross_catalog_entity_count": len(overlap_groups) - confirmed_overlap_count,
+        "overlap_groups": overlap_groups,
+        "duplicate_video_ids": duplicate_ids,
         "transcript_status_counts": dict(status_counts), "video_assets": assets, "created_at": now(),
     }
 
@@ -188,6 +255,10 @@ def _coverage_candidate(video: dict[str, Any], structure: str, task_overlap: lis
         reason = f"只命中底层结构“{structure}”，未通过设问任务门禁。"
     return {
         "video_id": video["video_id"], "video_name": video["video_name"], "structure": structure,
+        "catalogs": video.get("catalogs") or [video.get("source") or "未标注课库"],
+        "catalog_memberships": video.get("catalog_memberships") or [],
+        "alias_video_ids": video.get("alias_video_ids") or [video["video_id"]],
+        "identity_status": video.get("identity_status") or "单一目录实体",
         "task_overlap": task_overlap, "transcript_status": video["transcript_status"],
         "evidence_level": video["evidence_level"], "screenshot_materialized": False,
         "coverage_candidate": coverage_candidate, "rank_score": rank_score, "reason": reason,
@@ -218,3 +289,43 @@ def _evidence_rank(record: dict[str, Any]) -> tuple[int, int]:
     status = str(record.get("transcript_match_status_v5") or record.get("transcript_match_status") or "")
     rank = 2 if status in STRONG_TRANSCRIPT_STATES else (1 if status in WEAK_TRANSCRIPT_STATES else 0)
     return rank, len(str(record.get("content_summary") or ""))
+
+
+def normalize_video_title(value: str) -> str:
+    """Normalize only presentation differences; keep 上/中/下 and semantic words."""
+    text = unicodedata.normalize("NFKC", value or "").lower().replace("图象", "图像")
+    return re.sub(r"[\s·—_\-:：,，。()（）【】\[\]]+", "", text)
+
+
+def _catalog_name(record: dict[str, Any]) -> str:
+    return str(record.get("catalog") or record.get("source") or "未标注课库").strip() or "未标注课库"
+
+
+def _catalog_memberships(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    memberships = []
+    seen = set()
+    for row in rows:
+        membership = {
+            "catalog": _catalog_name(row),
+            "listing_video_id": str(row.get("video_id") or ""),
+            "backend_video_id": str(row.get("backend_video_id") or row.get("vm_backend_id") or ""),
+            "sheet_id": str(row.get("sheet_id") or ""),
+            "source_row": int(row.get("source_row") or 0),
+            "sheet_url": str(row.get("sheet_url") or ""),
+            "hierarchy": str(row.get("hierarchy") or ""),
+            "explicit_reuse_source": str(row.get("explicit_reuse_source") or ""),
+        }
+        key = tuple(membership.values())
+        if key not in seen:
+            seen.add(key)
+            memberships.append(membership)
+    return sorted(memberships, key=lambda item: (item["catalog"], item["source_row"], item["listing_video_id"]))
+
+
+def _identity_is_confirmed(rows: list[dict[str, Any]], catalogs: list[str]) -> bool:
+    backend_ids = {str(row.get("backend_video_id") or row.get("vm_backend_id") or "").strip() for row in rows}
+    backend_ids.discard("")
+    if len(backend_ids) == 1 and all(row.get("backend_video_id") or row.get("vm_backend_id") for row in rows):
+        return True
+    reuse_text = " ".join(str(row.get("explicit_reuse_source") or "") for row in rows)
+    return "共用" in reuse_text or any(catalog in reuse_text for catalog in catalogs)
