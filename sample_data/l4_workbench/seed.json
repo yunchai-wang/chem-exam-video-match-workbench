@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -215,5 +215,6 @@
   "video_imports": [],
   "video_assets": [],
   "coverage_runs": [],
+  "calibration_reviews": [],
   "events": []
 }

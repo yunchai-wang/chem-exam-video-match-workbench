@@ -103,6 +103,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/coverage-diagnostics":
                 self._json(201, self.service.diagnose_coverage(payload))
                 return
+            if path == "/api/calibrations":
+                self._json(200, self.service.save_calibration(payload))
+                return
+            if path == "/api/calibrations/batch-pass":
+                self._json(200, self.service.batch_pass_calibrations(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return

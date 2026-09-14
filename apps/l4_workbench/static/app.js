@@ -78,6 +78,7 @@ function renderDataFoundation() {
   renderManifestPreview();
   renderDiagnosisFoundation();
   renderVideoEvidence();
+  renderCalibrationWorkbench();
 
   const failed = state.jobs.filter(job => job.status === "failed").length;
   const health = document.querySelector("#job-health");
@@ -172,6 +173,54 @@ function renderVideoEvidence() {
   node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.video_asset_count}</b><span>唯一视频资产</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${videoImport.duplicate_video_ids.length}</b><span>重复视频 ID</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
     <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。旧 matches 和宣传白名单不作为生产覆盖结论；自动判断最高只到“部分覆盖候选”。</p><div>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
   if (action) node.querySelector("#run-coverage-diagnosis").onclick = () => runCoverageDiagnosis(diagnostic.id, sample.id, videoImport.id);
+}
+
+function renderCalibrationWorkbench() {
+  const node = document.querySelector("#calibration-workbench");
+  const health = document.querySelector("#calibration-health");
+  const diagnostic = [...(state.diagnostic_runs || [])].reverse()[0];
+  const sample = diagnostic && [...(state.gold_sample_sets || [])].reverse().find(item => item.diagnostic_run_id === diagnostic.id);
+  const coverage = sample && [...(state.coverage_runs || [])].reverse().find(item => item.gold_sample_id === sample.id);
+  if (!diagnostic || !sample || !coverage) {
+    health.textContent = "等待金样本与覆盖候选";
+    health.className = "status waiting";
+    node.innerHTML = `<p class="quiet">完成真实诊断、金样本抽样和视频候选后，这里才会出现可选校准。没有教师反馈也不会阻塞 AI 主流程。</p>`;
+    return;
+  }
+  const diagnosisByAsset = Object.fromEntries(diagnostic.results.map(item => [item.asset_id, item]));
+  const coverageByAsset = Object.fromEntries(coverage.results.map(item => [item.asset_id, item]));
+  const reviews = (state.calibration_reviews || []).filter(item => item.gold_sample_id === sample.id);
+  const reviewByAsset = Object.fromEntries(reviews.map(item => [item.asset_id, item]));
+  const corrected = reviews.filter(item => item.status === "corrected").length;
+  const followup = reviews.filter(item => item.requires_followup).length;
+  const unreviewed = sample.items.length - reviews.length;
+  health.textContent = `${reviews.length}/${sample.items.length} 已处理`;
+  health.className = `status ${unreviewed ? "waiting" : "completed"}`;
+
+  const option = (value, current) => `<option value="${esc(value)}" ${value === current ? "selected" : ""}>${esc(value)}</option>`;
+  const cards = sample.items.slice(0, 12).map(item => {
+    const asset = state.question_assets.find(candidate => candidate.id === item.asset_id);
+    const diagnosis = diagnosisByAsset[item.asset_id];
+    const coverageItem = coverageByAsset[item.asset_id];
+    const review = reviewByAsset[item.asset_id];
+    const values = review?.effective_values || {
+      structural_keys: diagnosis.structural_keys,
+      frequency: diagnosis.frequency.level,
+      quality: diagnosis.quality.recommendation,
+      science: diagnosis.quality.dimensions["科学性"].status,
+      coverage: coverageItem.status,
+    };
+    const image = asset?.content_blocks.find(block => block.type === "image" && block.path);
+    const visual = image ? `<a href="${assetUrl(image.path)}" target="_blank" rel="noopener"><img src="${assetUrl(image.path)}" alt="${esc(asset.title)}原题图" loading="lazy"></a>` : `<div class="asset-visual-placeholder">本题没有已物化题图</div>`;
+    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
+    const issue = asset?.issue_codes?.length ? `<span class="tag risk">异常复核</span>` : "";
+    const saved = review ? `<span class="tag ${review.status === "corrected" ? "frequency" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入</span>`;
+    const teacherReason = review?.reason_source === "teacher" ? review.reason : "";
+    return `<form class="calibration-card" data-calibration-asset="${esc(item.asset_id)}"><div class="calibration-visual">${visual}</div><div class="calibration-body"><div class="calibration-card-head"><div><p class="eyebrow">${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</p><h4>${esc(asset?.title || "题目资产")}</h4></div><div class="chip-row">${issue}${saved}</div></div><div class="calibration-ai"><span>AI 高频：<b>${esc(diagnosis.frequency.level)}</b></span><span>AI 好题：<b>${esc(diagnosis.quality.recommendation)}</b></span><span>覆盖：<b>${esc(coverageItem.status)}</b></span></div><details><summary>查看最多 3 个视频候选及证据</summary><ul class="candidate-evidence-list">${videos}</ul></details><div class="calibration-fields"><label>底层结构<input name="structural_keys" value="${esc(values.structural_keys.join("、"))}"></label><label>频次<select name="frequency">${["高频","中频","低频","不可判断"].map(value => option(value, values.frequency)).join("")}</select></label><label>好题判断<select name="quality">${["AI候选好题","备选","暂不推荐","异常复核","好题","非好题","待复核"].map(value => option(value, values.quality)).join("")}</select></label><label>科学性<select name="science">${["待人工核验","待核验","通过","有问题"].map(value => option(value, values.science)).join("")}</select></label><label>视频覆盖<select name="coverage">${["部分覆盖候选","证据不足","未发现可核验证据","无法判断","充分覆盖","部分覆盖","组合支撑但缺综合迁移","未覆盖"].map(value => option(value, values.coverage)).join("")}</select></label><label class="reason-field">纠正理由<input name="reason" value="${esc(teacherReason)}" placeholder="只有改动 AI 判断时必填；直接接受可留空"></label></div><div class="calibration-footer"><small>任何纠正只形成当前项目的隔离实验建议，不会自动污染公共规则或公共 Skill。</small><button class="button secondary small" type="submit">保存本题校准</button></div></div></form>`;
+  }).join("");
+  node.innerHTML = `<div class="diagnosis-summary video-summary"><div><b>${reviews.length}</b><span>已接受或纠正</span></div><div><b>${corrected}</b><span>形成隔离规则建议</span></div><div><b>${followup}</b><span>仍有证据边界</span></div><div><b>${unreviewed}</b><span>未介入但不阻塞</span></div></div><div class="calibration-actions"><p class="quiet">批量通过只接受非异常项，已有人工纠正不会被覆盖；科学性“待人工核验”等证据边界会原样保留。</p><button class="button primary small" id="batch-pass-calibrations">批量通过非异常项</button></div><div class="calibration-workbench-list">${cards}</div>`;
+  node.querySelectorAll("[data-calibration-asset]").forEach(form => form.onsubmit = saveCalibration);
+  node.querySelector("#batch-pass-calibrations").onclick = () => batchPassCalibrations(diagnostic.id, sample.id, coverage.id);
 }
 
 function renderStandardAssets() {
@@ -516,6 +565,36 @@ async function runCoverageDiagnosis(diagnosticRunId, goldSampleId, videoImportId
     await api("/api/coverage-diagnostics", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, gold_sample_id: goldSampleId, video_import_id: videoImportId})});
     await load();
     toast("保守视频覆盖候选已生成；充分覆盖仍保留教研复核门禁");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function saveCalibration(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  const diagnostic = [...state.diagnostic_runs].reverse()[0];
+  const sample = [...state.gold_sample_sets].reverse().find(item => item.diagnostic_run_id === diagnostic.id);
+  const coverage = [...state.coverage_runs].reverse().find(item => item.gold_sample_id === sample.id);
+  const structuralKeys = String(values.get("structural_keys") || "").split(/[、,，;；|]+/).map(value => value.trim()).filter(Boolean);
+  try {
+    await api("/api/calibrations", {method: "POST", body: JSON.stringify({
+      diagnostic_run_id: diagnostic.id, gold_sample_id: sample.id, coverage_run_id: coverage.id,
+      asset_id: form.dataset.calibrationAsset, structural_keys: structuralKeys,
+      frequency: values.get("frequency"), quality: values.get("quality"), science: values.get("science"),
+      coverage: values.get("coverage"), reason: values.get("reason"),
+    })});
+    await load();
+    toast("本题校准已保存；AI 主流程未被阻塞");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function batchPassCalibrations(diagnosticRunId, goldSampleId, coverageRunId) {
+  const button = document.querySelector("#batch-pass-calibrations");
+  if (button) { button.disabled = true; button.textContent = "处理中…"; }
+  try {
+    const result = await api("/api/calibrations/batch-pass", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, gold_sample_id: goldSampleId, coverage_run_id: coverageRunId})});
+    await load();
+    toast(`已批量通过 ${result.passed_count} 题，保留 ${result.skipped_count} 个异常或已纠正对象`);
   } catch (error) { toast(error.message, true); }
 }
 

@@ -21,6 +21,7 @@ from .pipeline import SourceSnapshotManager
 from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
 from .video_evidence import build_coverage_run, build_video_import, load_video_records
+from .calibration import build_calibration_review
 
 
 PROJECT_FIELDS = {
@@ -270,6 +271,44 @@ class WorkbenchService:
             current["coverage_runs"].append(result)
             self._event(current, "coverage.completed", f"已对 {result['result_count']} 道金样本题运行保守视频覆盖候选")
         return result
+
+    def save_calibration(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        diagnostic_run, gold_sample, coverage_run = self._calibration_context(state, request)
+        asset = self._find(state["question_assets"], str(request.get("asset_id") or ""), "question asset")
+        review = build_calibration_review(diagnostic_run, gold_sample, coverage_run, asset, request)
+        with self.store.transaction() as current:
+            current["calibration_reviews"] = [item for item in current["calibration_reviews"] if item["id"] != review["id"]]
+            current["calibration_reviews"].append(review)
+            action = "纠正" if review["corrected_fields"] else "确认"
+            self._event(current, "calibration.saved", f"已{action}金样本：{review['source_name']} 第 {review['question_no']} 题")
+        return review
+
+    def batch_pass_calibrations(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        diagnostic_run, gold_sample, coverage_run = self._calibration_context(state, request)
+        assets = {item["id"]: item for item in state["question_assets"]}
+        requested_ids = set(request.get("asset_ids") or [item["asset_id"] for item in gold_sample["items"]])
+        sample_ids = {item["asset_id"] for item in gold_sample["items"]}
+        if not requested_ids <= sample_ids:
+            raise ValidationError("batch pass contains assets outside the gold sample")
+        passed = []
+        skipped = []
+        for asset_id in requested_ids:
+            asset = assets.get(asset_id)
+            if asset is None:
+                raise ValidationError("question asset not found")
+            if asset.get("issue_codes"):
+                skipped.append(asset_id)
+                continue
+            passed.append(build_calibration_review(
+                diagnostic_run, gold_sample, coverage_run, asset, {}, mode="batch_pass",
+            ))
+        with self.store.transaction() as current:
+            passed_ids = {item["id"] for item in passed}
+            current["calibration_reviews"] = [item for item in current["calibration_reviews"] if item["id"] not in passed_ids] + passed
+            self._event(current, "calibration.batch_passed", f"已批量通过 {len(passed)} 题，保留 {len(skipped)} 个异常对象待复核")
+        return {"passed_count": len(passed), "skipped_count": len(skipped), "skipped_asset_ids": skipped, "reviews": passed}
 
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
@@ -530,10 +569,19 @@ class WorkbenchService:
             "gold_sample_count": len(state["gold_sample_sets"]),
             "video_asset_count": len(state["video_assets"]),
             "coverage_run_count": len(state["coverage_runs"]),
+            "calibration_review_count": len(state["calibration_reviews"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
         }
+
+    def _calibration_context(self, state: dict[str, Any], request: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        diagnostic_run = self._find(state["diagnostic_runs"], str(request.get("diagnostic_run_id") or ""), "diagnostic run")
+        gold_sample = self._find(state["gold_sample_sets"], str(request.get("gold_sample_id") or ""), "gold sample")
+        coverage_run = self._find(state["coverage_runs"], str(request.get("coverage_run_id") or ""), "coverage run")
+        if gold_sample["diagnostic_run_id"] != diagnostic_run["id"] or coverage_run["diagnostic_run_id"] != diagnostic_run["id"] or coverage_run["gold_sample_id"] != gold_sample["id"]:
+            raise ValidationError("calibration context ids do not belong to the same run")
+        return diagnostic_run, gold_sample, coverage_run
 
     def _next_action(self, run: dict[str, Any] | None) -> str:
         if not run:
