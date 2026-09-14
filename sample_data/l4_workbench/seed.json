@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -210,5 +210,7 @@
   "documents": [],
   "question_assets": [],
   "field_mappings": [],
+  "diagnostic_runs": [],
+  "gold_sample_sets": [],
   "events": []
 }

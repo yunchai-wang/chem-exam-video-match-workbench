@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from .domain import INTERVENTION_STRATEGIES, STAGE_LABELS, STAGES, ValidationError
+from .diagnosis import build_diagnostic_run, select_gold_sample
 from .backtest import create_prediction_freeze, evaluate_prediction_freeze
 from .base_adapter import LarkBaseAdapter
 from .engine import affected_stages, classify_feedback, recommend_priority, release_decision
@@ -206,6 +207,37 @@ class WorkbenchService:
         if not target.is_relative_to(root) or not target.is_file():
             raise ValidationError("unknown local asset")
         return target
+
+    def diagnose_snapshot(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        snapshot_id = str(request.get("source_snapshot_id") or "")
+        snapshot = self._find(state["source_snapshots"], snapshot_id, "source snapshot")
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == snapshot_id]
+        result = build_diagnostic_run(snapshot, assets)
+        existing = next((item for item in state["diagnostic_runs"] if item["id"] == result["id"]), None)
+        if existing:
+            return existing
+        with self.store.transaction() as current:
+            current["diagnostic_runs"].append(result)
+            self._event(current, "diagnosis.completed", f"已对 {len(assets)} 个真实题目资产完成首轮可解释诊断")
+        return result
+
+    def create_gold_sample(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        diagnostic_run_id = str(request.get("diagnostic_run_id") or "")
+        diagnostic_run = self._find(state["diagnostic_runs"], diagnostic_run_id, "diagnostic run")
+        assets = [
+            item for item in state["question_assets"]
+            if item.get("source_snapshot_id") == diagnostic_run["source_snapshot_id"]
+        ]
+        sample = select_gold_sample(diagnostic_run, assets, int(request.get("size", 40)))
+        existing = next((item for item in state["gold_sample_sets"] if item["id"] == sample["id"]), None)
+        if existing:
+            return existing
+        with self.store.transaction() as current:
+            current["gold_sample_sets"].append(sample)
+            self._event(current, "gold_sample.created", f"已生成 {sample['actual_size']} 题待校准金样本")
+        return sample
 
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
@@ -462,6 +494,8 @@ class WorkbenchService:
             "backtest_count": len(state["backtest_results"]),
             "standardized_asset_count": len(state["question_assets"]),
             "standardization_issue_count": sum(item.get("issue_count", 0) for item in state["standardization_runs"]),
+            "diagnostic_run_count": len(state["diagnostic_runs"]),
+            "gold_sample_count": len(state["gold_sample_sets"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),

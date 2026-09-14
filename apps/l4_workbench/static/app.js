@@ -76,6 +76,7 @@ function renderDataFoundation() {
   renderStandardAssets();
   renderBasePreview();
   renderManifestPreview();
+  renderDiagnosisFoundation();
 
   const failed = state.jobs.filter(job => job.status === "failed").length;
   const health = document.querySelector("#job-health");
@@ -91,6 +92,50 @@ function renderDataFoundation() {
     return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${freeze.validation_years.join("、")} <span class="tag">待后验数据</span></strong><small>规则 ${esc(freeze.rule_version)} · 截止 ${esc(freeze.data_cutoff)}</small><textarea data-observations="${freeze.id}" style="width:100%;margin-top:8px;min-height:58px">[{"entity_id":"structure-a","actual_positive":true},{"entity_id":"structure-b","actual_positive":false}]</textarea><div style="display:flex;gap:6px;margin-top:6px"><input data-observation-year="${freeze.id}" value="${freeze.validation_years[0]}" style="width:80px"><button class="button secondary small" data-evaluate="${freeze.id}">用后验观察集计算</button></div></div>`;
   }).join("") : `<p class="quiet">尚未冻结预测。没有冻结记录时，未来年份不能用于证明规则进步。</p>`;
   document.querySelectorAll("[data-evaluate]").forEach(button => button.onclick = () => evaluateFreeze(button.dataset.evaluate));
+}
+
+function latestDiagnosableSnapshot() {
+  const assetSnapshotIds = new Set(state.question_assets.map(asset => asset.source_snapshot_id));
+  return [...state.source_snapshots].reverse().find(snapshot => assetSnapshotIds.has(snapshot.id));
+}
+
+function renderDiagnosisFoundation() {
+  const node = document.querySelector("#diagnosis-foundation");
+  const health = document.querySelector("#diagnosis-health");
+  const snapshot = latestDiagnosableSnapshot();
+  if (!snapshot) {
+    health.textContent = "等待题目资产";
+    health.className = "status waiting";
+    node.innerHTML = `<p class="quiet">请先导入并标准化一批真实题目。</p>`;
+    return;
+  }
+  const run = [...(state.diagnostic_runs || [])].reverse().find(item => item.source_snapshot_id === snapshot.id);
+  if (!run) {
+    health.textContent = "尚未诊断";
+    health.className = "status waiting";
+    node.innerHTML = `<div class="calibration-actions"><p class="quiet">将分析 ${state.question_assets.filter(asset => asset.source_snapshot_id === snapshot.id).length} 个题目资产。仅共同底层结构进入频次分组；同知识点但考查逻辑不同的题不会硬拼。</p><button class="button primary" id="run-real-diagnosis">运行首轮真实诊断</button></div>`;
+    node.querySelector("#run-real-diagnosis").onclick = () => runRealDiagnosis(snapshot.id);
+    return;
+  }
+  const summary = run.summary;
+  const sample = [...(state.gold_sample_sets || [])].reverse().find(item => item.diagnostic_run_id === run.id);
+  health.textContent = run.status === "completed" ? "诊断完成" : "完成 · 有证据边界";
+  health.className = "status completed";
+  const limits = run.evidence_limits.length
+    ? `<div class="evidence-limit"><strong>当前证据边界</strong><span>${esc(run.evidence_limits.join(" "))}</span></div>` : "";
+  const sampleControl = sample
+    ? `<span class="tag good">已生成 ${sample.actual_size} 题金样本</span>`
+    : `<label class="sample-size">抽样规模<select id="gold-sample-size"><option>30</option><option selected>40</option><option>50</option></select></label><button class="button primary small" id="create-gold-sample">生成待校准金样本</button>`;
+  const sampleRows = sample ? sample.items.slice(0, 12).map(item => {
+    const asset = state.question_assets.find(candidate => candidate.id === item.asset_id);
+    const image = asset?.content_blocks.find(block => block.type === "image" && block.path);
+    const action = image ? `<a class="button secondary small" href="${assetUrl(image.path)}" target="_blank" rel="noopener">查看原题</a>` : "";
+    return `<div class="calibration-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.rationale)}</small></div><div class="chip-row"><span class="tag frequency">${esc(item.frequency_level)}</span><span class="tag ${item.quality_recommendation === "异常复核" ? "risk" : "good"}">${esc(item.quality_recommendation)}</span>${action}</div></div>`;
+  }).join("") : "";
+  const coverage = sample ? `<p class="quiet">抽样覆盖 ${sample.coverage.paper_count} 套试卷、${sample.coverage.question_types.length} 类题型、${sample.coverage.with_visual_count} 道含图题，并强制纳入 ${sample.coverage.exception_count} 个异常案例。下方先展示 12 题，完整集合保存在当前项目状态中。</p>` : "";
+  node.innerHTML = `${limits}<div class="diagnosis-summary"><div><b>${summary.high_frequency_count}</b><span>同年跨地区高频</span></div><div><b>${summary.quality_candidate_count}</b><span>AI 候选好题</span></div><div><b>${summary.frequency_unresolved_count}</b><span>缺底层结构，不判频次</span></div><div><b>${summary.trend_unresolved_count}</b><span>多年趋势待补证据</span></div><div><b>${summary.priority_unresolved_count}</b><span>优先级待视频/学生证据</span></div></div>
+    <div class="calibration-actions"><p class="quiet">规则 ${esc(run.rule_version)} · ${summary.paper_count} 套试卷 · ${summary.asset_count} 道题。好题候选仍需核验科学性；高频标签不会自动等于好题。</p><div>${sampleControl}</div></div>${coverage}<div class="calibration-rail">${sampleRows}</div>`;
+  if (!sample) node.querySelector("#create-gold-sample").onclick = () => createGoldSample(run.id);
 }
 
 function renderStandardAssets() {
@@ -395,6 +440,27 @@ async function importManifest() {
     button.textContent = "冻结清单与本地题图";
     toast(error.message, true);
   }
+}
+
+async function runRealDiagnosis(snapshotId) {
+  const button = document.querySelector("#run-real-diagnosis");
+  if (button) { button.disabled = true; button.textContent = "诊断中…"; }
+  try {
+    await api("/api/diagnostics", {method: "POST", body: JSON.stringify({source_snapshot_id: snapshotId})});
+    await load();
+    toast("首轮真实诊断完成；证据不足的字段已明确保留为待验证");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function createGoldSample(diagnosticRunId) {
+  const button = document.querySelector("#create-gold-sample");
+  if (button) { button.disabled = true; button.textContent = "抽样中…"; }
+  const size = Number(document.querySelector("#gold-sample-size")?.value || 40);
+  try {
+    await api("/api/gold-samples", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, size})});
+    await load();
+    toast(`已生成 ${size} 题待校准金样本`);
+  } catch (error) { toast(error.message, true); }
 }
 
 async function freezePredictions(event) {

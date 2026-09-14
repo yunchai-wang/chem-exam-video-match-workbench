@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 STAGES = [
@@ -72,6 +72,11 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
         state.setdefault("question_assets", [])
         state.setdefault("field_mappings", [])
         state["schema_version"] = 3
+        version = 3
+    if version == 3:
+        state.setdefault("diagnostic_runs", [])
+        state.setdefault("gold_sample_sets", [])
+        state["schema_version"] = 4
     return state
 
 
@@ -109,6 +114,7 @@ def validate_state(state: dict[str, Any]) -> None:
     for key in (
         "source_snapshots", "jobs", "prediction_freezes", "backtest_results",
         "standardization_runs", "documents", "question_assets", "field_mappings",
+        "diagnostic_runs", "gold_sample_sets",
     ):
         if not isinstance(state.get(key), list):
             raise ValidationError(f"{key} must be a list")

@@ -153,6 +153,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual(result["run"]["question_asset_count"], 1)
         self.assertEqual(result["question_assets"][0]["image_integrity"], "preserved")
+        status, diagnosis = self.request("/api/diagnostics", "POST", {
+            "source_snapshot_id": result["snapshot"]["id"],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(diagnosis["summary"]["asset_count"], 1)
+        self.assertEqual(diagnosis["results"][0]["trend"]["status"], "证据不足")
+        status, sample = self.request("/api/gold-samples", "POST", {
+            "diagnostic_run_id": diagnosis["id"], "size": 10,
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(sample["actual_size"], 1)
 
 
 if __name__ == "__main__":
