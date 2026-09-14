@@ -33,6 +33,8 @@ python3 apps/l4_course_evolution_workbench.py
 
 打开 `http://127.0.0.1:8766`。首次启动会将 `sample_data/l4_workbench/seed.json` 复制成被 Git 忽略的本地状态文件 `outputs/l4_workbench/state.json`，刷新页面后设置和反馈仍会保留。
 
+多人或跨 Codex 任务接力开发时，先阅读 [`docs/handoff/CURRENT.md`](docs/handoff/CURRENT.md)。接力包只记录代码、规则版本和脱敏统计，不包含真实教学资料或账号凭据。
+
 一期使用脱敏样例验证产品结构。Feishu Base 已支持通过本机 `lark-cli` 做只读预览、字段映射和本地冻结导入；本地 JSON/CSV 题目清单也可映射既有字段并优先复用本机题图。PMO、CB、素材库和正式云文档写入仍只展示连接与授权状态，不会误写真实业务数据。
 
 ### 当前生产就绪边界
