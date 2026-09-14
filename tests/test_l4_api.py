@@ -164,6 +164,23 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 201)
         self.assertEqual(sample["actual_size"], 1)
+        video_manifest = Path(self.temp.name) / "videos.json"
+        video_manifest.write_text(json.dumps([{
+            "video_id": "V1", "video_name": "图表分析课", "signatures": "控制变量实验",
+            "task_tags": "设计方案", "transcript_match_status_v5": "强匹配-文件名",
+            "screenshot_tokens": "X:token",
+        }], ensure_ascii=False), encoding="utf-8")
+        status, video_import = self.request("/api/video-manifests/imports", "POST", {
+            "path": str(video_manifest), "source_label": "视频证据库",
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(video_import["video_asset_count"], 1)
+        status, coverage = self.request("/api/coverage-diagnostics", "POST", {
+            "diagnostic_run_id": diagnosis["id"], "gold_sample_id": sample["id"],
+            "video_import_id": video_import["id"],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(coverage["result_count"], 1)
 
 
 if __name__ == "__main__":

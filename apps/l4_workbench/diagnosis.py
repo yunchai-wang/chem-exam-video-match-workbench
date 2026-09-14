@@ -12,7 +12,7 @@ from typing import Any
 from .domain import ValidationError
 
 
-RULE_VERSION = "production-diagnosis-v0.2"
+RULE_VERSION = "production-diagnosis-v0.3"
 GENERIC_METHODS = {"", "problem优先", "knowledge优先"}
 TAG_SPLIT = re.compile(r"[、,，;；|]+")
 YEAR_PATTERN = re.compile(r"20\d{2}")
@@ -152,6 +152,7 @@ def _diagnose_asset(
         "question_type": question_type,
         "difficulty": difficulty,
         "structural_keys": ranked_keys,
+        "task_tags": task_tags,
         "frequency": {
             "level": frequency_level, "numerator": numerator, "denominator": denominator,
             "rate": round(rate, 4) if rate is not None else None, "scope": "同年跨地区可比试卷",

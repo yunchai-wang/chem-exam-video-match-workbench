@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -212,5 +212,8 @@
   "field_mappings": [],
   "diagnostic_runs": [],
   "gold_sample_sets": [],
+  "video_imports": [],
+  "video_assets": [],
+  "coverage_runs": [],
   "events": []
 }

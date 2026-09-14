@@ -77,6 +77,7 @@ function renderDataFoundation() {
   renderBasePreview();
   renderManifestPreview();
   renderDiagnosisFoundation();
+  renderVideoEvidence();
 
   const failed = state.jobs.filter(job => job.status === "failed").length;
   const health = document.querySelector("#job-health");
@@ -136,6 +137,41 @@ function renderDiagnosisFoundation() {
   node.innerHTML = `${limits}<div class="diagnosis-summary"><div><b>${summary.high_frequency_count}</b><span>同年跨地区高频</span></div><div><b>${summary.quality_candidate_count}</b><span>AI 候选好题</span></div><div><b>${summary.frequency_unresolved_count}</b><span>缺底层结构，不判频次</span></div><div><b>${summary.trend_unresolved_count}</b><span>多年趋势待补证据</span></div><div><b>${summary.priority_unresolved_count}</b><span>优先级待视频/学生证据</span></div></div>
     <div class="calibration-actions"><p class="quiet">规则 ${esc(run.rule_version)} · ${summary.paper_count} 套试卷 · ${summary.asset_count} 道题。好题候选仍需核验科学性；高频标签不会自动等于好题。</p><div>${sampleControl}</div></div>${coverage}<div class="calibration-rail">${sampleRows}</div>`;
   if (!sample) node.querySelector("#create-gold-sample").onclick = () => createGoldSample(run.id);
+}
+
+function renderVideoEvidence() {
+  const node = document.querySelector("#video-evidence-foundation");
+  const health = document.querySelector("#video-evidence-health");
+  const videoImport = [...(state.video_imports || [])].reverse()[0];
+  if (!videoImport) {
+    health.textContent = "等待视频清单";
+    health.className = "status waiting";
+    node.innerHTML = `<form id="video-manifest-form" class="compact-form"><label>视频证据 JSON 路径<textarea name="path" placeholder="包含 video_id、video_name、结构标签与逐字稿证据的本地 JSON" required></textarea></label><div class="form-grid mini"><label>来源名称<input name="source_label" value="既有视频证据库"></label><label>数据截止时间<input name="data_cutoff" type="date"></label></div><p class="form-hint">只冻结视频资产和证据字段；不会把旧宣传匹配的命中结论带入生产诊断。</p><button class="button primary" type="submit">冻结视频证据库</button></form>`;
+    node.querySelector("#video-manifest-form").onsubmit = importVideoManifest;
+    return;
+  }
+  const counts = videoImport.transcript_status_counts || {};
+  const strong = (counts["强匹配-文件名"] || 0) + (counts["强匹配-文件名+正文"] || 0) + (counts["本地素材直接匹配"] || 0);
+  const weak = (counts["弱匹配待人工复核"] || 0) + (counts["弱匹配待复核"] || 0);
+  const diagnostic = [...(state.diagnostic_runs || [])].reverse()[0];
+  const sample = diagnostic && [...(state.gold_sample_sets || [])].reverse().find(item => item.diagnostic_run_id === diagnostic.id);
+  const coverage = sample && [...(state.coverage_runs || [])].reverse().find(item => item.gold_sample_id === sample.id && item.video_import_id === videoImport.id);
+  health.textContent = coverage ? "保守候选已生成" : "视频资产已接入";
+  health.className = "status completed";
+  const action = !coverage && diagnostic && sample
+    ? `<button class="button primary small" id="run-coverage-diagnosis">运行保守覆盖候选</button>` : "";
+  const summary = coverage ? `<div class="diagnosis-summary video-summary"><div><b>${coverage.summary["部分覆盖候选"] || 0}</b><span>结构＋任务＋逐字稿证据</span></div><div><b>${coverage.summary["证据不足"] || 0}</b><span>结构相似但门禁不足</span></div><div><b>${coverage.summary["未发现可核验证据"] || 0}</b><span>未召回可靠候选</span></div><div><b>${coverage.summary["无法判断"] || 0}</b><span>题目底层结构待补</span></div></div>` : "";
+  const rows = coverage ? coverage.results.slice(0, 12).map(item => {
+    const best = item.candidates[0];
+    const candidate = best
+      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><small>${esc(best.reason)}</small>`
+      : `<strong>暂无视频候选</strong><small>${esc(item.reason)}</small>`;
+    return `<div class="coverage-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.status)}：${esc(item.reason)}</small></div><div>${candidate}</div></div>`;
+  }).join("") : "";
+  const transcriptUnmatched = state.video_assets.filter(item => item.transcript_status === "未匹配").length;
+  node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.video_asset_count}</b><span>唯一视频资产</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${videoImport.duplicate_video_ids.length}</b><span>重复视频 ID</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
+    <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。旧 matches 和宣传白名单不作为生产覆盖结论；自动判断最高只到“部分覆盖候选”。</p><div>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
+  if (action) node.querySelector("#run-coverage-diagnosis").onclick = () => runCoverageDiagnosis(diagnostic.id, sample.id, videoImport.id);
 }
 
 function renderStandardAssets() {
@@ -460,6 +496,26 @@ async function createGoldSample(diagnosticRunId) {
     await api("/api/gold-samples", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, size})});
     await load();
     toast(`已生成 ${size} 题待校准金样本`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function importVideoManifest(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  try {
+    await api("/api/video-manifests/imports", {method: "POST", body: JSON.stringify({path: form.get("path"), source_label: form.get("source_label"), data_cutoff: form.get("data_cutoff") || null})});
+    await load();
+    toast("视频证据库已冻结；旧宣传命中结论未进入生产覆盖字段");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function runCoverageDiagnosis(diagnosticRunId, goldSampleId, videoImportId) {
+  const button = document.querySelector("#run-coverage-diagnosis");
+  if (button) { button.disabled = true; button.textContent = "比对中…"; }
+  try {
+    await api("/api/coverage-diagnostics", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, gold_sample_id: goldSampleId, video_import_id: videoImportId})});
+    await load();
+    toast("保守视频覆盖候选已生成；充分覆盖仍保留教研复核门禁");
   } catch (error) { toast(error.message, true); }
 }
 

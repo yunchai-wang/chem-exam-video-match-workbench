@@ -97,6 +97,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/gold-samples":
                 self._json(201, self.service.create_gold_sample(payload))
                 return
+            if path == "/api/video-manifests/imports":
+                self._json(201, self.service.import_video_manifest(payload))
+                return
+            if path == "/api/coverage-diagnostics":
+                self._json(201, self.service.diagnose_coverage(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return

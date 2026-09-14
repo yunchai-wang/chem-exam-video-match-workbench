@@ -20,6 +20,7 @@ from .manifest_adapter import LocalManifestAdapter
 from .pipeline import SourceSnapshotManager
 from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
+from .video_evidence import build_coverage_run, build_video_import, load_video_records
 
 
 PROJECT_FIELDS = {
@@ -238,6 +239,37 @@ class WorkbenchService:
             current["gold_sample_sets"].append(sample)
             self._event(current, "gold_sample.created", f"已生成 {sample['actual_size']} 题待校准金样本")
         return sample
+
+    def import_video_manifest(self, request: dict[str, Any]) -> dict[str, Any]:
+        path = Path(str(request.get("path") or "")).expanduser().resolve()
+        records = load_video_records(path)
+        snapshot = self.snapshots.capture({
+            "source_type": "video_manifest", "source_label": request.get("source_label") or path.stem,
+            "data_cutoff": request.get("data_cutoff"), "paths": [str(path)],
+        })
+        result = build_video_import(snapshot, records)
+        with self.store.transaction() as state:
+            state["source_snapshots"].append(snapshot)
+            state["video_imports"].append({key: value for key, value in result.items() if key != "video_assets"})
+            new_ids = {item["id"] for item in result["video_assets"]}
+            state["video_assets"] = [item for item in state["video_assets"] if item["id"] not in new_ids] + result["video_assets"]
+            self._event(state, "video_manifest.imported", f"已冻结并标准化 {result['video_asset_count']} 条唯一视频证据")
+        return {"snapshot": snapshot, **result}
+
+    def diagnose_coverage(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        diagnostic_run = self._find(state["diagnostic_runs"], str(request.get("diagnostic_run_id") or ""), "diagnostic run")
+        gold_sample = self._find(state["gold_sample_sets"], str(request.get("gold_sample_id") or ""), "gold sample")
+        video_import = self._find(state["video_imports"], str(request.get("video_import_id") or ""), "video import")
+        videos = [item for item in state["video_assets"] if item.get("source_snapshot_id") == video_import["source_snapshot_id"]]
+        result = build_coverage_run(diagnostic_run, gold_sample, video_import, videos)
+        existing = next((item for item in state["coverage_runs"] if item["id"] == result["id"]), None)
+        if existing:
+            return existing
+        with self.store.transaction() as current:
+            current["coverage_runs"].append(result)
+            self._event(current, "coverage.completed", f"已对 {result['result_count']} 道金样本题运行保守视频覆盖候选")
+        return result
 
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
@@ -496,6 +528,8 @@ class WorkbenchService:
             "standardization_issue_count": sum(item.get("issue_count", 0) for item in state["standardization_runs"]),
             "diagnostic_run_count": len(state["diagnostic_runs"]),
             "gold_sample_count": len(state["gold_sample_sets"]),
+            "video_asset_count": len(state["video_assets"]),
+            "coverage_run_count": len(state["coverage_runs"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
