@@ -50,7 +50,7 @@ class JsonStoreTests(unittest.TestCase):
                 state.pop(key, None)
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 9)
+            self.assertEqual(loaded["schema_version"], 10)
             self.assertEqual(loaded["metadata"]["state_revision"], 0)
             self.assertEqual(loaded["question_assets"], [])
             self.assertEqual(loaded["diagnostic_runs"], [])
@@ -92,7 +92,29 @@ class JsonStoreTests(unittest.TestCase):
             loaded = JsonStore(path).load()
             self.assertEqual(loaded["question_assets"][0]["tag_profile"]["knowledge"]["all"], ["单质的概念"])
             self.assertEqual(loaded["diagnostic_runs"][0]["results"][0]["tag_profile"]["question"], ["判断物质类别"])
-            self.assertEqual(loaded["selection_runs"][0]["results"][0]["label_library_snapshot_id"], "junior-chem-label-library-2026-01-28")
+            self.assertEqual(loaded["selection_runs"][0]["results"][0]["label_library_snapshot_id"], "junior-chem-label-contract-2026-09-15-v2")
+
+    def test_schema_9_adds_new_contract_without_rewriting_historical_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.json"
+            state = json.loads(SEED.read_text(encoding="utf-8"))
+            state["schema_version"] = 9
+            state["label_library_snapshots"] = [{"id": "junior-chem-label-library-2026-01-28"}]
+            state["question_assets"] = [{
+                "id": "q1",
+                "tag_profile": {
+                    "library_snapshot_id": "junior-chem-label-library-2026-01-28",
+                    "knowledge": {"all": ["氧气的性质"], "core": ["氧气的性质"], "distractor": [], "mentioned": []},
+                },
+            }]
+            path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+            loaded = JsonStore(path).load()
+            self.assertEqual(loaded["schema_version"], 10)
+            self.assertEqual(len(loaded["label_library_snapshots"]), 2)
+            profile = loaded["question_assets"][0]["tag_profile"]
+            self.assertEqual(profile["library_snapshot_id"], "junior-chem-label-library-2026-01-28")
+            self.assertEqual(profile["knowledge"]["prerequisite"], [])
+            self.assertEqual(profile["contract_version"], "2026-09-15.v2")
 
     def test_concurrent_service_updates_do_not_lose_fields(self) -> None:
         from apps.l4_workbench.service import WorkbenchService

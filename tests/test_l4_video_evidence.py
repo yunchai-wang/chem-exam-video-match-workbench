@@ -20,6 +20,25 @@ class VideoEvidenceTests(unittest.TestCase):
         self.assertEqual(result["video_assets"][0]["transcript_status"], "强匹配-文件名")
         self.assertNotIn("promotion_visibility", result["video_assets"][0])
 
+    def test_video_import_distinguishes_concept_and_problem_lesson_knowledge_roles(self) -> None:
+        rows = [
+            {
+                "video_id": "V1", "video_name": "质量守恒定律", "课程类型": "概念课",
+                "知识点标签": "质量守恒定律、化学反应", "核心知识点标签": "质量守恒定律",
+                "前置知识点标签": "化学反应", "仅提及知识点": "原子结构",
+            },
+            {
+                "video_id": "V2", "video_name": "质量守恒计算", "课程类型": "解题课",
+                "知识点标签": "质量守恒定律、化学方程式计算", "核心知识点标签": "化学方程式计算",
+            },
+        ]
+        result = build_video_import(self.snapshot, rows)
+        assets = {item["video_id"]: item for item in result["video_assets"]}
+        self.assertEqual(assets["V1"]["lesson_mode"], "概念课")
+        self.assertEqual(assets["V1"]["knowledge_contract"], "concept_lesson_video")
+        self.assertEqual(assets["V1"]["prerequisite_knowledge_tags"], ["化学反应"])
+        self.assertEqual(assets["V2"]["knowledge_contract"], "problem_lesson_video")
+
     def test_cross_catalog_same_title_becomes_one_candidate_with_all_memberships(self) -> None:
         rows = [
             {

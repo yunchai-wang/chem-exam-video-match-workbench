@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 9
+CURRENT_SCHEMA_VERSION = 10
 
 
 STAGES = [
@@ -121,6 +121,34 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
             for item in question_set.get("items", []):
                 item.setdefault("tag_profile", profile_for_asset(assets_by_id.get(item.get("asset_id"), {})))
         state["schema_version"] = 9
+        version = 9
+    if version == 9:
+        from .tagging import label_library_snapshot, normalize_tag_profile
+        latest_snapshot = label_library_snapshot()
+        snapshots = state.setdefault("label_library_snapshots", [])
+        if not any(item.get("id") == latest_snapshot["id"] for item in snapshots):
+            snapshots.append(latest_snapshot)
+        for asset in state.get("question_assets", []):
+            if isinstance(asset.get("tag_profile"), dict):
+                asset["tag_profile"] = normalize_tag_profile(asset["tag_profile"])
+        for run in state.get("diagnostic_runs", []):
+            for result in run.get("results", []):
+                if isinstance(result.get("tag_profile"), dict):
+                    result["tag_profile"] = normalize_tag_profile(result["tag_profile"])
+        for run in state.get("selection_runs", []):
+            for result in run.get("results", []):
+                if isinstance(result.get("tag_profile"), dict):
+                    result["tag_profile"] = normalize_tag_profile(result["tag_profile"])
+        for question_set in state.get("question_sets", []):
+            for item in question_set.get("items", []):
+                if isinstance(item.get("tag_profile"), dict):
+                    item["tag_profile"] = normalize_tag_profile(item["tag_profile"])
+                for profile in item.get("selected_unit_tag_profiles", {}).values():
+                    if isinstance(profile, dict):
+                        upgraded = normalize_tag_profile(profile)
+                        profile.clear()
+                        profile.update(upgraded)
+        state["schema_version"] = 10
     return state
 
 

@@ -126,6 +126,7 @@ def build_video_import(snapshot: dict[str, Any], records: list[dict[str, Any]]) 
             if value
         })
         memberships = _catalog_memberships(cluster_rows)
+        lesson_mode = _lesson_mode(record)
         identity_status = (
             "已确认同一视频" if confirmed_identity
             else ("候选同一视频" if is_cross_catalog_cluster else "单一目录实体")
@@ -147,7 +148,21 @@ def build_video_import(snapshot: dict[str, Any], records: list[dict[str, Any]]) 
                 for field in ("task_tags", "question_tags", "问题标签")
                 for value in split_tags(row.get(field))
             }),
+            "lesson_mode": lesson_mode,
+            "knowledge_contract": (
+                "concept_lesson_video" if lesson_mode == "概念课"
+                else ("problem_lesson_video" if lesson_mode == "解题课" else "待识别")
+            ),
+            "all_knowledge_tags": sorted({
+                value for row in cluster_rows
+                for field in ("knowledge_tags", "知识点标签", "全部涉及知识")
+                for value in split_tags(row.get(field))
+            }),
             "teaching_target_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("teaching_target_tags") or row.get("核心知识点标签"))}),
+            "prerequisite_knowledge_tags": sorted({
+                value for row in cluster_rows
+                for value in split_tags(row.get("prerequisite_knowledge_tags") or row.get("前置知识点标签") or row.get("工具知识点"))
+            }),
             "mentioned_knowledge_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("mentioned_knowledge_tags") or row.get("仅提及知识点"))}),
             "question_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("question_tags") or row.get("问题标签"))}),
             "solution_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("solution_tags") or row.get("解法标签"))}),
@@ -293,6 +308,9 @@ def _coverage_candidate(
         "task_overlap": task_overlap, "transcript_status": video["transcript_status"],
         "teaching_target_overlap": target_overlap, "teaching_target_gate": target_gate,
         "teaching_target_tags": video.get("teaching_target_tags", []),
+        "lesson_mode": video.get("lesson_mode", "未识别"),
+        "knowledge_contract": video.get("knowledge_contract", "待识别"),
+        "prerequisite_knowledge_tags": video.get("prerequisite_knowledge_tags", []),
         "mentioned_knowledge_tags": video.get("mentioned_knowledge_tags", []),
         "segment_type": video.get("segment_type", "未标注"), "segment_locator": video.get("segment_locator", ""),
         "evidence_level": video["evidence_level"], "screenshot_materialized": False,
@@ -315,6 +333,15 @@ def _teaching_target_gate(
     if not video.get("teaching_target_tags"):
         return "target_missing"
     return "target_mismatch"
+
+
+def _lesson_mode(record: dict[str, Any]) -> str:
+    value = " ".join(str(record.get(key) or "") for key in ("lesson_mode", "course_type", "课程类型", "content_type"))
+    if "概念" in value:
+        return "概念课"
+    if any(marker in value for marker in ("解题", "培优", "总复习", "题型")):
+        return "解题课"
+    return "未识别"
 
 
 def _meaningful_tasks(question: dict[str, Any]) -> list[str]:

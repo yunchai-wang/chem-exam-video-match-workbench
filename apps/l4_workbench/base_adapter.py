@@ -24,6 +24,7 @@ FIELD_ALIASES = {
     "exam_type": ["试卷类型", "考试类型"],
     "knowledge_tags": ["知识点标签-智能", "知识点标签", "知识点", "knowledge_tags"],
     "core_knowledge_tags": ["核心知识点标签", "关键知识点", "核心知识", "core_knowledge_tags"],
+    "prerequisite_knowledge_tags": ["前置知识点标签", "工具知识点", "辅助知识点", "prerequisite_knowledge_tags"],
     "distractor_knowledge_tags": ["干扰项知识点标签", "错误选项知识点", "distractor_knowledge_tags"],
     "mentioned_knowledge_tags": ["仅提及知识点", "提及知识点", "mentioned_knowledge_tags"],
     "chapter": ["章", "章节"],

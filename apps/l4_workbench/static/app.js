@@ -266,7 +266,7 @@ function renderManifestPreview() {
   const mappingKeys = [
     ["source_id", "题目 ID"], ["source_paper", "试卷"], ["question_no", "题号"],
     ["question_text", "题目文本（必选）"], ["question_image", "本地题图路径"], ["difficulty", "难度"],
-    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["distractor_knowledge_tags", "干扰项知识"],
+    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["prerequisite_knowledge_tags", "前置/工具知识"], ["distractor_knowledge_tags", "干扰项知识"],
     ["question_type", "整题题型"], ["question_tags", "小问问题任务"], ["solution_tags", "解法"],
     ["condition_tags", "条件"], ["context_tags", "情景"], ["thinking_method_tags", "思想方法"], ["unit_tag_profiles", "逐小问标签 JSON"], ["score", "分值"],
     ["visual_forms", "视觉形态"], ["background_tags", "背景素材"], ["task_tags", "设问任务"],
@@ -293,7 +293,7 @@ function renderBasePreview() {
   const mappingKeys = [
     ["question_text", "题目文本（必选）"], ["question_image", "题目截图"], ["question_no", "题号"],
     ["year", "年份"], ["province", "省份"], ["city", "城市/地区"], ["exam_type", "考试类型"],
-    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["distractor_knowledge_tags", "干扰项知识"],
+    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["prerequisite_knowledge_tags", "前置/工具知识"], ["distractor_knowledge_tags", "干扰项知识"],
     ["question_type", "整题题型"], ["question_tags", "小问问题任务"], ["solution_tags", "解法"],
     ["condition_tags", "条件"], ["context_tags", "情景"], ["thinking_method_tags", "思想方法"], ["unit_tag_profiles", "逐小问标签 JSON"],
     ["difficulty", "难度"], ["historical_ai_quality", "历史 AI 好题"],
@@ -335,7 +335,7 @@ function tagProfileMarkup(profile) {
   const knowledge = profile.knowledge || {};
   const groups = [
     ["整题题型", profile.question_type ? [profile.question_type] : profile.question_type_candidates],
-    ["核心知识", knowledge.core], ["全部涉及", knowledge.all], ["干扰项", knowledge.distractor],
+    ["核心知识", knowledge.core], ["前置/工具", knowledge.prerequisite], ["全部涉及", knowledge.all], ["干扰项", knowledge.distractor],
     ["问题", profile.question], ["解法", profile.solution], ["条件", profile.condition],
     ["情景", profile.context], ["思想方法", profile.thinking_method],
   ].filter(([, values]) => Array.isArray(values) && values.length);
