@@ -68,6 +68,17 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(question["coverage"]["teacher_conclusion"], "部分覆盖")
         self.assertEqual(question["teacher_feedback_reason"], "第三问缺完整迁移台阶")
 
+    def test_create_tag_configuration_activates_it_for_current_project(self) -> None:
+        config = self.service.create_tag_configuration({
+            "name": "无既有标签的初中物理项目",
+            "subject": "初中物理",
+            "onboarding_mode": "no_labels",
+            "selected_dimensions": ["knowledge", "question", "experiment_name"],
+        })
+        state = self.service.get_state()
+        self.assertEqual(state["project"]["active_tag_configuration_id"], config["id"])
+        self.assertEqual(state["tag_configurations"][-1]["status"], "AI初版·可运行")
+
 
 if __name__ == "__main__":
     unittest.main()

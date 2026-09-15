@@ -88,6 +88,24 @@
         <p class="quiet">整题或小问匹配由使用场景决定：整题生产看主要问题结构和关键小问，小问专项允许“局部相似”但必须指明对应小问。视频覆盖仍只允许核心教学目标通过门禁；仅出现、前置回顾或错误选项涉及的知识不能单独证明覆盖。</p>
       </article>
       <div class="grid two data-grid">
+        <form id="tag-config-form" class="panel compact-form">
+          <div class="panel-title"><div><p class="eyebrow">标签接入向导</p><h3>有完整体系、只有少量标签、没有标签都能开始</h3></div><span class="safe-badge">不改原表</span></div>
+          <div class="form-grid mini"><label>当前情况<select name="onboarding_mode"><option value="rich_labels">已有完整标签与规则</option><option value="partial_labels" selected>只有部分标签或规则</option><option value="no_labels">暂无标签与规则</option></select></label><label>配置名称<input name="name" value="当前项目标签配置" required></label></div>
+          <label>学科<input name="subject" value="初中化学" required></label>
+          <fieldset class="dimension-picker"><legend>本项目需要的分析维度</legend>
+            <label><input type="checkbox" name="selected_dimensions" value="question_type" checked>整题题型</label><label><input type="checkbox" name="selected_dimensions" value="knowledge" checked>知识点</label><label><input type="checkbox" name="selected_dimensions" value="question" checked>小问任务</label><label><input type="checkbox" name="selected_dimensions" value="solution" checked>解法</label><label><input type="checkbox" name="selected_dimensions" value="condition">条件</label><label><input type="checkbox" name="selected_dimensions" value="context">情景</label><label><input type="checkbox" name="selected_dimensions" value="thinking_method">思想方法</label><label><input type="checkbox" name="selected_dimensions" value="option_concept">概念选项归一</label><label><input type="checkbox" name="selected_dimensions" value="experiment_name">实验名称</label><label><input type="checkbox" name="selected_dimensions" value="calculation_chapter">计算题章节</label>
+          </fieldset>
+          <label>原字段 → 标准维度（JSON，可留空）<textarea name="source_field_mapping" placeholder='例如：{"我的知识点":"knowledge","考法":"question"}'></textarea></label>
+          <label>当前项目自定义维度<input name="custom_dimensions" placeholder="例如：校本专题、核心素养（用逗号分隔）"></label>
+          <p class="form-hint">完整标签模式至少填写一个字段映射；部分或无标签模式不会阻塞流程，AI 补标会注明来源。知识库外结果进入“待映射”，不会被静默删除。</p>
+          <button class="button primary" type="submit">保存并启用当前项目配置</button>
+        </form>
+        <article class="panel">
+          <div class="panel-title"><div><p class="eyebrow">配置与质量门禁</p><h3>来源标签、标准标签、项目扩展互不覆盖</h3></div><span class="status" id="tag-config-health">—</span></div>
+          <div id="tag-config-summary" class="base-preview"><p class="quiet">保存配置后，这里会回显分析单元、字段映射和解析门禁。</p></div>
+        </article>
+      </div>
+      <div class="grid two data-grid">
         <form id="snapshot-form" class="panel compact-form">
           <div class="panel-title"><div><p class="eyebrow">来源快照</p><h3>登记本轮原始输入</h3></div></div>
           <label>来源类型<select name="source_type"><option value="local_files">本地文件</option><option value="local_folder">本地文件夹</option><option value="feishu_base">Feishu Base</option><option value="cb_export">CB 导出文件</option></select></label>

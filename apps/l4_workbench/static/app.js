@@ -82,6 +82,7 @@ function renderDataFoundation() {
   document.querySelectorAll("[data-standardize]").forEach(button => button.onclick = () => standardizeSnapshot(button.dataset.standardize));
 
   renderStandardAssets();
+  renderTagConfigurations();
   renderBasePreview();
   renderManifestPreview();
   renderDiagnosisFoundation();
@@ -102,6 +103,26 @@ function renderDataFoundation() {
     return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${freeze.validation_years.join("、")} <span class="tag">待后验数据</span></strong><small>规则 ${esc(freeze.rule_version)} · 截止 ${esc(freeze.data_cutoff)}</small><textarea data-observations="${freeze.id}" style="width:100%;margin-top:8px;min-height:58px">[{"entity_id":"structure-a","actual_positive":true},{"entity_id":"structure-b","actual_positive":false}]</textarea><div style="display:flex;gap:6px;margin-top:6px"><input data-observation-year="${freeze.id}" value="${freeze.validation_years[0]}" style="width:80px"><button class="button secondary small" data-evaluate="${freeze.id}">用后验观察集计算</button></div></div>`;
   }).join("") : `<p class="quiet">尚未冻结预测。没有冻结记录时，未来年份不能用于证明规则进步。</p>`;
   document.querySelectorAll("[data-evaluate]").forEach(button => button.onclick = () => evaluateFreeze(button.dataset.evaluate));
+}
+
+function renderTagConfigurations() {
+  const node = document.querySelector("#tag-config-summary");
+  const health = document.querySelector("#tag-config-health");
+  const activeId = state.project.active_tag_configuration_id;
+  const config = (state.tag_configurations || []).find(item => item.id === activeId);
+  if (!config) {
+    health.textContent = "尚未配置";
+    health.className = "status waiting";
+    node.innerHTML = `<div class="evidence-limit"><strong>默认可运行</strong><span>未配置标签不会卡住标准化；进入诊断前建议保存项目基线，以便后续规则版本可追溯。</span></div><div class="quality-gate-list"><span><b>题号边界</b>核查缺号、重号和跨页断裂</span><span><b>答案区边界</b>独立标题行触发，避免误切题干</span><span><b>原题图表</b>与题目绑定，缺图显式异常</span><span><b>未知标签</b>进入待映射，不静默留空</span></div>`;
+    return;
+  }
+  health.textContent = config.status;
+  health.className = "status completed";
+  const dimensions = config.selected_dimensions.map(key => `<span class="tag good">${esc(config.dimension_labels[key] || key)}</span>`).join("");
+  const mappings = Object.entries(config.source_field_mapping || {}).map(([source, target]) => `<span class="tag">${esc(source)} → ${esc(config.dimension_labels[target] || target)}</span>`).join("") || `<span class="quiet">没有原标签映射；由 AI 建立项目初版并标注来源。</span>`;
+  const extensions = (config.project_extensions || []).map(item => `<span class="tag frequency">${esc(item)}</span>`).join("") || `<span class="quiet">暂无项目扩展维度。</span>`;
+  const gates = Object.entries(config.parse_quality_policy || {}).filter(([key]) => key !== "version").map(([key, value]) => `<span><b>${esc({question_boundary:"题号边界",answer_section_boundary:"答案区边界",image_binding:"题图绑定",deduplication:"重复核查",unmatched_labels:"未知标签"}[key] || key)}</b>${esc(value)}</span>`).join("");
+  node.innerHTML = `<div class="base-meta"><strong>${esc(config.name)}</strong><span>${esc(config.onboarding_mode_label)} · ${esc(config.version)}</span></div><p class="quiet">三层资产：${esc(config.three_layer_model.join(" → "))}。AI 补标：${config.ai_fill_missing ? "开启" : "关闭"}；主流程：不阻塞。</p><div class="chip-row">${dimensions}</div><details open><summary>原字段映射</summary><div class="chip-row">${mappings}</div></details><details><summary>当前项目扩展</summary><div class="chip-row">${extensions}</div></details><div class="quality-gate-list">${gates}</div><div class="evidence-limit"><strong>分析粒度</strong><span>${esc(config.analysis_units.option)} ${esc(config.analysis_units.specialized)}</span></div>`;
 }
 
 function latestDiagnosableSnapshot() {
@@ -639,6 +660,26 @@ async function createSnapshot(event) {
   catch (error) { toast(error.message, true); }
 }
 
+async function createTagConfiguration(event) {
+  event.preventDefault();
+  const values = new FormData(event.currentTarget);
+  let mapping = {};
+  try {
+    const rawMapping = String(values.get("source_field_mapping") || "").trim();
+    if (rawMapping) mapping = JSON.parse(rawMapping);
+    const payload = {
+      name: values.get("name"), subject: values.get("subject"),
+      onboarding_mode: values.get("onboarding_mode"),
+      selected_dimensions: values.getAll("selected_dimensions"),
+      source_field_mapping: mapping,
+      custom_dimensions: String(values.get("custom_dimensions") || "").split(/[、,，;；|]+/).map(item => item.trim()).filter(Boolean),
+    };
+    const result = await api("/api/tag-configurations", {method: "POST", body: JSON.stringify(payload)});
+    await load();
+    toast(`已启用“${result.name}”；没有标签也不会阻塞 AI 运行`);
+  } catch (error) { toast(error.message, true); }
+}
+
 async function standardizeSnapshot(id) {
   try { await api(`/api/source-snapshots/${id}/standardize`, {method: "POST", body: "{}"}); await load(); toast("资料已标准化；文字、表格和原题图片已建立关联"); }
   catch (error) { toast(error.message, true); }
@@ -862,6 +903,7 @@ document.querySelector("#start-run").onclick = startRun;
 document.querySelector("#auto-mode").onclick = setFullAuto;
 document.querySelector("#project-form").onsubmit = saveProject;
 document.querySelector("#snapshot-form").onsubmit = createSnapshot;
+document.querySelector("#tag-config-form").onsubmit = createTagConfiguration;
 document.querySelector("#base-preview-form").onsubmit = previewBase;
 document.querySelector("#manifest-preview-form").onsubmit = previewManifest;
 document.querySelector("#freeze-form").onsubmit = freezePredictions;

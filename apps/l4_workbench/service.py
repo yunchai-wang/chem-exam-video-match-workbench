@@ -24,6 +24,7 @@ from .video_evidence import build_coverage_run, build_video_import, load_video_r
 from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
 from .downstream import create_downstream_task
+from .tag_configuration import build_tag_configuration
 
 
 PROJECT_FIELDS = {
@@ -112,6 +113,19 @@ class WorkbenchService:
             state["source_snapshots"].append(snapshot)
             self._event(state, "source.snapshot_created", f"已冻结来源快照：{snapshot['source_label']}")
         return snapshot
+
+    @retry_concurrent_updates
+    def create_tag_configuration(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        payload = dict(request)
+        payload.setdefault("subject", state["project"].get("subject"))
+        config = build_tag_configuration(payload)
+        state["tag_configurations"] = [item for item in state["tag_configurations"] if item["id"] != config["id"]]
+        state["tag_configurations"].append(config)
+        state["project"]["active_tag_configuration_id"] = config["id"]
+        self._event(state, "tag_configuration.activated", f"已启用标签配置：{config['name']}（{config['onboarding_mode_label']}）")
+        self.store.save(state)
+        return config
 
     def standardize_snapshot(self, snapshot_id: str) -> dict[str, Any]:
         state = self.store.load()
@@ -654,6 +668,7 @@ class WorkbenchService:
             "selection_review_count": len(state["selection_reviews"]),
             "question_set_count": len(state["question_sets"]),
             "downstream_task_count": len(state["downstream_tasks"]),
+            "tag_configuration_count": len(state["tag_configurations"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),

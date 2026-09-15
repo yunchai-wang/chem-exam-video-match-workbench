@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 10
+CURRENT_SCHEMA_VERSION = 11
 
 
 STAGES = [
@@ -149,6 +149,13 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
                         profile.clear()
                         profile.update(upgraded)
         state["schema_version"] = 10
+        version = 10
+    if version == 10:
+        state.setdefault("tag_configurations", [])
+        state.setdefault("unmatched_label_queue", [])
+        state.setdefault("parse_quality_reviews", [])
+        state.setdefault("project", {}).setdefault("active_tag_configuration_id", None)
+        state["schema_version"] = 11
     return state
 
 
@@ -192,6 +199,7 @@ def validate_state(state: dict[str, Any]) -> None:
         "selection_runs", "selection_reviews",
         "question_sets", "downstream_tasks",
         "label_library_snapshots",
+        "tag_configurations", "unmatched_label_queue", "parse_quality_reviews",
     ):
         if not isinstance(state.get(key), list):
             raise ValidationError(f"{key} must be a list")

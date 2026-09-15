@@ -23,10 +23,11 @@ from .pipeline import sha256_file
 from .tagging import attach_unit_tag_profiles, build_tag_profile
 
 
-PARSER_VERSION = "standardizer-v1"
+PARSER_VERSION = "standardizer-v2"
 QUESTION_START = re.compile(r"^\s*(?:第\s*)?(\d{1,3})\s*[.、．)）]\s*")
 UNIT_PATTERN = re.compile(r"(?:（([一二三四五六七八九十百\d]+)）|\(([一二三四五六七八九十百\d]+)\))")
 IMAGE_HINT = re.compile(r"\[(?:图片|图|image)[:：]?", re.IGNORECASE)
+ANSWER_SECTION_HEADING = re.compile(r"(?m)^\s*(参考答案与解析|答案与解析|答案及解析|答案解析)\s*[:：]?\s*(?:$|\n)")
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -46,6 +47,32 @@ def stable_id(prefix: str, *parts: Any) -> str:
 
 def normalized_text(value: str) -> str:
     return re.sub(r"\s+", "", value).lower()
+
+
+def apply_answer_section_boundary(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Exclude an answer section only when its heading begins a standalone line."""
+    for block in blocks:
+        if block.get("type") not in {"text", "formula"}:
+            continue
+        match = ANSWER_SECTION_HEADING.search(str(block.get("text") or ""))
+        if not match:
+            continue
+        metadata = {
+            "heading": match.group(1),
+            "source_locator": block.get("source_locator"),
+            "page": block.get("page"),
+        }
+        if block.get("page") is not None:
+            cutoff_page = int(block["page"])
+            return [item for item in blocks if int(item.get("page", cutoff_page)) < cutoff_page], metadata
+        kept = [item for item in blocks if int(item.get("sequence", 0)) < int(block.get("sequence", 0))]
+        prefix = str(block.get("text") or "")[:match.start()].strip()
+        if prefix:
+            partial = dict(block)
+            partial["text"] = prefix
+            kept.append(partial)
+        return kept, metadata
+    return blocks, None
 
 
 class DocumentStandardizer:
@@ -308,11 +335,13 @@ class DocumentStandardizer:
         else:
             issues = [self._issue("error", "unsupported_parser", f"尚未实现解析：{extension}", document_id)]
 
+        blocks, answer_boundary = apply_answer_section_boundary(blocks)
         document = {
             "id": document_id, "source_snapshot_id": snapshot["id"], "source_kind": "local_file",
             "source_name": file_record["name"], "source_path": file_record["relative_path"],
             "source_file_sha256": file_record["sha256"], "mime_type": mimetypes.guess_type(source.name)[0],
             "content_blocks": blocks, "parser_version": PARSER_VERSION,
+            "answer_section_boundary": answer_boundary,
         }
         return document, issues
 

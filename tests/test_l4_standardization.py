@@ -81,6 +81,18 @@ class StandardizationTests(unittest.TestCase):
         self.assertEqual(result["run"]["status"], "completed_with_blockers")
         self.assertIn("declared_image_missing", result["question_assets"][0]["issue_codes"])
 
+    def test_answer_section_is_excluded_from_real_standardization(self) -> None:
+        source = self.root / "paper.txt"
+        source.write_text(
+            "1. 第一题\n\n2. 第二题提到答案与解析栏目\n\n答案与解析\n\n1.A\n2.B",
+            encoding="utf-8",
+        )
+        snapshot = self.service.create_source_snapshot({"source_type": "local_files", "paths": [str(source)]})
+        result = self.service.standardize_snapshot(snapshot["id"])
+        self.assertEqual(result["run"]["question_asset_count"], 2)
+        self.assertEqual(result["documents"][0]["answer_section_boundary"]["heading"], "答案与解析")
+        self.assertNotIn("1.A", "\n".join(item["raw_text"] for item in result["question_assets"]))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -105,6 +105,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual(result["precision"], 1.0)
 
+    def test_tag_configuration_can_be_created_through_api(self) -> None:
+        status, config = self.request("/api/tag-configurations", "POST", {
+            "name": "已有少量标签",
+            "subject": "初中化学",
+            "onboarding_mode": "partial_labels",
+            "selected_dimensions": ["knowledge", "question_type", "option_concept"],
+            "source_field_mapping": {"我的知识点": "knowledge"},
+            "custom_dimensions": ["校本专题"],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(config["project_extensions"], ["校本专题"])
+        _, state = self.request("/api/state")
+        self.assertEqual(state["project"]["active_tag_configuration_id"], config["id"])
+
     def test_local_snapshot_can_be_standardized_through_api(self) -> None:
         source = Path(self.temp.name) / "questions.txt"
         source.write_text("1. 第一题\n\n2. 第二题", encoding="utf-8")

@@ -50,7 +50,7 @@ class JsonStoreTests(unittest.TestCase):
                 state.pop(key, None)
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 10)
+            self.assertEqual(loaded["schema_version"], 11)
             self.assertEqual(loaded["metadata"]["state_revision"], 0)
             self.assertEqual(loaded["question_assets"], [])
             self.assertEqual(loaded["diagnostic_runs"], [])
@@ -63,6 +63,8 @@ class JsonStoreTests(unittest.TestCase):
             self.assertEqual(loaded["question_sets"], [])
             self.assertEqual(loaded["downstream_tasks"], [])
             self.assertEqual(len(loaded["label_library_snapshots"]), 1)
+            self.assertEqual(loaded["tag_configurations"], [])
+            self.assertIsNone(loaded["project"]["active_tag_configuration_id"])
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["schema_version"], 1)
 
     def test_save_creates_recoverable_backup(self) -> None:
@@ -109,7 +111,7 @@ class JsonStoreTests(unittest.TestCase):
             }]
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 10)
+            self.assertEqual(loaded["schema_version"], 11)
             self.assertEqual(len(loaded["label_library_snapshots"]), 2)
             profile = loaded["question_assets"][0]["tag_profile"]
             self.assertEqual(profile["library_snapshot_id"], "junior-chem-label-library-2026-01-28")

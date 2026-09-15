@@ -1,5 +1,5 @@
 {
-  "schema_version": 10,
+  "schema_version": 11,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -93,7 +93,8 @@
       "pmo_base": "待连接",
       "cb": "未连接",
       "material_library": "待连接"
-    }
+    },
+    "active_tag_configuration_id": null
   },
   "questions": [
     {
@@ -264,6 +265,9 @@
   "documents": [],
   "question_assets": [],
   "field_mappings": [],
+  "tag_configurations": [],
+  "unmatched_label_queue": [],
+  "parse_quality_reviews": [],
   "diagnostic_runs": [],
   "gold_sample_sets": [],
   "video_imports": [],
