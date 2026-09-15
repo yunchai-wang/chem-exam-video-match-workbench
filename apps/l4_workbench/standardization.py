@@ -20,6 +20,7 @@ from xml.etree import ElementTree as ET
 from .domain import ValidationError
 from .manifest_adapter import LocalManifestAdapter
 from .pipeline import sha256_file
+from .tagging import attach_unit_tag_profiles, build_tag_profile
 
 
 PARSER_VERSION = "standardizer-v1"
@@ -484,12 +485,16 @@ class DocumentStandardizer:
         has_image = any(block["type"] == "image" for block in blocks)
         has_reference = any(block["type"] == "image_reference" for block in blocks)
         image_integrity = "preserved" if has_image else ("remote_reference_unmaterialized" if has_reference else ("missing" if IMAGE_HINT.search(full_text) else "no_visual_declared"))
+        fields = dict(source_fields or {})
+        fields.update({key: value for key, value in (normalized_fields or {}).items() if value not in (None, "", [])})
+        units = attach_unit_tag_profiles(units, fields)
         return {
             "id": asset_id, "source_snapshot_id": snapshot["id"], "source_document_id": document["id"],
             "source_record_id": source_record_id, "source_name": document["source_name"], "ordinal": ordinal,
             "question_no": question_no, "title": (full_text[:80] or f"{document['source_name']} 第 {ordinal} 项").replace("\n", " "),
             "content_blocks": blocks, "units": units, "raw_text": full_text, "source_fields": source_fields or {},
             "normalized_fields": normalized_fields or {}, "fingerprint": fingerprint, "duplicate_group_id": None,
+            "tag_profile": build_tag_profile(fields),
             "duplicate_count": 1, "image_integrity": image_integrity, "issue_codes": [], "status": "standardized",
             "parser_version": PARSER_VERSION,
         }

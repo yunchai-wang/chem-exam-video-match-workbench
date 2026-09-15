@@ -15,8 +15,8 @@ from .diagnosis import GENERIC_METHODS, split_tags
 from .domain import ValidationError
 
 
-VIDEO_ADAPTER_VERSION = "video-manifest-v0.2"
-COVERAGE_RULE_VERSION = "production-coverage-v0.3"
+VIDEO_ADAPTER_VERSION = "video-manifest-v0.3"
+COVERAGE_RULE_VERSION = "production-coverage-v0.4"
 STRONG_TRANSCRIPT_STATES = {"强匹配-文件名", "强匹配-文件名+正文", "本地素材直接匹配"}
 WEAK_TRANSCRIPT_STATES = {"弱匹配待人工复核", "弱匹配待复核"}
 
@@ -142,7 +142,20 @@ def build_video_import(snapshot: dict[str, Any], records: list[dict[str, Any]]) 
             ),
             "hierarchy": record.get("hierarchy"), "question_type": record.get("primary_type") or record.get("question_type"),
             "structural_keys": structures,
-            "task_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("task_tags"))}),
+            "task_tags": sorted({
+                value for row in cluster_rows
+                for field in ("task_tags", "question_tags", "问题标签")
+                for value in split_tags(row.get(field))
+            }),
+            "teaching_target_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("teaching_target_tags") or row.get("核心知识点标签"))}),
+            "mentioned_knowledge_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("mentioned_knowledge_tags") or row.get("仅提及知识点"))}),
+            "question_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("question_tags") or row.get("问题标签"))}),
+            "solution_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("solution_tags") or row.get("解法标签"))}),
+            "condition_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("condition_tags") or row.get("条件标签"))}),
+            "context_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("context_tags") or row.get("情景标签") or row.get("情境标签"))}),
+            "thinking_method_tags": sorted({value for row in cluster_rows for value in split_tags(row.get("thinking_method_tags") or row.get("思想方法标签"))}),
+            "segment_type": record.get("segment_type") or record.get("视频片段类型") or "未标注",
+            "segment_locator": record.get("segment_locator") or record.get("时间码") or record.get("页码") or "",
             "visual_forms": sorted({value for row in cluster_rows for value in split_tags(row.get("visual_forms"))}),
             "method_models": sorted({value for row in cluster_rows for value in split_tags(row.get("method_models"))}),
             "content_summary": record.get("content_summary") or "", "transcript_evidence": record.get("transcript_evidence") or "",
@@ -198,7 +211,11 @@ def build_coverage_run(
                 if not _supports_structure(video, key):
                     continue
                 overlap = sorted(question_tasks & set(video["task_tags"]))
-                candidate = _coverage_candidate(video, key, overlap)
+                question_core = set(question.get("tag_profile", {}).get("knowledge", {}).get("core", []))
+                target_overlap = sorted(question_core & set(video.get("teaching_target_tags", [])))
+                mentioned_overlap = sorted(question_core & set(video.get("mentioned_knowledge_tags", [])))
+                target_gate = _teaching_target_gate(question_core, video, target_overlap, mentioned_overlap)
+                candidate = _coverage_candidate(video, key, overlap, target_overlap, target_gate)
                 previous = candidates.get(video["video_id"])
                 if previous is None or candidate["rank_score"] > previous["rank_score"]:
                     candidates[video["video_id"]] = candidate
@@ -228,7 +245,8 @@ def build_coverage_run(
         "gold_sample_id": gold_sample["id"], "video_import_id": video_import["id"],
         "rule_version": COVERAGE_RULE_VERSION, "status": "completed_with_manual_review",
         "summary": dict(summary), "result_count": len(results), "results": results,
-        "evidence_limits": ["原宣传匹配结论未被复用为生产覆盖结论。", "自动结果最高只到“部分覆盖候选”，充分覆盖必须核验小问与作答边界。"],
+        "label_library_snapshot_id": diagnostic_run.get("label_library_snapshot", {}).get("id"),
+        "evidence_limits": ["原宣传匹配结论未被复用为生产覆盖结论。", "错误选项或内容中仅提及的知识点不算视频教学目标。", "自动结果最高只到“部分覆盖候选”，充分覆盖必须核验小问与作答边界。"],
         "created_at": now(),
     }
 
@@ -243,12 +261,25 @@ def load_video_records(path: Path) -> list[dict[str, Any]]:
     return value
 
 
-def _coverage_candidate(video: dict[str, Any], structure: str, task_overlap: list[str]) -> dict[str, Any]:
+def _coverage_candidate(
+    video: dict[str, Any],
+    structure: str,
+    task_overlap: list[str],
+    target_overlap: list[str],
+    target_gate: str,
+) -> dict[str, Any]:
     strong_transcript = video["transcript_status"] in STRONG_TRANSCRIPT_STATES
-    coverage_candidate = bool(task_overlap and strong_transcript)
-    rank_score = 4 + min(len(task_overlap), 3) * 3 + (3 if strong_transcript else 0) + (1 if video["screenshot_tokens"] else 0)
+    coverage_candidate = bool(task_overlap and strong_transcript and target_gate in {"passed", "question_core_unresolved"})
+    rank_score = 4 + min(len(task_overlap), 3) * 3 + (3 if strong_transcript else 0) + (2 if target_overlap else 0) + (1 if video["screenshot_tokens"] else 0)
     if coverage_candidate:
-        reason = f"同一底层结构“{structure}”，且任务交集为{'、'.join(task_overlap)}；逐字稿摘要可核验。"
+        target_reason = f"，教学目标交集为{'、'.join(target_overlap)}" if target_overlap else "；题目核心知识待识别，暂未启用知识目标门禁"
+        reason = f"同一底层结构“{structure}”，任务交集为{'、'.join(task_overlap)}{target_reason}；逐字稿摘要可核验。"
+    elif target_gate == "mentioned_only":
+        reason = "共同核心知识在视频中只是被提及，并非该片段教学目标，按生产口径不算覆盖。"
+    elif target_gate == "target_missing":
+        reason = "题目已有核心知识标签，但视频未标教学目标；不能把逐字稿中的出现直接当作覆盖。"
+    elif target_gate == "target_mismatch":
+        reason = "底层结构相近，但视频教学目标与题目核心知识不相交。"
     elif task_overlap:
         reason = f"结构与任务相交，但逐字稿匹配状态为“{video['transcript_status']}”，证据不足。"
     else:
@@ -260,9 +291,30 @@ def _coverage_candidate(video: dict[str, Any], structure: str, task_overlap: lis
         "alias_video_ids": video.get("alias_video_ids") or [video["video_id"]],
         "identity_status": video.get("identity_status") or "单一目录实体",
         "task_overlap": task_overlap, "transcript_status": video["transcript_status"],
+        "teaching_target_overlap": target_overlap, "teaching_target_gate": target_gate,
+        "teaching_target_tags": video.get("teaching_target_tags", []),
+        "mentioned_knowledge_tags": video.get("mentioned_knowledge_tags", []),
+        "segment_type": video.get("segment_type", "未标注"), "segment_locator": video.get("segment_locator", ""),
         "evidence_level": video["evidence_level"], "screenshot_materialized": False,
         "coverage_candidate": coverage_candidate, "rank_score": rank_score, "reason": reason,
     }
+
+
+def _teaching_target_gate(
+    question_core: set[str],
+    video: dict[str, Any],
+    target_overlap: list[str],
+    mentioned_overlap: list[str],
+) -> str:
+    if not question_core:
+        return "question_core_unresolved"
+    if target_overlap:
+        return "passed"
+    if mentioned_overlap:
+        return "mentioned_only"
+    if not video.get("teaching_target_tags"):
+        return "target_missing"
+    return "target_mismatch"
 
 
 def _meaningful_tasks(question: dict[str, Any]) -> list[str]:

@@ -20,6 +20,12 @@ class DownstreamTaskTests(unittest.TestCase):
         self.assets = [{
             "id": "q1", "image_integrity": "preserved",
             "content_blocks": [{"type": "image", "path": "snapshots/q1.png"}],
+            "tag_profile": {
+                "library_snapshot_id": "junior-chem-label-library-2026-01-28",
+                "knowledge": {"all": ["控制变量法"], "core": ["控制变量法"], "distractor": []},
+                "question": ["求实验方案/实验设计"], "solution": ["根据控制变量法设计实验"],
+                "condition": [], "context": [], "thinking_method": ["控制变量法"],
+            },
         }]
         self.project = {"target_students": "中等及以上", "target_region": "南京", "target_exam_type": "中考", "content_scope": "实验探究"}
 
@@ -32,6 +38,7 @@ class DownstreamTaskTests(unittest.TestCase):
         self.assertEqual(question_set["item_count"], 1)
         self.assertEqual(question_set["items"][0]["selected_unit_ids"], ["q1-a", "q1-b"])
         self.assertEqual(question_set["items"][0]["content_blocks"][0]["path"], "snapshots/q1.png")
+        self.assertEqual(question_set["items"][0]["tag_profile"]["knowledge"]["core"], ["控制变量法"])
         self.assertIn("视频覆盖诊断", task["dependency_plan"]["skipped"])
         self.assertEqual(task["execution_mode"], "contract_only")
 

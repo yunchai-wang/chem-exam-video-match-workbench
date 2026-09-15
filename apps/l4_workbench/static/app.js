@@ -51,6 +51,10 @@ function render() {
   const project = state.project;
   document.querySelector("#project-title").textContent = project.name;
   document.querySelector("#rule-version").textContent = `规则版本 ${project.rule_version}`;
+  const labelLibrary = (state.label_library_snapshots || []).at(-1);
+  document.querySelector("#label-library-version").textContent = labelLibrary
+    ? `标签库 ${labelLibrary.prompt_versions.question_type}/${labelLibrary.prompt_versions.question}/${labelLibrary.prompt_versions.knowledge}`
+    : "标签库未冻结";
   document.querySelector("#next-action").textContent = state.summary.ai_next_action;
   document.querySelector("#project-contract").textContent = `${project.target_students}｜${project.target_region}｜${project.target_exam_type} ${project.target_year}｜${project.planned_artifact}`;
   renderMetrics();
@@ -169,7 +173,7 @@ function renderVideoEvidence() {
   const rows = coverage ? coverage.results.slice(0, 12).map(item => {
     const best = item.candidates[0];
     const candidate = best
-      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><span class="catalog-line">课库：${esc((best.catalogs || []).join("、") || "未标注")}${best.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><small>${esc(best.reason)}</small>`
+      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><span class="catalog-line">课库：${esc((best.catalogs || []).join("、") || "未标注")}${best.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span class="catalog-line">片段：${esc(best.segment_type || "未标注")} ${esc(best.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(best.teaching_target_gate))}</span><small>${esc(best.reason)}</small>`
       : `<strong>暂无视频候选</strong><small>${esc(item.reason)}</small>`;
     return `<div class="coverage-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.status)}：${esc(item.reason)}</small></div><div>${candidate}</div></div>`;
   }).join("") : "";
@@ -222,7 +226,7 @@ function renderCalibrationWorkbench() {
     };
     const image = asset?.content_blocks.find(block => block.type === "image" && block.path);
     const visual = image ? `<a href="${assetUrl(image.path)}" target="_blank" rel="noopener"><img src="${assetUrl(image.path)}" alt="${esc(asset.title)}原题图" loading="lazy"></a>` : `<div class="asset-visual-placeholder">本题没有已物化题图</div>`;
-    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>课库：${esc((candidate.catalogs || []).join("、") || "未标注")}${candidate.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
+    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>课库：${esc((candidate.catalogs || []).join("、") || "未标注")}${candidate.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span>片段：${esc(candidate.segment_type || "未标注")} ${esc(candidate.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(candidate.teaching_target_gate))}</span><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
     const issue = asset?.issue_codes?.length ? `<span class="tag risk">异常复核</span>` : "";
     const saved = review ? `<span class="tag ${review.status === "corrected" ? "frequency" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入</span>`;
     const teacherReason = review?.reason_source === "teacher" ? review.reason : "";
@@ -251,7 +255,7 @@ function renderStandardAssets() {
       : `<div class="asset-visual-placeholder">${asset.image_integrity === "remote_reference_unmaterialized" ? "远程图片待物化" : asset.image_integrity === "missing" ? "检测到缺图" : "本题未声明图表"}</div>`;
     const issueTags = asset.issue_codes.map(code => `<span class="tag risk">${esc(code)}</span>`).join("");
     const normalized = Object.entries(asset.normalized_fields || {}).filter(([, value]) => value != null && value !== "").slice(0, 5).map(([key, value]) => `<span class="tag">${esc(key)}：${esc(Array.isArray(value) ? value.join("、") : value)}</span>`).join("");
-    return `<article class="standard-asset-card"><div class="standard-asset-visual">${visual}</div><div><p class="eyebrow">${esc(asset.source_name)} · ${esc(asset.question_no || `第 ${asset.ordinal} 项`)}</p><h4>${esc(asset.title)}</h4><div class="chip-row"><span class="tag good">${types.map(typeLabel).join("＋")}</span><span class="tag">图片：${esc(imageIntegrityLabel(asset.image_integrity))}</span><span class="tag">重复 ${asset.duplicate_count || 1} 条</span>${issueTags}</div><div class="chip-row">${normalized}</div><p>${esc(asset.raw_text || "无可提取文字；请查看保留的原题图片。")}</p></div></article>`;
+    return `<article class="standard-asset-card"><div class="standard-asset-visual">${visual}</div><div><p class="eyebrow">${esc(asset.source_name)} · ${esc(asset.question_no || `第 ${asset.ordinal} 项`)}</p><h4>${esc(asset.title)}</h4><div class="chip-row"><span class="tag good">${types.map(typeLabel).join("＋")}</span><span class="tag">图片：${esc(imageIntegrityLabel(asset.image_integrity))}</span><span class="tag">重复 ${asset.duplicate_count || 1} 条</span>${issueTags}</div><div class="chip-row">${normalized}</div>${tagProfileMarkup(asset.tag_profile)}<p>${esc(asset.raw_text || "无可提取文字；请查看保留的原题图片。")}</p></div></article>`;
   }).join("") : `<p class="quiet">尚无标准题目资产。请先冻结本地资料并点击“开始标准化”，或从 Base 只读预览后导入。</p>`;
 }
 
@@ -262,7 +266,9 @@ function renderManifestPreview() {
   const mappingKeys = [
     ["source_id", "题目 ID"], ["source_paper", "试卷"], ["question_no", "题号"],
     ["question_text", "题目文本（必选）"], ["question_image", "本地题图路径"], ["difficulty", "难度"],
-    ["knowledge_tags", "知识点"], ["question_type", "题型"], ["score", "分值"],
+    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["distractor_knowledge_tags", "干扰项知识"],
+    ["question_type", "整题题型"], ["question_tags", "小问问题任务"], ["solution_tags", "解法"],
+    ["condition_tags", "条件"], ["context_tags", "情景"], ["thinking_method_tags", "思想方法"], ["unit_tag_profiles", "逐小问标签 JSON"], ["score", "分值"],
     ["visual_forms", "视觉形态"], ["background_tags", "背景素材"], ["task_tags", "设问任务"],
     ["method_models", "解法模型"], ["source_page", "来源页码"],
   ];
@@ -287,7 +293,10 @@ function renderBasePreview() {
   const mappingKeys = [
     ["question_text", "题目文本（必选）"], ["question_image", "题目截图"], ["question_no", "题号"],
     ["year", "年份"], ["province", "省份"], ["city", "城市/地区"], ["exam_type", "考试类型"],
-    ["knowledge_tags", "知识点"], ["difficulty", "难度"], ["historical_ai_quality", "历史 AI 好题"],
+    ["knowledge_tags", "全部涉及知识"], ["core_knowledge_tags", "核心知识"], ["distractor_knowledge_tags", "干扰项知识"],
+    ["question_type", "整题题型"], ["question_tags", "小问问题任务"], ["solution_tags", "解法"],
+    ["condition_tags", "条件"], ["context_tags", "情景"], ["thinking_method_tags", "思想方法"], ["unit_tag_profiles", "逐小问标签 JSON"],
+    ["difficulty", "难度"], ["historical_ai_quality", "历史 AI 好题"],
     ["historical_teacher_quality", "历史教研好题"], ["historical_production_choice", "历史生产入选"],
     ["library_has_video", "历史是否有视频"],
   ];
@@ -315,6 +324,23 @@ function typeLabel(type) {
 
 function imageIntegrityLabel(value) {
   return ({preserved: "已保留", partial: "部分缺失", remote_reference_unmaterialized: "待物化", missing: "缺失", no_visual_declared: "无图"})[value] || value;
+}
+
+function teachingTargetGateLabel(value) {
+  return ({passed: "通过", mentioned_only: "仅提及，不通过", target_missing: "视频目标待标", target_mismatch: "目标不相交", question_core_unresolved: "题目核心知识待识别"})[value] || value || "未执行";
+}
+
+function tagProfileMarkup(profile) {
+  if (!profile) return "";
+  const knowledge = profile.knowledge || {};
+  const groups = [
+    ["整题题型", profile.question_type ? [profile.question_type] : profile.question_type_candidates],
+    ["核心知识", knowledge.core], ["全部涉及", knowledge.all], ["干扰项", knowledge.distractor],
+    ["问题", profile.question], ["解法", profile.solution], ["条件", profile.condition],
+    ["情景", profile.context], ["思想方法", profile.thinking_method],
+  ].filter(([, values]) => Array.isArray(values) && values.length);
+  if (!groups.length) return `<div class="tag-profile empty"><span>六维标签待识别 · 不会把“出现过”自动当成核心知识</span></div>`;
+  return `<div class="tag-profile">${groups.map(([label, values]) => `<span><b>${esc(label)}</b>${esc(values.join("、"))}</span>`).join("")}</div>`;
 }
 
 function metric(value, numerator, denominator) {
@@ -486,13 +512,14 @@ function selectionCard(item, review) {
   const scenarios = new Set(review?.usage_scenarios || item.ai_usage_scenarios || []);
   const unitInputs = item.units.map(unit => `<label><input type="checkbox" data-selection-unit="${esc(unit.id)}" ${selectedUnits.has(unit.id) ? "checked" : ""}>${esc(unit.label)}</label>`).join("");
   const coverage = item.coverage.candidates?.[0];
-  const videoEvidence = coverage ? `${coverage.video_name || coverage.video_id} · ${(coverage.catalogs || []).join("、")} · ${coverage.evidence_level}` : "暂无可核验视频候选";
+  const videoEvidence = coverage ? `${coverage.video_name || coverage.video_id} · ${(coverage.catalogs || []).join("、")} · ${coverage.evidence_level} · ${teachingTargetGateLabel(coverage.teaching_target_gate)}${coverage.segment_locator ? ` · ${coverage.segment_locator}` : ""}` : "暂无可核验视频候选";
   const saved = review ? `<span class="tag ${review.status === "corrected" ? "risk" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入 · 不阻塞</span>`;
   return `<form class="question-card real-candidate" data-selection-review="${esc(item.id)}">
     <div class="question-visual">${visual}<div class="question-source">${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</div></div>
     <div class="question-body">
       <div class="question-head"><div><p class="eyebrow">${esc(item.id)}</p><h3>${esc(item.title)}</h3></div><div class="priority ${priorityClass}">${esc(priority)}</div></div>
       <div class="chip-row"><span class="tag frequency">频次：${esc(item.frequency.level)} · ${item.frequency.numerator}/${item.frequency.denominator}</span><span class="tag ${item.quality.is_good_candidate ? "good" : ""}">好题：${esc(item.quality.recommendation)}</span><span class="tag">难度：${esc(item.difficulty.level)}</span><span class="tag ${item.exception ? "risk" : ""}">${esc(item.content_health.status)}</span>${saved}</div>
+      ${tagProfileMarkup(item.tag_profile)}
       <div class="evidence-grid selection-evidence">
         <div class="evidence-block"><label>好题理由 · 与高频独立</label><strong>${item.quality.score}/${item.quality.score_denominator} 项支持</strong><p>${esc(item.quality.reason)}</p></div>
         <div class="evidence-block"><label>视频覆盖 · ${esc(item.coverage.best_evidence_level)}</label><strong>${esc(item.coverage.status)}</strong><p>${esc(item.coverage.reason)}<br>${esc(videoEvidence)}</p></div>

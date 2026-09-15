@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 8
+CURRENT_SCHEMA_VERSION = 9
 
 
 STAGES = [
@@ -97,6 +97,30 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
         state.setdefault("question_sets", [])
         state.setdefault("downstream_tasks", [])
         state["schema_version"] = 8
+        version = 8
+    if version == 8:
+        from .tagging import label_library_snapshot, profile_for_asset
+        state.setdefault("label_library_snapshots", [label_library_snapshot()])
+        assets_by_id = {item.get("id"): item for item in state.get("question_assets", [])}
+        for asset in assets_by_id.values():
+            asset.setdefault("tag_profile", profile_for_asset(asset))
+        diagnosis_by_asset: dict[str, dict[str, Any]] = {}
+        for run in state.get("diagnostic_runs", []):
+            run.setdefault("label_library_snapshot", label_library_snapshot())
+            for result in run.get("results", []):
+                asset = assets_by_id.get(result.get("asset_id"), {})
+                result.setdefault("tag_profile", profile_for_asset(asset))
+                diagnosis_by_asset[result.get("asset_id")] = result
+        for run in state.get("selection_runs", []):
+            for result in run.get("results", []):
+                diagnosis = diagnosis_by_asset.get(result.get("asset_id"), {})
+                profile = diagnosis.get("tag_profile") or profile_for_asset(assets_by_id.get(result.get("asset_id"), {}))
+                result.setdefault("tag_profile", profile)
+                result.setdefault("label_library_snapshot_id", profile.get("library_snapshot_id"))
+        for question_set in state.get("question_sets", []):
+            for item in question_set.get("items", []):
+                item.setdefault("tag_profile", profile_for_asset(assets_by_id.get(item.get("asset_id"), {})))
+        state["schema_version"] = 9
     return state
 
 
@@ -139,6 +163,7 @@ def validate_state(state: dict[str, Any]) -> None:
         "calibration_reviews",
         "selection_runs", "selection_reviews",
         "question_sets", "downstream_tasks",
+        "label_library_snapshots",
     ):
         if not isinstance(state.get(key), list):
             raise ValidationError(f"{key} must be a list")

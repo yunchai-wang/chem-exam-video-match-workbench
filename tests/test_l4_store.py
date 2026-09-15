@@ -50,7 +50,7 @@ class JsonStoreTests(unittest.TestCase):
                 state.pop(key, None)
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 8)
+            self.assertEqual(loaded["schema_version"], 9)
             self.assertEqual(loaded["metadata"]["state_revision"], 0)
             self.assertEqual(loaded["question_assets"], [])
             self.assertEqual(loaded["diagnostic_runs"], [])
@@ -62,6 +62,7 @@ class JsonStoreTests(unittest.TestCase):
             self.assertEqual(loaded["selection_reviews"], [])
             self.assertEqual(loaded["question_sets"], [])
             self.assertEqual(loaded["downstream_tasks"], [])
+            self.assertEqual(len(loaded["label_library_snapshots"]), 1)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["schema_version"], 1)
 
     def test_save_creates_recoverable_backup(self) -> None:
@@ -75,6 +76,23 @@ class JsonStoreTests(unittest.TestCase):
             restored = store.restore_backup(backups[0])
             self.assertEqual(restored["project"]["name"], "2026 初中化学视频迭代演示项目")
             self.assertGreater(restored["metadata"]["state_revision"], state["metadata"]["state_revision"])
+
+    def test_schema_8_assets_and_existing_runs_receive_tag_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.json"
+            state = json.loads(SEED.read_text(encoding="utf-8"))
+            state["schema_version"] = 8
+            state.pop("label_library_snapshots", None)
+            state["question_assets"] = [{
+                "id": "q1", "source_fields": {"knowledge_tags": "单质的概念", "task_tags": "判断物质类别"},
+            }]
+            state["diagnostic_runs"] = [{"id": "d1", "results": [{"asset_id": "q1"}]}]
+            state["selection_runs"] = [{"id": "s1", "results": [{"asset_id": "q1"}]}]
+            path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+            loaded = JsonStore(path).load()
+            self.assertEqual(loaded["question_assets"][0]["tag_profile"]["knowledge"]["all"], ["单质的概念"])
+            self.assertEqual(loaded["diagnostic_runs"][0]["results"][0]["tag_profile"]["question"], ["判断物质类别"])
+            self.assertEqual(loaded["selection_runs"][0]["results"][0]["label_library_snapshot_id"], "junior-chem-label-library-2026-01-28")
 
     def test_concurrent_service_updates_do_not_lose_fields(self) -> None:
         from apps.l4_workbench.service import WorkbenchService

@@ -175,6 +175,8 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
         "id": f"candidate-{asset['id']}", "asset_id": asset["id"],
         "source_name": asset.get("source_name"), "question_no": asset.get("question_no"),
         "title": asset.get("title") or "题目资产", "units": _question_units(asset),
+        "tag_profile": diagnosis.get("tag_profile") or asset.get("tag_profile", {}),
+        "label_library_snapshot_id": diagnosis.get("tag_profile", {}).get("library_snapshot_id"),
         "frequency": {
             **diagnosis["frequency"], "level": frequency_level, "independent_dimension": True,
             "reason": _effective_reason("frequency", corrected_fields, calibration_reason, diagnosis["frequency"]["reason"]),
@@ -293,7 +295,10 @@ def _question_units(asset: dict[str, Any]) -> list[dict[str, Any]]:
             kind = item.get("kind", "subquestion")
             if kind == "subquestion" and label.isdigit():
                 label = f"小问（{label}）"
-            values.append({"id": str(item["id"]), "label": label, "kind": kind})
+            values.append({
+                "id": str(item["id"]), "label": label, "kind": kind,
+                "tag_profile": item.get("tag_profile", {}),
+            })
         return values
     text = str(asset.get("raw_text") or "")
     subquestions = list(dict.fromkeys(match.group(1) for match in SUBQUESTION.finditer(text)))

@@ -113,6 +113,60 @@ class VideoEvidenceTests(unittest.TestCase):
         self.assertEqual(run["results"][0]["status"], "未发现可核验证据")
         self.assertEqual(run["results"][0]["candidates"], [])
 
+    def test_mentioned_knowledge_never_passes_the_teaching_target_gate(self) -> None:
+        video_import = build_video_import(self.snapshot, [{
+            "video_id": "V1", "video_name": "控制变量法专题", "signatures": "控制变量实验",
+            "task_tags": "设计方案", "teaching_target_tags": "燃烧的条件",
+            "mentioned_knowledge_tags": "控制变量法", "segment_type": "例题",
+            "segment_locator": "03:10-05:20", "transcript_match_status_v5": "强匹配-文件名",
+        }])
+        diagnostic = {
+            "id": "diagnosis-1", "label_library_snapshot": {"id": "library-v1"},
+            "results": [{
+                "asset_id": "q1", "source_name": "2026 A卷", "question_no": "1",
+                "structural_keys": ["控制变量实验"], "task_tags": ["设计方案"],
+                "tag_profile": {"knowledge": {"core": ["控制变量法"]}},
+            }],
+        }
+        sample = {"id": "sample-1", "items": [{"asset_id": "q1"}]}
+        run = build_coverage_run(
+            diagnostic, sample,
+            {key: value for key, value in video_import.items() if key != "video_assets"},
+            video_import["video_assets"],
+        )
+        candidate = run["results"][0]["candidates"][0]
+        self.assertEqual(run["results"][0]["status"], "证据不足")
+        self.assertFalse(candidate["coverage_candidate"])
+        self.assertEqual(candidate["teaching_target_overlap"], [])
+        self.assertIn("只是被提及", candidate["reason"])
+
+    def test_matching_teaching_target_is_returned_as_auditable_evidence(self) -> None:
+        video_import = build_video_import(self.snapshot, [{
+            "video_id": "V1", "video_name": "控制变量法专题", "signatures": "控制变量实验",
+            "task_tags": "设计方案", "teaching_target_tags": "控制变量法",
+            "mentioned_knowledge_tags": "燃烧的条件", "segment_type": "例题",
+            "segment_locator": "03:10-05:20", "transcript_match_status_v5": "强匹配-文件名",
+        }])
+        diagnostic = {
+            "id": "diagnosis-1", "label_library_snapshot": {"id": "library-v1"},
+            "results": [{
+                "asset_id": "q1", "source_name": "2026 A卷", "question_no": "1",
+                "structural_keys": ["控制变量实验"], "task_tags": ["设计方案"],
+                "tag_profile": {"knowledge": {"core": ["控制变量法"]}},
+            }],
+        }
+        sample = {"id": "sample-1", "items": [{"asset_id": "q1"}]}
+        run = build_coverage_run(
+            diagnostic, sample,
+            {key: value for key, value in video_import.items() if key != "video_assets"},
+            video_import["video_assets"],
+        )
+        candidate = run["results"][0]["candidates"][0]
+        self.assertEqual(run["results"][0]["status"], "部分覆盖候选")
+        self.assertEqual(candidate["teaching_target_overlap"], ["控制变量法"])
+        self.assertEqual(candidate["segment_locator"], "03:10-05:20")
+        self.assertEqual(candidate["segment_type"], "例题")
+
 
 if __name__ == "__main__":
     unittest.main()

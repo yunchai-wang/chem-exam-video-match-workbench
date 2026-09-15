@@ -53,15 +53,21 @@ def create_downstream_task(
         if not selected_units:
             raise ValidationError("downstream task contains a candidate without selected question units")
         asset = asset_index.get(candidate["asset_id"], {})
+        unit_profiles = {
+            item["id"]: item.get("tag_profile", {})
+            for item in candidate.get("units", []) if item["id"] in selected_units
+        }
         items.append({
             "candidate_id": candidate_id,
             "asset_id": candidate["asset_id"],
             "selected_unit_ids": selected_units,
+            "selected_unit_tag_profiles": unit_profiles,
             "role_labels": review.get("role_labels", candidate.get("ai_role_labels", [])),
             "usage_scenarios": review.get("usage_scenarios", candidate.get("ai_usage_scenarios", [])),
             "source_name": candidate.get("source_name"),
             "question_no": candidate.get("question_no"),
             "content_blocks": asset.get("content_blocks", []),
+            "tag_profile": asset.get("tag_profile", {}),
             "image_integrity": asset.get("image_integrity", "unknown"),
         })
 

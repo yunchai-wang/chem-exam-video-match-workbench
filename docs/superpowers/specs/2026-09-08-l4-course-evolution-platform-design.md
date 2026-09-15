@@ -1001,6 +1001,7 @@ R24：只使用截至 2024 年的数据和本轮冻结实验规则 → 冻结 20
 32. 项目内实验规则与正式生产规则、跨项目公共规则分层治理；跨项目公共规则和公共 Skill 是唯一始终需要人工批准的规则发布动作，所有正式版本可追溯和回退。
 33. 多节课分别覆盖知识、公式或局部方法但缺少综合迁移时，标记“组合支撑但缺综合迁移”，不得判为充分覆盖；是否进入 P1/P2 由频次、分值和目标学生卡点决定。
 34. “本次生产任务目标”拆成目标学生层、地区、考试类型/年份、内容范围、计划产物和任务问题；这些字段只影响当前任务优先级，不改变题目质量或冻结趋势结论。
+35. 每轮打标绑定标签库与 Prompt 版本；整题题型、全部知识、核心知识、干扰项知识、逐小问问题、解法、条件、情景和思想方法分开存储。错误选项和视频中仅提及的知识可保留用于诊断，但不得作为视频教学目标、充分覆盖或母题同构的单独依据。
 
 ## 22. 实施顺序建议
 
@@ -1028,6 +1029,8 @@ R24：只使用截至 2024 年的数据和本轮冻结实验规则 → 冻结 20
 - [2022 秋·12月月考—九年级化学备考工具信息配置表](https://guanghe.feishu.cn/sheets/shtcnVcAm3afJejTip0Srvo1gXg)：现有题目截图、习题 ID、解析视频 ID、视频片段和考频字段样例；
 - [课程设计相关问题清单](https://guanghe.feishu.cn/docx/JPU6diH1NomxrPxcCFfcC5ZanXf)：教案、逐字稿和课程生产规则输入；
 - [中考真题筛选中考化学全国各地近5年 Base](https://guanghe.feishu.cn/base/NbJUbaSz2aaqiGsP84Zc0Py6nHd?table=tblrXxeajqJ579Ie&view=vewtGsC5vP)：现有题目截图、教材层级、知识点、题型、新素材/新形式/新设问、难度、好题和应用场景等标签来源；
+- [初中化学六维标签 Base](https://guanghe.feishu.cn/base/C0bJbSDAdaa5L5smQigc7l70nFd)：知识点、条件、问题、解法、情景和思想方法标签的层级、调整状态、旧新映射与例题资产；
+- [初中化学 AI 打标 Prompt](https://guanghe.feishu.cn/wiki/QkylwRh1hitbRmkac5ncTOS0nMd)：投产题型 1.5、问题 2.6、知识点 2.1 的定义、区分规则、标签数量上限和结构化输出契约；文档中的旧版本仅作为演化证据，不与最新版本混用；
 - [押题宣传规则与 V6 散点表说明](https://guanghe.feishu.cn/docx/UrI6dunobofu3vxytNzcFBK4neh)：V5 核心三像/双层审计的执行说明，以及 V6 在逐小问、裁图、截图分组、分值、人工版保护和可选散点输出上的增量；
 - [chem-exam-video-match-workbench](https://github.com/yunchai-wang/chem-exam-video-match-workbench)：代码、模板、规则版本和脱敏样例的唯一 GitHub 载体。
 - 仓库内 `.cursor/skills/exam-video-match-audit/` 与 `scripts/visual_v5_2026_yt.py`：现有宣传提示词、白名单字段、审计门禁、逐卷双栏文档和汇总格式的实现依据。

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from .domain import ValidationError
+from .tagging import canonical_source_fields, label_library_snapshot, profile_for_asset
 
 
 RULE_VERSION = "production-diagnosis-v0.3"
@@ -34,7 +35,7 @@ def split_tags(value: Any) -> list[str]:
 
 def structural_keys(asset: dict[str, Any]) -> list[str]:
     """Use explicit structures only; knowledge tags alone never define a group."""
-    fields = asset.get("source_fields", {})
+    fields = canonical_source_fields(asset)
     signatures = split_tags(fields.get("signatures"))
     if signatures:
         return signatures
@@ -73,6 +74,7 @@ def build_diagnostic_run(snapshot: dict[str, Any], assets: list[dict[str, Any]])
         "source_snapshot_id": snapshot["id"],
         "source_checksum": snapshot["immutable_checksum"],
         "rule_version": RULE_VERSION,
+        "label_library_snapshot": label_library_snapshot(),
         "status": "completed_with_evidence_limits" if len(years) < 2 else "completed",
         "scope": {"papers": papers, "years": years, "paper_count": len(papers), "asset_count": len(assets)},
         "evidence_limits": [
@@ -90,7 +92,8 @@ def _diagnose_asset(
     years: list[str],
     papers_by_key: dict[str, set[str]],
 ) -> dict[str, Any]:
-    fields = asset.get("source_fields", {})
+    fields = canonical_source_fields(asset)
+    tag_profile = profile_for_asset(asset)
     keys = structural_keys(asset)
     ranked_keys = sorted(keys, key=lambda key: (-len(papers_by_key[key]), key))
     primary_key = ranked_keys[0] if ranked_keys else None
@@ -114,14 +117,14 @@ def _diagnose_asset(
     has_visual = bool(fields.get("has_visual"))
     image_ok = asset.get("image_integrity") == "preserved"
     difficulty = _number(fields.get("difficulty"))
-    question_type = str(fields.get("primary_type") or fields.get("question_type") or "未分类")
-    task_tags = split_tags(fields.get("task_tags"))
-    knowledge_tags = split_tags(fields.get("knowledge_tags"))
+    question_type = str(tag_profile.get("question_type") or "未分类")
+    task_tags = tag_profile["question"]
+    core_knowledge_tags = tag_profile["knowledge"]["core"]
     visual_forms = split_tags(fields.get("visual_forms"))
     structure_complete = bool(text and asset.get("question_no") and (not has_visual or image_ok))
     typical = numerator >= 2
     cognitive = difficulty >= 3 and (bool(task_tags) or "基础" not in question_type)
-    migration = bool(primary_key and (len(task_tags) >= 2 or len(knowledge_tags) >= 2 or bool(visual_forms)))
+    migration = bool(primary_key and (len(task_tags) >= 2 or len(core_knowledge_tags) >= 2 or bool(visual_forms)))
     dimensions = {
         "结构完整": _dimension(structure_complete, "题干、题号及声明的题图均可追溯" if structure_complete else "题干、题号或题图完整性不足"),
         "典型性": _dimension(typical, f"同构结构覆盖 {numerator} 套试卷" if primary_key else "没有共同底层结构证据"),
@@ -153,6 +156,7 @@ def _diagnose_asset(
         "difficulty": difficulty,
         "structural_keys": ranked_keys,
         "task_tags": task_tags,
+        "tag_profile": tag_profile,
         "frequency": {
             "level": frequency_level, "numerator": numerator, "denominator": denominator,
             "rate": round(rate, 4) if rate is not None else None, "scope": "同年跨地区可比试卷",
