@@ -11,8 +11,10 @@ from typing import Any
 from .domain import ValidationError
 
 
-RULE_VERSION = "production-selection-v0.2"
+RULE_VERSION = "production-selection-v0.3"
 DECISIONS = {"按 AI 建议推进", "进入课程生产", "仅保留好题池", "进入母题改造", "暂不使用"}
+ROLE_LABELS = {"母题候选", "核心例题", "同构练习", "变式练习", "迁移练习", "检测题", "基础巩固题"}
+USAGE_SCENARIOS = {"视频生产", "习题册", "作业", "学案", "专题资料", "备考题池"}
 SUBQUESTION = re.compile(r"[（(]\s*(\d{1,2})\s*[）)]")
 OPTION = re.compile(r"(?<![A-Za-zＡ-Ｚａ-ｚ])([A-DＡ-Ｄ])[．.、]")
 
@@ -107,23 +109,39 @@ def build_selection_review(selection_run: dict[str, Any], request: dict[str, Any
         raise ValidationError("selected units must belong to the candidate")
     reason = str(request.get("reason") or "").strip()
     effective_decision = candidate["ai_next_route"] if decision == "按 AI 建议推进" else decision
+    role_labels = _validated_multi_value(
+        request.get("role_labels", candidate["ai_role_labels"]), ROLE_LABELS, "role labels",
+    )
+    usage_scenarios = _validated_multi_value(
+        request.get("usage_scenarios", candidate["ai_usage_scenarios"]), USAGE_SCENARIOS, "usage scenarios",
+    )
     if effective_decision == "进入课程生产" and not selected_units:
         raise ValidationError("course production requires at least one selected question unit")
-    corrected = effective_decision != candidate["ai_next_route"] or set(selected_units) != allowed_units
-    if corrected and not reason:
+    production_corrected = effective_decision != candidate["ai_next_route"] or set(selected_units) != allowed_units
+    reuse_adjusted = set(role_labels) != set(candidate["ai_role_labels"]) or set(usage_scenarios) != set(candidate["ai_usage_scenarios"])
+    corrected = production_corrected or reuse_adjusted
+    if production_corrected and not reason:
         raise ValidationError("changing the AI route or production units requires a reason")
     if not reason:
-        reason = "教师接受 AI 当前生产去向及全部可识别题目单元。" if mode == "single" else "批量通过：接受非异常题目的 AI 当前生产去向。"
+        reason = (
+            "教师调整了题目角色或可用场景；该信号只作为任务偏好，不自动改写筛选规则。"
+            if reuse_adjusted else
+            ("教师接受 AI 当前生产去向及全部可识别题目单元。" if mode == "single" else "批量通过：接受非异常题目的 AI 当前生产去向。")
+        )
     identity = json.dumps({"selection": selection_run["id"], "candidate": candidate_id}, ensure_ascii=False, sort_keys=True)
     return {
         "id": f"selection-review-{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:14]}",
         "selection_run_id": selection_run["id"], "candidate_id": candidate_id,
         "asset_id": candidate["asset_id"], "status": "corrected" if corrected else "accepted",
         "review_mode": mode, "ai_route": candidate["ai_next_route"], "decision": effective_decision,
-        "selected_unit_ids": selected_units, "reason": reason,
+        "selected_unit_ids": selected_units, "role_labels": role_labels, "usage_scenarios": usage_scenarios,
+        "reuse_adjusted": reuse_adjusted, "reason": reason,
         "rule_proposals": [{
             "family": "selection_priority_rule", "status": "隔离实验候选", "evidence": reason,
-        }] if corrected else [],
+        }] if production_corrected else [],
+        "preference_signals": [{
+            "family": "question_reuse_preference", "scope": "当前生产项目", "evidence": reason,
+        }] if reuse_adjusted else [],
         "ai_flow_blocked": False, "updated_at": now(),
     }
 
@@ -148,6 +166,10 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
         asset=asset, quality_label=quality_label, is_good=is_good, science=science,
         frequency_level=frequency_level, coverage_status=coverage_status, difficulty=difficulty,
         migration=migration, learner_level=learner_level, structural_keys=structural_keys,
+    )
+    role_labels, usage_scenarios = _reuse_suggestions(
+        is_good=is_good, frequency_level=frequency_level, difficulty=difficulty,
+        migration=migration, structural_keys=structural_keys, route=route,
     )
     return {
         "id": f"candidate-{asset['id']}", "asset_id": asset["id"],
@@ -187,6 +209,8 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
             "minimum_intervention": intervention, "coverage_gap_alone_can_raise_priority": False,
         },
         "ai_next_route": route,
+        "ai_role_labels": role_labels,
+        "ai_usage_scenarios": usage_scenarios,
         "evidence_sources": {
             "diagnostic_rule": diagnosis.get("quality", {}).get("reason"),
             "coverage_rule": coverage.get("reason"),
@@ -285,3 +309,36 @@ def _effective_reason(field: str, corrected_fields: set[str], calibration_reason
     if field not in corrected_fields:
         return ai_reason
     return f"教师校准：{calibration_reason}｜原 AI 证据：{ai_reason}"
+
+
+def _validated_multi_value(value: Any, allowed: set[str], label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValidationError(f"{label} must be a list")
+    normalized = list(dict.fromkeys(str(item) for item in value))
+    unknown = set(normalized) - allowed
+    if unknown:
+        raise ValidationError(f"invalid {label}: {', '.join(sorted(unknown))}")
+    return normalized
+
+
+def _reuse_suggestions(*, is_good: bool, frequency_level: str, difficulty: str,
+                       migration: str, structural_keys: list[str], route: str) -> tuple[list[str], list[str]]:
+    """Suggest reusable roles without treating video priority as universal value."""
+    roles: list[str] = []
+    scenarios: list[str] = []
+    if is_good:
+        roles.append("基础巩固题" if difficulty == "基础" else "核心例题")
+        if difficulty == "基础":
+            roles.append("同构练习")
+        elif migration == "高":
+            roles.append("迁移练习")
+        if structural_keys and migration == "高":
+            roles.insert(0, "母题候选")
+        scenarios.extend(["习题册", "学案", "专题资料"])
+        if frequency_level == "高频":
+            scenarios.extend(["作业", "备考题池"])
+    elif structural_keys and migration == "高":
+        roles.append("母题候选")
+    if route == "进入课程生产":
+        scenarios.insert(0, "视频生产")
+    return list(dict.fromkeys(roles)), list(dict.fromkeys(scenarios))

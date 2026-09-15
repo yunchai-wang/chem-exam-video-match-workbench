@@ -196,6 +196,14 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 200)
         self.assertEqual(selection_batch["passed_count"], 1)
+        status, downstream = self.request("/api/downstream-tasks", "POST", {
+            "selection_run_id": selection["id"], "task_type": "习题册",
+            "name": "图表分析习题册", "candidate_ids": [candidate["id"]],
+            "output_formats": ["Word", "飞书云文档"],
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(downstream["question_set"]["item_count"], 1)
+        self.assertEqual(downstream["task"]["execution_mode"], "contract_only")
         calibration_context = {
             "diagnostic_run_id": diagnosis["id"], "gold_sample_id": sample["id"],
             "coverage_run_id": coverage["id"],
@@ -213,6 +221,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(state["summary"]["calibration_review_count"], 1)
         self.assertEqual(state["summary"]["selection_review_count"], 1)
         self.assertEqual(state["summary"]["selection_run_count"], 2)
+        self.assertEqual(state["summary"]["question_set_count"], 1)
+        self.assertEqual(state["summary"]["downstream_task_count"], 1)
 
 
 if __name__ == "__main__":

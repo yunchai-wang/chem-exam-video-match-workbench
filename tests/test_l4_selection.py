@@ -40,6 +40,9 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(item["production_priority"]["status"], "教研预测")
         self.assertFalse(item["learner_value"]["student_data_available"])
         self.assertEqual([unit["label"] for unit in item["units"]], ["小问（1）", "小问（2）"])
+        self.assertIn("母题候选", item["ai_role_labels"])
+        self.assertIn("视频生产", item["ai_usage_scenarios"])
+        self.assertIn("习题册", item["ai_usage_scenarios"])
 
     def test_simple_question_stays_p3_even_with_a_video_gap(self) -> None:
         self.diagnosis["results"][0]["difficulty"] = 1
@@ -47,6 +50,8 @@ class SelectionTests(unittest.TestCase):
         run = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])
         self.assertEqual(run["results"][0]["production_priority"]["recommendation"], "P3")
         self.assertIn("视频缺口不会", run["results"][0]["production_priority"]["reason"])
+        self.assertIn("基础巩固题", run["results"][0]["ai_role_labels"])
+        self.assertIn("习题册", run["results"][0]["ai_usage_scenarios"])
 
     def test_frequency_does_not_turn_a_low_quality_question_into_production(self) -> None:
         self.diagnosis["results"][0]["quality"]["recommendation"] = "暂不推荐"
@@ -66,6 +71,18 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(review["status"], "corrected")
         self.assertFalse(review["ai_flow_blocked"])
         self.assertEqual(review["rule_proposals"][0]["status"], "隔离实验候选")
+
+    def test_reuse_labels_are_independent_and_do_not_require_a_rule_correction_reason(self) -> None:
+        run = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])
+        candidate = run["results"][0]
+        review = build_selection_review(run, {
+            "candidate_id": candidate["id"],
+            "role_labels": ["核心例题", "检测题"],
+            "usage_scenarios": ["习题册", "作业"],
+        })
+        self.assertTrue(review["reuse_adjusted"])
+        self.assertEqual(review["rule_proposals"], [])
+        self.assertEqual(review["preference_signals"][0]["scope"], "当前生产项目")
 
 
 if __name__ == "__main__":

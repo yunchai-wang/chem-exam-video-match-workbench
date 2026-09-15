@@ -18,6 +18,10 @@ let state = null;
 let selectedOnly = false;
 let basePreview = null;
 let manifestPreview = null;
+let currentCandidateIds = [];
+
+const ROLE_LABELS = ["母题候选", "核心例题", "同构练习", "变式练习", "迁移练习", "检测题", "基础巩固题"];
+const USAGE_SCENARIOS = ["视频生产", "习题册", "作业", "学案", "专题资料", "备考题池"];
 
 async function api(path, options = {}) {
   const response = await fetch(path, {headers: {"Content-Type": "application/json"}, ...options});
@@ -361,10 +365,14 @@ function renderQuestions() {
       const decision = reviews[item.id]?.decision || item.ai_next_route;
       return (!selectedOnly || decision === "进入课程生产") && JSON.stringify(item).toLowerCase().includes(search);
     });
+    currentCandidateIds = questions.map(item => item.id);
+    renderDownstreamTaskCenter(selection, questions);
     document.querySelector("#question-list").innerHTML = questions.map(item => selectionCard(item, reviews[item.id])).join("") || `<div class="empty-state"><strong>没有符合条件的真实候选</strong><span>调整筛选条件后再试。</span></div>`;
     document.querySelectorAll("[data-selection-review]").forEach(form => form.onsubmit = saveSelectionReview);
     return;
   }
+  currentCandidateIds = [];
+  renderDownstreamTaskCenter(null, []);
   renderSelectionOverview(null);
   const questions = state.questions.filter(q => (!selectedOnly || q.selected_for_candidate) && JSON.stringify(q).toLowerCase().includes(search));
   document.querySelector("#question-list").innerHTML = questions.map(questionCard).join("") || `<div class="empty-state"><strong>没有符合条件的题目</strong><span>调整筛选条件后再试。</span></div>`;
@@ -382,6 +390,61 @@ function renderQuestions() {
       teacher_feedback_reason: card.querySelector("[data-review-reason]").value,
     });
   });
+}
+
+function renderDownstreamTaskCenter(selection, visibleQuestions) {
+  const node = document.querySelector("#downstream-task-center");
+  if (!selection) {
+    node.innerHTML = `<p class="quiet">形成真实候选池后，可把当前筛选结果冻结为习题册、作业、学案、专题资料或备考题池任务。</p>`;
+    return;
+  }
+  const tasks = (state.downstream_tasks || []).filter(item => {
+    const set = (state.question_sets || []).find(candidate => candidate.id === item.question_set_id);
+    return set?.selection_run_id === selection.id;
+  }).reverse();
+  const taskRows = tasks.length ? tasks.map(item => {
+    const set = (state.question_sets || []).find(candidate => candidate.id === item.question_set_id);
+    return `<div class="downstream-task-row"><div><strong>${esc(item.name)}</strong><small>${esc(item.task_type)} · ${set?.item_count || 0} 题 · ${esc(item.target_region || "未限定地区")}</small></div><span class="tag">${esc(item.status)}</span></div>`;
+  }).join("") : `<p class="quiet">尚未建立下游任务。新建后会冻结题目、小问、角色标签与原题图引用。</p>`;
+  node.innerHTML = `<div class="panel-title"><div><p class="eyebrow">多用途题目资产</p><h3>基于当前筛选结果新建任务</h3></div><span class="status completed">${visibleQuestions.length} 题当前可见</span></div>
+    <p class="quiet">视频优先级只服务课程生产；习题册等任务会重新按目标学生、难度梯度和题目角色编排。</p>
+    <form id="downstream-task-form" class="downstream-task-form">
+      <label>任务类型<select name="task_type">${["习题册","作业","学案","专题资料","备考题池","视频生产","自定义"].map(item => `<option>${item}</option>`).join("")}</select></label>
+      <label>任务名称<input name="name" value="${esc(state.project.content_scope)}习题册"></label>
+      <label>目标学生<input name="target_students" value="${esc(state.project.target_students)}"></label>
+      <label>内容范围<input name="content_scope" value="${esc(state.project.content_scope)}"></label>
+      <label class="task-goal">产出目标<input name="output_goal" placeholder="自定义任务必填；其他类型可补充册次、题量或时长"></label>
+      <button class="button primary" id="create-downstream-task" type="submit">计算可用题目…</button>
+    </form>
+    <p class="selection-footnote" id="downstream-task-hint"></p>
+    <div class="downstream-task-list">${taskRows}</div>`;
+  node.querySelector("#downstream-task-form").onsubmit = createDownstreamTask;
+  node.querySelector('[name="task_type"]').onchange = updateDownstreamTaskCount;
+  updateDownstreamTaskCount();
+}
+
+function downstreamCandidateIds(taskType) {
+  const selection = state.selection_runs.at(-1);
+  const reviews = Object.fromEntries((state.selection_reviews || []).filter(item => item.selection_run_id === selection.id).map(item => [item.candidate_id, item]));
+  return currentCandidateIds.filter(id => {
+    if (taskType === "自定义") return true;
+    const candidate = selection.results.find(item => item.id === id);
+    const scenarios = reviews[id]?.usage_scenarios || candidate?.ai_usage_scenarios || [];
+    return scenarios.includes(taskType);
+  });
+}
+
+function updateDownstreamTaskCount() {
+  const form = document.querySelector("#downstream-task-form");
+  if (!form) return;
+  const taskType = form.elements.task_type.value;
+  const ids = downstreamCandidateIds(taskType);
+  const button = form.querySelector("#create-downstream-task");
+  button.disabled = !ids.length;
+  button.textContent = ids.length ? `冻结 ${ids.length} 道“${taskType}”可用题并建任务` : `当前筛选内无“${taskType}”可用题`;
+  document.querySelector("#downstream-task-hint").textContent = taskType === "自定义"
+    ? "自定义任务使用当前全部可见题目，并要求填写产出目标。"
+    : `只冻结当前可见且已标记“${taskType}”的题；如需增减，请先修改题卡的可用场景并保存。`;
 }
 
 function selectionContext() {
@@ -419,6 +482,8 @@ function selectionCard(item, review) {
   const priorityClass = priority.startsWith("P") ? priority : "stop";
   const decision = review?.decision || item.ai_next_route;
   const selectedUnits = new Set(review?.selected_unit_ids || item.units.map(unit => unit.id));
+  const roles = new Set(review?.role_labels || item.ai_role_labels || []);
+  const scenarios = new Set(review?.usage_scenarios || item.ai_usage_scenarios || []);
   const unitInputs = item.units.map(unit => `<label><input type="checkbox" data-selection-unit="${esc(unit.id)}" ${selectedUnits.has(unit.id) ? "checked" : ""}>${esc(unit.label)}</label>`).join("");
   const coverage = item.coverage.candidates?.[0];
   const videoEvidence = coverage ? `${coverage.video_name || coverage.video_id} · ${(coverage.catalogs || []).join("、")} · ${coverage.evidence_level}` : "暂无可核验视频候选";
@@ -436,8 +501,9 @@ function selectionCard(item, review) {
       </div>
       <div class="candidate-dimensions"><span>迁移价值：<b>${esc(item.migration_value)}</b></span><span>跨地区复用：<b>${esc(item.cross_region_reuse)}</b></span><span>既有资产替代：<b>${esc(item.existing_asset_substitutability)}</b></span><span>预计成本：<b>${esc(item.production_cost.level)}</b></span></div>
       <div class="unit-row"><strong>进入后续的题目单元：</strong>${unitInputs}</div>
-      <div class="teacher-review selection-review-row"><select name="decision" aria-label="候选题生产去向">${["按 AI 建议推进","进入课程生产","仅保留好题池","进入母题改造","暂不使用"].map(value => `<option ${value === (review ? decision : "按 AI 建议推进") ? "selected" : ""}>${value}</option>`).join("")}</select><input name="reason" value="${esc(review?.status === "corrected" ? review.reason : "")}" placeholder="改去向或裁剪小问时填写理由"><button class="button secondary small" type="submit">保存本题决定</button></div>
-      <p class="selection-footnote">AI 建议去向：${esc(item.ai_next_route)}。没有教师反馈也不会阻塞下一环节；纠正只进入当前项目隔离实验。</p>
+      <div class="reuse-routing"><div><strong>题目角色（可多选）</strong><div class="route-options">${ROLE_LABELS.map(value => `<label><input type="checkbox" name="role_labels" value="${value}" ${roles.has(value) ? "checked" : ""}>${value}</label>`).join("")}</div></div><div><strong>可用场景（可多选）</strong><div class="route-options">${USAGE_SCENARIOS.map(value => `<label><input type="checkbox" name="usage_scenarios" value="${value}" ${scenarios.has(value) ? "checked" : ""}>${value}</label>`).join("")}</div></div></div>
+      <div class="teacher-review selection-review-row"><select name="decision" aria-label="当前视频与课程去向">${["按 AI 建议推进","进入课程生产","仅保留好题池","进入母题改造","暂不使用"].map(value => `<option ${value === (review ? decision : "按 AI 建议推进") ? "selected" : ""}>${value}</option>`).join("")}</select><input name="reason" value="${esc(review?.status === "corrected" && !review.reuse_adjusted ? review.reason : "")}" placeholder="改视频去向或裁剪小问时填写理由"><button class="button secondary small" type="submit">保存本题决定</button></div>
+      <p class="selection-footnote">当前视频/课程去向：AI 建议 ${esc(item.ai_next_route)}。角色和场景是复用偏好，不会反向篡改好题判断或视频优先级。</p>
     </div>
   </form>`;
 }
@@ -699,10 +765,30 @@ async function saveSelectionReview(event) {
   try {
     await api("/api/selection-reviews", {method: "POST", body: JSON.stringify({
       selection_run_id: selection.id, candidate_id: form.dataset.selectionReview,
-      decision: values.get("decision"), selected_unit_ids: selectedUnitIds, reason: values.get("reason"),
+      decision: values.get("decision"), selected_unit_ids: selectedUnitIds,
+      role_labels: values.getAll("role_labels"), usage_scenarios: values.getAll("usage_scenarios"),
+      reason: values.get("reason"),
     })});
     await load();
     toast("候选题决定已保存；纠正理由只进入当前项目隔离规则");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function createDownstreamTask(event) {
+  event.preventDefault();
+  const selection = state.selection_runs.at(-1);
+  const values = new FormData(event.currentTarget);
+  const taskType = values.get("task_type");
+  const candidateIds = downstreamCandidateIds(taskType);
+  try {
+    const result = await api("/api/downstream-tasks", {method: "POST", body: JSON.stringify({
+      selection_run_id: selection.id, candidate_ids: candidateIds,
+      task_type: taskType, name: values.get("name"),
+      target_students: values.get("target_students"), content_scope: values.get("content_scope"),
+      output_goal: values.get("output_goal"), output_formats: ["Word", "飞书云文档"],
+    })});
+    await load();
+    toast(`已冻结 ${result.question_set.item_count} 题；${result.task.task_type}任务契约已建立`);
   } catch (error) { toast(error.message, true); }
 }
 
@@ -755,5 +841,5 @@ document.querySelector("#freeze-form").onsubmit = freezePredictions;
 document.querySelector("#standard-asset-search").oninput = renderStandardAssets;
 document.querySelector("#asset-integrity-filter").onchange = renderStandardAssets;
 document.querySelector("#question-search").oninput = renderQuestions;
-document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看已入选"; renderQuestions(); };
+document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看视频入选"; renderQuestions(); };
 load().catch(error => toast(error.message, true));

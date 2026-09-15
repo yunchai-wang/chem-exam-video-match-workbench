@@ -118,6 +118,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/selection-reviews/batch-pass":
                 self._json(200, self.service.batch_pass_selections(payload))
                 return
+            if path == "/api/downstream-tasks":
+                self._json(201, self.service.create_downstream_task(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return

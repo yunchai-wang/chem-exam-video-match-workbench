@@ -1,5 +1,5 @@
 {
-  "schema_version": 7,
+  "schema_version": 8,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -218,5 +218,7 @@
   "calibration_reviews": [],
   "selection_runs": [],
   "selection_reviews": [],
+  "question_sets": [],
+  "downstream_tasks": [],
   "events": []
 }

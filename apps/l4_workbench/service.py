@@ -23,6 +23,7 @@ from .store import ConcurrentUpdateError, JsonStore
 from .video_evidence import build_coverage_run, build_video_import, load_video_records
 from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
+from .downstream import create_downstream_task
 
 
 PROJECT_FIELDS = {
@@ -363,6 +364,22 @@ class WorkbenchService:
             self._event(current, "selection.batch_passed", f"已批量通过 {len(passed)} 个非异常候选，保留 {len(skipped)} 个对象")
         return {"passed_count": len(passed), "skipped_count": len(skipped), "reviews": passed}
 
+    def create_downstream_task(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        selection_run = self._find(state["selection_runs"], str(request.get("selection_run_id") or ""), "selection run")
+        result = create_downstream_task(
+            selection_run, state["selection_reviews"], state["question_assets"], state["project"], request,
+        )
+        with self.store.transaction() as current:
+            question_set = result["question_set"]
+            task = result["task"]
+            current["question_sets"] = [item for item in current["question_sets"] if item["id"] != question_set["id"]]
+            current["question_sets"].append(question_set)
+            current["downstream_tasks"] = [item for item in current["downstream_tasks"] if item["id"] != task["id"]]
+            current["downstream_tasks"].append(task)
+            self._event(current, "downstream.task_created", f"已冻结 {question_set['item_count']} 道题并创建{task['task_type']}任务契约")
+        return result
+
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
         with self.store.transaction() as state:
@@ -635,6 +652,8 @@ class WorkbenchService:
             "calibration_review_count": len(state["calibration_reviews"]),
             "selection_run_count": len(state["selection_runs"]),
             "selection_review_count": len(state["selection_reviews"]),
+            "question_set_count": len(state["question_sets"]),
+            "downstream_task_count": len(state["downstream_tasks"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),
