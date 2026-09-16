@@ -16,6 +16,7 @@
 - 标签库只读同步基线：`491b0c4 feat(l4): read-only sync of the live label library and tag audit`
 - AI 逐小问补标基线：`26ddfe2 feat(l4): AI unit-tag fill for mother-question boundaries`
 - 视频证据索引基线：`776f48a feat(l4): read-only Feishu index for video screenshots and transcripts`
+- 合集解析与错配排除基线：`204bc69 feat(l4): parse collection docs and exclude mismatched coverage candidates`
 - 启动：`python3 apps/l4_course_evolution_workbench.py`
 - 页面：`http://127.0.0.1:8766/`
 
@@ -60,10 +61,11 @@
 37. 题目标签审计：531 题现有 2268 个标签相对现行词表命中率仅 1.6%——它们是导入清单自带的粗粒度项目标签，不是库内标准标签。391 项进入待映射队列（含出现次数、样本资产、显式映射建议或字符重合启发式）；人工映射只接受现行标签，重同步保留已做映射。数据页新增同步按钮、六维统计表和队列映射入口。全量 139 项测试通过（合成行测，不把真实标签值提交仓库）。
 38. `ai-unit-tag-fill-v0.1`：对进入课程生产／母题改造的候选做确定性 AI 逐小问补标（不调模型）。按小问文本线索生成 1～3 个问题标签与解法标签，并用现行词表／待映射队列／旧→新映射解析；**禁止**把整题任务标签自动下沉到每个小问。同时补核心知识（与全部知识分离）和缺失题型。一律标注「AI 补标·待校准」。schema 15 新增 `ai_tag_fill_runs`；API `POST /api/ai-tag-fills`；母题面板可一键补标并刷新提案。真实 29 道有效候选：16 题有小问任务、38 个小问命中、15 题有核心知识、5 题补题型；重跑母题后异常组 6→5，3 组递进题组边界转「已识别」且不再标异常；同结构但设问并集不同的组仍保持递进、**不**硬拼母题。全量 142 项测试通过。
 39. `video-evidence-index-v0.1`：只读接入飞书截图表与逐字稿 Base 指针（不下载正文进仓库）。截图源：`shtcnbn…` 的 `e1mSBg`/`L43kZ6`、`Tx9ps…` 的 `jG6GT9`；逐字稿源：重难点培优 PMO 化学表、项目总表「新中考B级课」「B级重难点培优【总】」、新教材 PMO wiki bitable。多份逐字稿优先定稿，其次录音稿，再次合集云文档链接。schema 16 新增 `video_evidence_index_snapshots`；API `POST /api/video-evidence-index/sync`；视频证据页可同步。覆盖诊断承认「索引定稿/录音稿-待打开核验」为可核验指针。真实试跑：索引 532 条（定稿 13 / 录音 32 / 合集 20），回写 348/402 视频实体，95 条补上时间码定位；飞书浮层截图不落 CSV 文本故截图 token 很少，时间码与合集/定稿链接是主证据。全量 144 项测试通过。
+40. `video-evidence-index-v0.2`：只读打开合集云文档，解析其中的定稿/录音稿/逐字稿指针与「视频分片段」时间表；**PPT 定稿与音视频不算逐字稿**。缓存落在 `outputs/.../video_evidence_index/raw/collections/`（Git 忽略）。schema 17 新增 `coverage_candidate_exclusions`；API `POST /api/coverage-candidates/exclude`（必填理由）；视频证据页与校准台可「排除本候选」，覆盖状态按剩余候选重算，不阻塞 AI。真实试跑：20/20 合集拉取成功，抽出 25 个指针、81 条片段行；定稿优先 13→26、合集壳 20→7、时间码条目 93→107；回写后 15 个视频实体挂上定稿指针。40 题金样本重跑覆盖仍为 22/15/3——升格主要落在尚未进入该金样本结构召回的视频上，未虚增命中。全量 146 项测试通过。
 
 ## 未提交到 GitHub 的本地状态
 
-- `outputs/l4_workbench/state.json`、来源快照、`outputs/l4_workbench/label_library/`、`outputs/l4_workbench/video_evidence_index/`（含原始拉取与 `index-latest.json`）和 `outputs/local_three_catalog_video_manifest.json` 被 Git 忽略。
+- `outputs/l4_workbench/state.json`、来源快照、`outputs/l4_workbench/label_library/`、`outputs/l4_workbench/video_evidence_index/`（含原始拉取、`collections/` 合集缓存与 `index-latest.json`）和 `outputs/local_three_catalog_video_manifest.json` 被 Git 忽略。
 - 真实试卷、题图、视频清单、逐字稿正文、标签库导出值和证据引用均留在当前使用者本地。
 - 接力人没有这些本地资产时，仍可用仓库内脱敏样例与测试继续开发；需要复现真实统计时，应导入其有权使用的资料或闭环 Base，并用 `POST /api/label-library/sync` / `POST /api/video-evidence-index/sync` 再拉一份。
 
@@ -73,7 +75,7 @@
 
 1. 用待映射队列把高频项目标签批量对齐；教师抽检 AI 补标金样本。
 2. 增强未命中小问补标；不要放松母题边界规则。
-3. 证据索引下一刀：打开合集云文档解析其中的定稿/录音稿附件（仍只存指针）；对错配候选提供“排除本候选”入口；有金样本后重跑 coverage 观察索引定稿是否抬升部分覆盖。
+3. 对已排除候选沉淀隔离规则候选；有新金样本或教学目标补齐后再重跑 coverage。
 4. 补视频教学目标（相对仅提及），避免用全部涉及知识冒充目标。
 5. 对 7 个待核同名簇提供合并/拆分入口。
 6. 跑通已确认母题 → Skill 补题面 → 教师确认 → 教案。
@@ -84,4 +86,4 @@
 
 ## 可直接交给梦楠 Codex 的续作提示词
 
-请接力开发这个 L4 真题驱动的课程自进化平台。先读取 `docs/handoff/CURRENT.md`、设计文档和路线图，确认分支为 `feature/l4-real-ingestion`，运行全量测试建立基线（`python3 -m unittest discover -s tests`；若 shell 设置了代理，API 测试已自动绕过）。母题路由、Skill 执行包、Word 下载、产出回填、标签库只读同步、AI 逐小问补标、视频证据索引（`video-evidence-index-v0.1`）均已存在，不要重写。下一优先：待映射队列高频对齐与 AI 补标抽检；或深化证据索引（解析合集文档内定稿/录音稿附件指针、错配排除、重跑 coverage）；再补视频教学目标并跑通已确认母题→教案 Skill。逐字稿选用规则：多份时优先定稿，其次录音稿。不要把全部知识或仅提及知识冒充教学目标，不把同知识点但考查逻辑或作答边界不同的题硬拼，也不要通过放松边界规则来凑出母题；母题必须保留原题及全部图表。不要提交真实标签导出、试卷、题图、逐字稿正文、视频截图、账号信息或本地状态；不要让教师反馈成为 AI 继续运行的前提。完成后做桌面端和移动端验收，提交代码并更新本接力文件。
+请接力开发这个 L4 真题驱动的课程自进化平台。先读取 `docs/handoff/CURRENT.md`、设计文档和路线图，确认分支为 `feature/l4-real-ingestion`，运行全量测试建立基线（`python3 -m unittest discover -s tests`；若 shell 设置了代理，API 测试已自动绕过）。母题路由、Skill 执行包、Word 下载、产出回填、标签库只读同步、AI 逐小问补标、视频证据索引（含合集文档解析 `video-evidence-index-v0.2`）与错配排除均已存在，不要重写。下一优先：待映射队列高频对齐与 AI 补标抽检；或补视频教学目标并跑通已确认母题→教案 Skill。逐字稿选用规则：多份时优先定稿，其次录音稿；合集内 PPT/音视频不算逐字稿。不要把全部知识或仅提及知识冒充教学目标，不把同知识点但考查逻辑或作答边界不同的题硬拼，也不要通过放松边界规则来凑出母题；母题必须保留原题及全部图表。不要提交真实标签导出、试卷、题图、逐字稿正文、视频截图、账号信息或本地状态；不要让教师反馈成为 AI 继续运行的前提。完成后做桌面端和移动端验收，提交代码并更新本接力文件。
