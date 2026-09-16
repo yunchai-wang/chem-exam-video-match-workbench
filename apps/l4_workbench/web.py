@@ -110,6 +110,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/label-library/mappings":
                 self._json(200, self.service.map_unmatched_label(payload))
                 return
+            if path == "/api/label-library/batch-align/preview":
+                self._json(200, self.service.preview_batch_label_alignment(payload))
+                return
+            if path == "/api/label-library/batch-align":
+                self._json(200, self.service.batch_map_unmatched_labels(payload))
+                return
             if path == "/api/video-evidence-index/sync":
                 self._json(201, self.service.sync_video_evidence_index(payload))
                 return

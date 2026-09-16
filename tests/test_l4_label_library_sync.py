@@ -112,6 +112,68 @@ class LabelLibrarySnapshotTests(unittest.TestCase):
         self.assertEqual(second[0]["status"], "已映射")
         self.assertEqual(second[0]["mapped_to"], "溶解度曲线")
 
+    def test_batch_align_only_applies_high_confidence_and_rewrites_profiles(self) -> None:
+        from apps.l4_workbench.label_library_sync import apply_batch_label_alignment, propose_batch_label_alignment
+
+        snapshot = build_label_library_snapshot(self.raw)
+        assets = [
+            {
+                "id": "a1",
+                "tag_profile": {
+                    "knowledge": {"all": ["试剂的取用", "生活/能源"], "core": ["试剂的取用"]},
+                    "question": ["写方程式"],
+                    "solution": [], "condition": [], "context": [], "thinking_method": [],
+                },
+            },
+            {
+                "id": "a2",
+                "tag_profile": {
+                    "knowledge": {"all": ["生活/能源"]},
+                    "question": ["写方程式"],
+                    "solution": [], "condition": [], "context": [], "thinking_method": [],
+                },
+            },
+        ]
+        _, queue = audit_tag_profiles(assets, snapshot, [])
+        preview = propose_batch_label_alignment(queue, snapshot)
+        by_label = {item["label"]: item for item in preview["proposals"]}
+        self.assertEqual(by_label["试剂的取用"]["action"], "auto_map")
+        self.assertEqual(by_label["试剂的取用"]["mapped_to"], "固体的取用")
+        self.assertEqual(by_label["写方程式"]["action"], "needs_review")
+        self.assertEqual(by_label["生活/能源"]["action"], "project_extension")
+        # Task-like question tags must not be auto-marked as chapter extensions.
+        fake_question = {
+            "id": "q-x", "dimension": "question", "dimension_label": "问题",
+            "label": "写方程式", "occurrence_count": 130, "suggested_labels": ["写化学反应方程式"],
+            "suggestion_source": "字符重合启发式", "status": "待映射",
+        }
+        from apps.l4_workbench.label_library_sync import classify_unmatched_label
+        self.assertEqual(
+            classify_unmatched_label(fake_question, {"写化学反应方程式"})["action"],
+            "needs_review",
+        )
+
+        dry = apply_batch_label_alignment(queue, assets, snapshot, mode="high_confidence_only", dry_run=True)
+        self.assertTrue(dry["dry_run"])
+        self.assertEqual(next(item for item in queue if item["label"] == "试剂的取用")["status"], "待映射")
+
+        only = apply_batch_label_alignment(queue, assets, snapshot, mode="high_confidence_only", dry_run=False)
+        self.assertEqual(only["applied_count"], 1)
+        self.assertEqual(next(item for item in queue if item["label"] == "试剂的取用")["status"], "已映射")
+        self.assertEqual(next(item for item in queue if item["label"] == "写方程式")["status"], "待映射")
+        self.assertEqual(assets[0]["tag_profile"]["knowledge"]["all"], ["固体的取用", "生活/能源"])
+        self.assertEqual(assets[0]["tag_profile"]["knowledge"]["core"], ["固体的取用"])
+        self.assertEqual(assets[0]["tag_profile"]["question"], ["写方程式"])
+
+        # Reset extension item still pending, then apply extension mode.
+        result = apply_batch_label_alignment(
+            queue, assets, snapshot, mode="high_confidence_and_extensions", dry_run=False,
+        )
+        self.assertEqual(next(item for item in queue if item["label"] == "生活/能源")["status"], "保留为项目扩展")
+        self.assertGreaterEqual(result["applied_count"], 1)
+        self.assertEqual(assets[0]["tag_profile"]["question"], ["写方程式"])
+        self.assertGreaterEqual(only["rewrite"]["replacement_count"], 2)
+
 
 class LabelLibraryServiceTests(unittest.TestCase):
     def setUp(self) -> None:

@@ -31,7 +31,14 @@ from .output_planning import DELIVERABLES, normalize_deliverables, public_catalo
 from .skill_routing import SkillRegistry, normalize_lesson_type
 from .stage_executors import build_stage_executors
 from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
-from .label_library_sync import audit_tag_profiles, build_label_library_snapshot, fetch_label_tables
+from .label_library_sync import (
+    apply_batch_label_alignment,
+    audit_tag_profiles,
+    build_label_library_snapshot,
+    fetch_label_tables,
+    propose_batch_label_alignment,
+    rewrite_tag_profiles_with_mappings,
+)
 from .video_evidence_index import (
     apply_evidence_index_to_videos,
     build_video_evidence_index,
@@ -541,10 +548,57 @@ class WorkbenchService:
             if snapshot and mapped_to not in active:
                 raise ValidationError(f"“{mapped_to}”不是{entry['dimension_label']}维度的现行标签")
         entry.update({"status": decision, "mapped_to": mapped_to or None, "reason": str(request.get("reason") or "").strip(), "updated_at": now()})
-        self._event(state, "label_library.mapped", f"待映射标签“{entry['label']}”→{decision}{'：' + mapped_to if mapped_to else ''}")
+        rewrite = {"asset_count": 0, "replacement_count": 0}
+        if decision == "已映射" and mapped_to:
+            rewrite = rewrite_tag_profiles_with_mappings(
+                state["question_assets"],
+                {(entry["dimension"], entry["label"]): mapped_to},
+            )
+        self._event(
+            state, "label_library.mapped",
+            f"待映射标签“{entry['label']}”→{decision}{'：' + mapped_to if mapped_to else ''}"
+            + (f"；回写 {rewrite['replacement_count']} 处题目标签" if rewrite["replacement_count"] else ""),
+        )
         self.store.save(state)
-        return entry
+        return {**entry, "rewrite": rewrite}
 
+    def preview_batch_label_alignment(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        snapshot = next((item for item in reversed(state["label_library_snapshots"]) if item.get("vocabulary")), None)
+        if snapshot is None:
+            raise ValidationError("请先同步标签库快照")
+        min_occurrence = int(request.get("min_occurrence") or 1)
+        return propose_batch_label_alignment(state["unmatched_label_queue"], snapshot, min_occurrence=min_occurrence)
+
+    def batch_map_unmatched_labels(self, request: dict[str, Any]) -> dict[str, Any]:
+        mode = str(request.get("mode") or "high_confidence_only")
+        min_occurrence = int(request.get("min_occurrence") or 1)
+        dry_run = bool(request.get("dry_run", False))
+        with self.store.transaction() as state:
+            snapshot = next((item for item in reversed(state["label_library_snapshots"]) if item.get("vocabulary")), None)
+            if snapshot is None:
+                raise ValidationError("请先同步标签库快照")
+            result = apply_batch_label_alignment(
+                state["unmatched_label_queue"],
+                state["question_assets"],
+                snapshot,
+                mode=mode,
+                min_occurrence=min_occurrence,
+                dry_run=dry_run,
+            )
+            if not dry_run:
+                # Refresh audit numbers on the latest snapshot without refetching Feishu.
+                audit, _queue = audit_tag_profiles(state["question_assets"], snapshot, state["unmatched_label_queue"])
+                snapshot["audit"] = audit
+                pending = sum(1 for item in state["unmatched_label_queue"] if item.get("status") == "待映射")
+                self._event(
+                    state, "label_library.batch_aligned",
+                    f"批量对齐（{mode}）已处理 {result['applied_count']} 项，保留待确认 {result['skipped_count']} 项；"
+                    f"回写 {result['rewrite']['replacement_count']} 处题目标签；待映射剩余 {pending}",
+                )
+                result["pending_count"] = pending
+                result["matched_rate"] = audit.get("matched_rate")
+            return result
     def sync_video_evidence_index(self, request: dict[str, Any]) -> dict[str, Any]:
         evidence_dir = self.store.path.parent / "video_evidence_index"
         raw_dir = Path(str(request.get("raw_dir") or evidence_dir / "raw")).expanduser()

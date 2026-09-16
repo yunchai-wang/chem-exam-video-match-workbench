@@ -127,17 +127,24 @@ function renderLabelLibrarySync() {
   const s = live.summary;
   const audit = live.audit || {};
   const dims = Object.entries(live.vocabulary || {}).map(([key, meta]) => `<tr><td>${esc(meta.label)}</td><td>${meta.total}</td><td><b>${meta.active_count}</b></td><td>${meta.status_counts["已删除"] || 0}</td><td>${meta.status_counts["待定"] || 0}</td><td>${(meta.status_counts["已修改"] || 0) + (meta.status_counts["新增"] || 0)}</td><td>${audit.counts?.[key] ? `${audit.counts[key].matched} / ${audit.counts[key].deprecated} / ${audit.counts[key].unknown}` : "—"}</td></tr>`).join("");
-  const queue = (state.unmatched_label_queue || []).filter(item => item.status === "待映射").slice(0, 10);
+  const queue = (state.unmatched_label_queue || []).filter(item => item.status === "待映射").slice(0, 30);
+  const pendingCount = (state.unmatched_label_queue || []).filter(item => item.status === "待映射").length;
+  const mappedCount = (state.unmatched_label_queue || []).filter(item => item.status === "已映射").length;
+  const extensionCount = (state.unmatched_label_queue || []).filter(item => item.status === "保留为项目扩展").length;
   const queueRows = queue.map(item => `<div class="queue-row" data-queue-id="${esc(item.id)}"><div><strong>${esc(item.dimension_label)} · ${esc(item.label)}</strong><small>${item.occurrence_count} 次 · ${esc(item.bucket === "deprecated" ? "库内已删除/已改" : "库外")} · 建议：${esc((item.suggested_labels || []).join("、") || "无")}（${esc(item.suggestion_source)}）</small></div><div class="queue-actions"><input list="labels-${esc(item.dimension)}" placeholder="映射到现行标签" value="${esc((item.suggested_labels || [])[0] || "")}"><button class="button secondary small" type="button" data-map="已映射">映射</button><button class="button secondary small" type="button" data-map="保留为项目扩展">项目扩展</button></div></div>`).join("");
   const datalists = Object.entries(live.vocabulary || {}).map(([key, meta]) => `<datalist id="labels-${esc(key)}">${meta.labels.filter(item => ["现行", "已修改", "新增"].includes(item.status)).map(item => `<option value="${esc(item.label)}"></option>`).join("")}</datalist>`).join("");
+  const batchButtons = `<div class="chip-row" style="margin-top:8px"><button class="button secondary small" id="preview-batch-align">预览高把握批量对齐</button><button class="button primary small" id="apply-batch-align">只落库高把握映射</button><button class="button secondary small" id="apply-batch-align-ext">高把握 + 粗粒度标为项目扩展</button></div><p class="quiet" id="batch-align-preview">字符重合启发式永不自动落库；粗粒度章节不会硬塞成单一末级标签。</p>`;
   node.innerHTML = `<div class="panel-title" style="margin:16px 0 10px"><div><p class="eyebrow">现行标签库 · 只读同步</p><h3>${esc(live.source.base_name || "标签库")} · Base 版本 ${esc(live.source.base_revision ?? "—")} · ${esc(live.synced_at)}</h3></div><span class="status completed">本地快照 ${esc(live.id.slice(-12))}</span></div>
     <div class="diagnosis-summary video-summary"><div><b>${s.total_rows}</b><span>六表总行数</span></div><div><b>${s.active_labels}</b><span>现行标签（含已修改/新增）</span></div><div><b>${s.deleted_labels}</b><span>已删除</span></div><div><b>${s.old_to_new_count}</b><span>显式旧→新映射</span></div></div>
     <table class="preview-table library-table"><thead><tr><th>维度</th><th>行数</th><th>现行</th><th>已删除</th><th>待定</th><th>已修改/新增</th><th>题目标签 命中/已废弃/库外</th></tr></thead><tbody>${dims}</tbody></table>
-    <div class="evidence-limit"><strong>审计结论</strong><span>${esc(audit.conclusion || "尚未审计")}${audit.matched_rate != null ? `（命中率 ${(audit.matched_rate * 100).toFixed(1)}%，${audit.tag_count} 个标签，${audit.queue_size} 项待映射）` : ""}</span></div>
+    <div class="evidence-limit"><strong>审计结论</strong><span>${esc(audit.conclusion || "尚未审计")}${audit.matched_rate != null ? `（命中率 ${(audit.matched_rate * 100).toFixed(1)}%，${audit.tag_count} 个标签，待映射 ${pendingCount} / 已映射 ${mappedCount} / 项目扩展 ${extensionCount}）` : ""}</span></div>
     <p class="quiet">${esc((live.evidence_limits || []).join(" "))}</p>
-    <div class="calibration-actions"><p class="quiet">待映射队列按出现次数排序；映射只接受现行标签，“项目扩展”表示保留为当前项目自定义维度。以下只显示前 10 项。</p>${buttons}</div>
+    <div class="calibration-actions"><p class="quiet">待映射队列按出现次数排序；映射只接受现行标签并回写题目 tag_profile。“项目扩展”表示保留为当前项目自定义维度。以下显示前 30 项。</p>${buttons}${batchButtons}</div>
     <div class="queue-list">${queueRows || `<p class="quiet">没有待映射标签。</p>`}</div>${datalists}`;
   bindLabelLibraryButtons(node);
+  node.querySelector("#preview-batch-align").onclick = () => previewBatchLabelAlign();
+  node.querySelector("#apply-batch-align").onclick = () => applyBatchLabelAlign("high_confidence_only");
+  node.querySelector("#apply-batch-align-ext").onclick = () => applyBatchLabelAlign("high_confidence_and_extensions");
   node.querySelectorAll("[data-map]").forEach(button => button.onclick = async () => {
     const row = button.closest(".queue-row");
     const mappedTo = button.dataset.map === "已映射" ? row.querySelector("input").value.trim() : "";
@@ -145,7 +152,7 @@ function renderLabelLibrarySync() {
     try {
       await api("/api/label-library/mappings", {method: "POST", body: JSON.stringify({id: row.dataset.queueId, decision: button.dataset.map, mapped_to: mappedTo})});
       await load();
-      toast(button.dataset.map === "已映射" ? `已映射到“${mappedTo}”` : "已保留为项目扩展维度");
+      toast(button.dataset.map === "已映射" ? `已映射到“${mappedTo}”并回写题目` : "已保留为项目扩展维度");
     } catch (error) { toast(error.message, true); }
   });
 }
@@ -162,6 +169,30 @@ async function syncLabelLibrary(fetch) {
     const result = await api("/api/label-library/sync", {method: "POST", body: JSON.stringify({fetch})});
     await load();
     toast(`标签库快照已冻结：${result.snapshot.summary.active_labels} 个现行标签，${result.queue_size} 项待映射`);
+  } catch (error) { toast(error.message, true); await load(); }
+}
+
+async function previewBatchLabelAlign() {
+  try {
+    const result = await api("/api/label-library/batch-align/preview", {method: "POST", body: JSON.stringify({min_occurrence: 1})});
+    const s = result.summary || {};
+    const node = document.querySelector("#batch-align-preview");
+    const top = (result.proposals || []).filter(item => item.action === "auto_map").slice(0, 5)
+      .map(item => `${item.label}→${item.mapped_to}`).join("；");
+    if (node) {
+      node.textContent = `预览：高把握映射 ${s.auto_map || 0}（覆盖约 ${s.auto_occurrence_total || 0} 次出现），粗粒度项目扩展 ${s.project_extension || 0}，待确认 ${s.needs_review || 0}。` + (top ? ` 例：${top}` : "");
+    }
+    toast(`预览完成：可自动映射 ${s.auto_map || 0}，项目扩展 ${s.project_extension || 0}，待确认 ${s.needs_review || 0}`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function applyBatchLabelAlign(mode) {
+  const label = mode === "high_confidence_and_extensions" ? "高把握映射 + 粗粒度项目扩展" : "仅高把握映射";
+  if (!window.confirm(`确认执行「${label}」？字符重合启发式不会自动落库。`)) return;
+  try {
+    const result = await api("/api/label-library/batch-align", {method: "POST", body: JSON.stringify({mode, min_occurrence: 1})});
+    await load();
+    toast(`已处理 ${result.applied_count} 项，待确认 ${result.skipped_count}；回写 ${result.rewrite?.replacement_count || 0} 处题目标签；命中率 ${(result.matched_rate == null ? "—" : (result.matched_rate * 100).toFixed(1) + "%")}`);
   } catch (error) { toast(error.message, true); await load(); }
 }
 
