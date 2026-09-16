@@ -104,6 +104,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/tag-configurations":
                 self._json(201, self.service.create_tag_configuration(payload))
                 return
+            if path == "/api/label-library/sync":
+                self._json(201, self.service.sync_label_library(payload))
+                return
+            if path == "/api/label-library/mappings":
+                self._json(200, self.service.map_unmatched_label(payload))
+                return
             if path == "/api/base/previews":
                 self._json(200, self.service.preview_base(payload))
                 return

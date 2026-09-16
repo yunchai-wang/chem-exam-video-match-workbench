@@ -30,6 +30,7 @@ from .output_planning import DELIVERABLES, normalize_deliverables, public_catalo
 from .skill_routing import SkillRegistry, normalize_lesson_type
 from .stage_executors import build_stage_executors
 from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
+from .label_library_sync import audit_tag_profiles, build_label_library_snapshot, fetch_label_tables
 
 
 ARTIFACT_OUTPUT_KINDS = {"docx", "markdown", "json", "csv", "pptx", "html", "pdf", "folder", "other"}
@@ -460,6 +461,48 @@ class WorkbenchService:
             self._event(current, "mother_question.batch_confirmed", f"已批量确认 {len(passed)} 组非异常母题提案，保留 {len(skipped)} 组待处理")
         return {"passed_count": len(passed), "skipped_count": len(skipped), "skipped_group_ids": skipped, "reviews": passed}
 
+    # -- live label library (read-only sync) ----------------------------------
+    def sync_label_library(self, request: dict[str, Any]) -> dict[str, Any]:
+        library_dir = self.store.path.parent / "label_library"
+        raw_dir = Path(str(request.get("raw_dir") or library_dir / "raw")).expanduser()
+        fetch_report = None
+        if request.get("fetch"):
+            fetch_report = fetch_label_tables(raw_dir, request.get("base_token"))
+        snapshot = build_label_library_snapshot(raw_dir, values_path=raw_dir.parent / "values-latest.json")
+        with self.store.transaction() as state:
+            audit, queue = audit_tag_profiles(state["question_assets"], snapshot, state["unmatched_label_queue"])
+            snapshot["audit"] = audit
+            state["label_library_snapshots"] = [item for item in state["label_library_snapshots"] if item["id"] != snapshot["id"]]
+            state["label_library_snapshots"].append(snapshot)
+            state["unmatched_label_queue"] = queue
+            summary = snapshot["summary"]
+            self._event(
+                state, "label_library.synced",
+                f"已{'从飞书只读同步并' if fetch_report else '用本地快照'}冻结标签库 {snapshot['id']}：{summary['active_labels']} 个现行标签、"
+                f"{summary['deleted_labels']} 个已删除、{summary['old_to_new_count']} 条旧→新映射；{audit['queue_size']} 个题目标签进入待映射队列",
+            )
+        return {"snapshot": {key: value for key, value in snapshot.items() if key != "vocabulary"}, "audit": audit, "queue_size": len(queue), "fetched": bool(fetch_report)}
+
+    @retry_concurrent_updates
+    def map_unmatched_label(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        entry = self._find(state["unmatched_label_queue"], str(request.get("id") or ""), "unmatched label")
+        mapped_to = str(request.get("mapped_to") or "").strip()
+        decision = str(request.get("decision") or ("已映射" if mapped_to else ""))
+        if decision not in {"已映射", "保留为项目扩展", "忽略"}:
+            raise ValidationError("decision must be 已映射 / 保留为项目扩展 / 忽略")
+        snapshot = next((item for item in reversed(state["label_library_snapshots"]) if item.get("vocabulary")), None)
+        if decision == "已映射":
+            if not mapped_to:
+                raise ValidationError("mapping requires mapped_to")
+            active = {item["label"] for item in (snapshot or {}).get("vocabulary", {}).get(entry["dimension"], {}).get("labels", []) if item["status"] in {"现行", "已修改", "新增"}}
+            if snapshot and mapped_to not in active:
+                raise ValidationError(f"“{mapped_to}”不是{entry['dimension_label']}维度的现行标签")
+        entry.update({"status": decision, "mapped_to": mapped_to or None, "reason": str(request.get("reason") or "").strip(), "updated_at": now()})
+        self._event(state, "label_library.mapped", f"待映射标签“{entry['label']}”→{decision}{'：' + mapped_to if mapped_to else ''}")
+        self.store.save(state)
+        return entry
+
     # -- editable working copies ---------------------------------------------
     def export_selection_docx(self, selection_run_id: str) -> tuple[bytes, str, dict[str, Any]]:
         state = self.store.load()
@@ -877,6 +920,8 @@ class WorkbenchService:
             "mother_question_run_count": len(state["mother_question_runs"]),
             "mother_question_review_count": len(state["mother_question_reviews"]),
             "tag_configuration_count": len(state["tag_configurations"]),
+            "unmatched_label_count": sum(item.get("status") == "待映射" for item in state["unmatched_label_queue"]),
+            "label_library_live": any(item.get("status") == "synced_local_readonly" for item in state["label_library_snapshots"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",
             "ai_next_action": self._next_action(latest_run),

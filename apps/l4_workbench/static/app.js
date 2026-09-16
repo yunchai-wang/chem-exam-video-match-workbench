@@ -53,8 +53,9 @@ function render() {
   document.querySelector("#project-title").textContent = project.name;
   document.querySelector("#rule-version").textContent = `规则版本 ${project.rule_version}`;
   const labelLibrary = (state.label_library_snapshots || []).at(-1);
+  const live = liveLabelLibrary();
   document.querySelector("#label-library-version").textContent = labelLibrary
-    ? `标签库 ${labelLibrary.prompt_versions.question_type}/${labelLibrary.prompt_versions.question}/${labelLibrary.prompt_versions.knowledge}`
+    ? `标签库 ${labelLibrary.prompt_versions.question_type}/${labelLibrary.prompt_versions.question}/${labelLibrary.prompt_versions.knowledge}${live ? ` · 现行 ${live.summary.active_labels}` : " · 未同步值"}`
     : "标签库未冻结";
   document.querySelector("#next-action").textContent = state.summary.ai_next_action;
   const defaults = outputLabels(project.default_deliverables || []);
@@ -86,6 +87,7 @@ function renderDataFoundation() {
 
   renderStandardAssets();
   renderTagConfigurations();
+  renderLabelLibrarySync();
   renderBasePreview();
   renderManifestPreview();
   renderDiagnosisFoundation();
@@ -106,6 +108,61 @@ function renderDataFoundation() {
     return `<div class="snapshot-card"><strong>${freeze.training_years.join("、")} → ${freeze.validation_years.join("、")} <span class="tag">待后验数据</span></strong><small>规则 ${esc(freeze.rule_version)} · 截止 ${esc(freeze.data_cutoff)}</small><textarea data-observations="${freeze.id}" style="width:100%;margin-top:8px;min-height:58px">[{"entity_id":"structure-a","actual_positive":true},{"entity_id":"structure-b","actual_positive":false}]</textarea><div style="display:flex;gap:6px;margin-top:6px"><input data-observation-year="${freeze.id}" value="${freeze.validation_years[0]}" style="width:80px"><button class="button secondary small" data-evaluate="${freeze.id}">用后验观察集计算</button></div></div>`;
   }).join("") : `<p class="quiet">尚未冻结预测。没有冻结记录时，未来年份不能用于证明规则进步。</p>`;
   document.querySelectorAll("[data-evaluate]").forEach(button => button.onclick = () => evaluateFreeze(button.dataset.evaluate));
+}
+
+function liveLabelLibrary() {
+  return [...(state.label_library_snapshots || [])].reverse().find(item => item.status === "synced_local_readonly");
+}
+
+function renderLabelLibrarySync() {
+  const node = document.querySelector("#label-library-sync");
+  if (!node) return;
+  const live = liveLabelLibrary();
+  const buttons = `<div><button class="button primary small" id="sync-label-library">只读同步飞书标签库（lark-cli）</button><button class="button secondary small" id="rebuild-label-library">用本地已下载快照重算</button></div>`;
+  if (!live) {
+    node.innerHTML = `<div class="calibration-actions"><p class="quiet">代码里只冻结了标签库的表 ID 与版本，没有标签值。同步会以用户身份只读拉取六张表到本地 <code>outputs/l4_workbench/label_library/</code>，不写回飞书，也不进入代码仓库；随后把现有题目标签与现行词表比对，未命中项进入待映射队列。</p>${buttons}</div>`;
+    bindLabelLibraryButtons(node);
+    return;
+  }
+  const s = live.summary;
+  const audit = live.audit || {};
+  const dims = Object.entries(live.vocabulary || {}).map(([key, meta]) => `<tr><td>${esc(meta.label)}</td><td>${meta.total}</td><td><b>${meta.active_count}</b></td><td>${meta.status_counts["已删除"] || 0}</td><td>${meta.status_counts["待定"] || 0}</td><td>${(meta.status_counts["已修改"] || 0) + (meta.status_counts["新增"] || 0)}</td><td>${audit.counts?.[key] ? `${audit.counts[key].matched} / ${audit.counts[key].deprecated} / ${audit.counts[key].unknown}` : "—"}</td></tr>`).join("");
+  const queue = (state.unmatched_label_queue || []).filter(item => item.status === "待映射").slice(0, 10);
+  const queueRows = queue.map(item => `<div class="queue-row" data-queue-id="${esc(item.id)}"><div><strong>${esc(item.dimension_label)} · ${esc(item.label)}</strong><small>${item.occurrence_count} 次 · ${esc(item.bucket === "deprecated" ? "库内已删除/已改" : "库外")} · 建议：${esc((item.suggested_labels || []).join("、") || "无")}（${esc(item.suggestion_source)}）</small></div><div class="queue-actions"><input list="labels-${esc(item.dimension)}" placeholder="映射到现行标签" value="${esc((item.suggested_labels || [])[0] || "")}"><button class="button secondary small" type="button" data-map="已映射">映射</button><button class="button secondary small" type="button" data-map="保留为项目扩展">项目扩展</button></div></div>`).join("");
+  const datalists = Object.entries(live.vocabulary || {}).map(([key, meta]) => `<datalist id="labels-${esc(key)}">${meta.labels.filter(item => ["现行", "已修改", "新增"].includes(item.status)).map(item => `<option value="${esc(item.label)}"></option>`).join("")}</datalist>`).join("");
+  node.innerHTML = `<div class="panel-title" style="margin:16px 0 10px"><div><p class="eyebrow">现行标签库 · 只读同步</p><h3>${esc(live.source.base_name || "标签库")} · Base 版本 ${esc(live.source.base_revision ?? "—")} · ${esc(live.synced_at)}</h3></div><span class="status completed">本地快照 ${esc(live.id.slice(-12))}</span></div>
+    <div class="diagnosis-summary video-summary"><div><b>${s.total_rows}</b><span>六表总行数</span></div><div><b>${s.active_labels}</b><span>现行标签（含已修改/新增）</span></div><div><b>${s.deleted_labels}</b><span>已删除</span></div><div><b>${s.old_to_new_count}</b><span>显式旧→新映射</span></div></div>
+    <table class="preview-table library-table"><thead><tr><th>维度</th><th>行数</th><th>现行</th><th>已删除</th><th>待定</th><th>已修改/新增</th><th>题目标签 命中/已废弃/库外</th></tr></thead><tbody>${dims}</tbody></table>
+    <div class="evidence-limit"><strong>审计结论</strong><span>${esc(audit.conclusion || "尚未审计")}${audit.matched_rate != null ? `（命中率 ${(audit.matched_rate * 100).toFixed(1)}%，${audit.tag_count} 个标签，${audit.queue_size} 项待映射）` : ""}</span></div>
+    <p class="quiet">${esc((live.evidence_limits || []).join(" "))}</p>
+    <div class="calibration-actions"><p class="quiet">待映射队列按出现次数排序；映射只接受现行标签，“项目扩展”表示保留为当前项目自定义维度。以下只显示前 10 项。</p>${buttons}</div>
+    <div class="queue-list">${queueRows || `<p class="quiet">没有待映射标签。</p>`}</div>${datalists}`;
+  bindLabelLibraryButtons(node);
+  node.querySelectorAll("[data-map]").forEach(button => button.onclick = async () => {
+    const row = button.closest(".queue-row");
+    const mappedTo = button.dataset.map === "已映射" ? row.querySelector("input").value.trim() : "";
+    if (button.dataset.map === "已映射" && !mappedTo) { toast("请先填写要映射到的现行标签", true); return; }
+    try {
+      await api("/api/label-library/mappings", {method: "POST", body: JSON.stringify({id: row.dataset.queueId, decision: button.dataset.map, mapped_to: mappedTo})});
+      await load();
+      toast(button.dataset.map === "已映射" ? `已映射到“${mappedTo}”` : "已保留为项目扩展维度");
+    } catch (error) { toast(error.message, true); }
+  });
+}
+
+function bindLabelLibraryButtons(node) {
+  node.querySelector("#sync-label-library").onclick = () => syncLabelLibrary(true);
+  node.querySelector("#rebuild-label-library").onclick = () => syncLabelLibrary(false);
+}
+
+async function syncLabelLibrary(fetch) {
+  const button = document.querySelector(fetch ? "#sync-label-library" : "#rebuild-label-library");
+  if (button) { button.disabled = true; button.textContent = fetch ? "正在只读拉取六张表…" : "重算中…"; }
+  try {
+    const result = await api("/api/label-library/sync", {method: "POST", body: JSON.stringify({fetch})});
+    await load();
+    toast(`标签库快照已冻结：${result.snapshot.summary.active_labels} 个现行标签，${result.queue_size} 项待映射`);
+  } catch (error) { toast(error.message, true); await load(); }
 }
 
 function renderTagConfigurations() {
