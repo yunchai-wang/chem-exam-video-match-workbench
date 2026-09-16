@@ -9,6 +9,9 @@ from typing import Any, Callable
 from uuid import uuid4
 
 
+EXECUTION_MODES = {"dry_run", "skill_packet", "production"}
+
+
 def now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -56,6 +59,11 @@ class StageJobRunner:
         try:
             executor = self.executors.get(stage, self._dry_run_executor)
             job["output"] = executor(state, run)
+            # Executors may downgrade themselves (e.g. a Skill packet that has
+            # to fall back to a dry run); the job must record the honest mode.
+            declared_mode = (job["output"] or {}).get("execution_mode")
+            if declared_mode in EXECUTION_MODES:
+                job["execution_mode"] = declared_mode
             job["status"] = "completed"
             job["completed_at"] = now()
             return job, False

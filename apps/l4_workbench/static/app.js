@@ -97,7 +97,7 @@ function renderDataFoundation() {
   health.textContent = failed ? `${failed} 个失败任务` : `${state.jobs.length} 个任务 · 无失败`;
   health.className = `status ${failed ? "waiting" : "completed"}`;
   document.querySelector("#job-list").innerHTML = state.jobs.length ? [...state.jobs].reverse().slice(0, 14).map(job => `
-    <div class="job-row"><strong>${esc(job.stage)}</strong><small>${esc(job.idempotency_key.slice(0, 16))}…</small><span class="job-mode ${job.execution_mode}">${job.execution_mode === "dry_run" ? "契约预演" : "正式执行"}</span><span>${esc(job.status)}</span><span>尝试 ${job.attempts}</span></div>`).join("") : `<p class="quiet">启动一轮运行后，每个阶段都会生成幂等任务记录。</p>`;
+    <div class="job-row"><strong>${esc(job.stage)}</strong><small>${esc(job.idempotency_key.slice(0, 16))}…</small><span class="job-mode ${job.execution_mode}">${executionModeLabel(job.execution_mode)}</span><span>${esc(job.status)}</span><span>尝试 ${job.attempts}</span></div>`).join("") : `<p class="quiet">启动一轮运行后，每个阶段都会生成幂等任务记录。</p>`;
 
   const resultsByFreeze = Object.fromEntries(state.backtest_results.map(item => [item.freeze_id, item]));
   document.querySelector("#backtest-list").innerHTML = state.prediction_freezes.length ? [...state.prediction_freezes].reverse().map(freeze => {
@@ -348,6 +348,10 @@ function typeLabel(type) {
 
 function imageIntegrityLabel(value) {
   return ({preserved: "已保留", partial: "部分缺失", remote_reference_unmaterialized: "待物化", missing: "缺失", no_visual_declared: "无图"})[value] || value;
+}
+
+function executionModeLabel(mode) {
+  return ({dry_run: "契约预演", skill_packet: "Skill 执行包", production: "正式执行"})[mode] || mode;
 }
 
 function teachingTargetGateLabel(value) {
@@ -716,12 +720,38 @@ function renderArtifacts() {
   const list = document.querySelector("#artifact-list");
   const empty = document.querySelector("#artifact-empty");
   empty.style.display = state.artifacts.length ? "none" : "grid";
+  const jobsById = Object.fromEntries((state.jobs || []).map(job => [job.id, job]));
   list.innerHTML = [...state.artifacts].reverse().map(a => `
     <article class="artifact"><div><p class="eyebrow">${esc(a.kind)} · V${a.version}</p><h3>${esc(a.title)}</h3><p class="artifact-meta">${esc(a.status)}｜${esc(a.updated_at)}</p><p>${esc(a.summary)}</p>
       <ol class="outline">${a.outline.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
+      ${skillPacketMarkup(jobsById[a.skill_packet_job_id])}
       ${a.revision_notes.map(n => `<div class="revision">V${n.version}：${esc(n.summary)}（${n.rerun_stages.join(" → ")}）</div>`).join("")}
     </div><div class="feedback-box"><strong>只在成品处反馈也可以</strong><p class="quiet">例如：“逐字稿不够口语”“第二题不适合做母题”“原题图表缺失”。AI 会逆向归因。</p><textarea data-feedback="${a.id}" placeholder="写下修改意见，不需要判断应该改哪条规则…"></textarea><button class="button primary" data-submit-feedback="${a.id}">提交反馈并局部重跑</button></div></article>`).join("");
   document.querySelectorAll("[data-submit-feedback]").forEach(button => button.onclick = () => submitFeedback(button.dataset.submitFeedback));
+  document.querySelectorAll("[data-copy-prompt]").forEach(button => button.onclick = async () => {
+    const text = document.querySelector(`[data-prompt-text="${button.dataset.copyPrompt}"]`)?.textContent || "";
+    try { await navigator.clipboard.writeText(text); toast("Agent 提示词已复制"); } catch (error) { toast("复制失败，请手动选择文本", true); }
+  });
+}
+
+function skillPacketMarkup(job) {
+  if (!job || job.execution_mode !== "skill_packet") return "";
+  const packet = job.output;
+  const skills = (packet.skills || []).map(item => {
+    const resolved = item.resolved || {};
+    const fit = ({full: "完全适配", partial: "部分适配", reference_only: "仅作参考"})[item.fit] || item.fit;
+    return `<div class="skill-route-row"><div><strong>${esc(item.skill)}</strong><small>${esc(({primary: "主执行", review: "复审", standard: "标准参考"})[item.role] || item.role)} · ${esc(fit)}${resolved.path ? ` · ${esc(resolved.root)}` : ""}</small>${(item.adaptation_notes || []).map(note => `<small class="member-reason">${esc(note)}</small>`).join("")}</div><span class="tag ${resolved.available ? "good" : "risk"}">${resolved.available ? "本机已安装" : "本机未安装"}</span></div>`;
+  }).join("");
+  const inputs = packet.inputs || {};
+  const gates = (packet.gates || []).map(gate => `<li>${esc(gate)}</li>`).join("");
+  const retention = packet.figure_retention ? `${packet.figure_retention.retained_count}/${packet.figure_retention.source_count}` : "—";
+  return `<div class="skill-packet">
+    <div class="skill-packet-head"><strong>Skill 执行包 · ${esc(packet.lesson_type_label || "")}</strong><span class="tag">${esc(executionModeLabel(job.execution_mode))}</span><span class="tag">原题图表保留 ${esc(retention)}</span>${inputs.confirmed_group_count != null ? `<span class="tag good">${inputs.confirmed_group_count} 组已确认</span>` : ""}${inputs.unconfirmed_group_count ? `<span class="tag frequency">${inputs.unconfirmed_group_count} 组未确认不进入</span>` : ""}${inputs.mode ? `<span class="tag">${esc(inputs.mode.toUpperCase())} 模式</span>` : ""}</div>
+    <p class="quiet">${esc(packet.message || packet.status)}</p>
+    <div class="skill-route-list">${skills}</div>
+    <details><summary>门禁与预期产出</summary><ul class="gate-list">${gates}</ul><p class="quiet">预期产出：${esc((packet.expected_outputs || []).join("；") || "按 SKILL.md")}</p></details>
+    <details><summary>Agent 提示词（复制后交给 Cursor / Codex Agent 执行）</summary><pre class="agent-prompt" data-prompt-text="${esc(job.id)}">${esc(packet.agent_prompt || "")}</pre><button class="button secondary small" type="button" data-copy-prompt="${esc(job.id)}">复制提示词</button></details>
+  </div>`;
 }
 
 function renderRules() {
@@ -738,8 +768,20 @@ function renderSettings() {
   const defaultGrid = document.querySelector("#default-output-grid");
   defaultGrid.innerHTML = outputChoices(project.default_deliverables, "default-deliverable");
   defaultGrid.querySelectorAll("input").forEach(input => input.onchange = () => input.closest(".output-choice").classList.toggle("selected", input.checked));
+  document.querySelector("#lesson-type-select").value = project.lesson_type || "problem";
+  renderSkillRouteCatalog();
   document.querySelector("#strategy-grid").innerHTML = STAGES.map(([key, label]) => `<label class="strategy-row"><span>${label}</span><select name="strategy-${key}">${Object.entries(STRATEGIES).map(([value, text]) => `<option value="${value}" ${project.intervention_strategies[key] === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`).join("");
   document.querySelector("#permission-grid").innerHTML = Object.entries(PERMISSIONS).map(([key, label]) => `<label class="permission"><input type="checkbox" name="permission-${key}" ${project.preauthorizations[key] ? "checked" : ""}>${label}</label>`).join("");
+}
+
+function renderSkillRouteCatalog() {
+  const node = document.querySelector("#skill-route-catalog");
+  const catalog = state.skill_catalog;
+  if (!catalog) { node.innerHTML = ""; return; }
+  const stageLabel = Object.fromEntries(STAGES);
+  const stages = Object.entries(catalog.stages).map(([stage, items]) => `<div class="skill-stage"><strong>${esc(stageLabel[stage] || stage)}</strong>${items.map(item => `<div class="skill-route-row"><div><strong>${esc(item.skill)}</strong><small>${esc(({primary: "主执行", review: "复审", standard: "标准参考"})[item.role] || item.role)} · ${esc(({full: "完全适配", partial: "部分适配", reference_only: "仅作参考"})[item.fit] || item.fit)}</small>${(item.adaptation_notes || []).slice(0, 1).map(note => `<small class="member-reason">${esc(note)}</small>`).join("")}</div><span class="tag ${item.available ? "good" : "risk"}">${item.available ? "已安装" : "未安装"}</span></div>`).join("")}</div>`).join("");
+  const unrouted = catalog.unrouted.map(item => `<li><b>${esc(item.skill)}</b>${item.available ? "" : "（未安装）"}：${esc(item.reason)}</li>`).join("");
+  node.innerHTML = `<p class="quiet">当前按“${esc(catalog.lesson_type === "concept" ? "概念课" : "解题课")}”路由；改课型并保存后重新加载。Skill 搜索目录：${esc(catalog.roots.join("、"))}</p><div class="skill-stage-grid">${stages}</div><details><summary>相邻但未接入的 Skill</summary><ul class="gate-list">${unrouted}</ul></details>`;
 }
 
 async function startRun() {
@@ -772,6 +814,7 @@ async function saveProject(event) {
   const payload = {intervention_strategies: {}, preauthorizations: {}};
   FIELDS.forEach(([key]) => payload[key] = form.get(key));
   payload.default_deliverables = form.getAll("default-deliverable");
+  payload.lesson_type = form.get("lesson_type") || "problem";
   if (!payload.default_deliverables.length) { toast("项目默认交付物至少保留一种", true); return; }
   STAGES.forEach(([key]) => payload.intervention_strategies[key] = form.get(`strategy-${key}`));
   Object.keys(PERMISSIONS).forEach(key => payload.preauthorizations[key] = form.has(`permission-${key}`));

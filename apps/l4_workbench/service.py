@@ -27,12 +27,15 @@ from .downstream import create_downstream_task
 from .mother_question import build_mother_question_review, build_mother_question_run
 from .tag_configuration import build_tag_configuration
 from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
+from .skill_routing import SkillRegistry, normalize_lesson_type
+from .stage_executors import build_stage_executors
 
 
 PROJECT_FIELDS = {
     "name", "subject", "grade", "target_students", "target_region",
     "target_exam_type", "target_year", "content_scope", "planned_artifact",
     "problem_to_solve", "maturity", "intervention_scope", "default_deliverables",
+    "lesson_type",
 }
 
 
@@ -65,6 +68,7 @@ class WorkbenchService:
         store: JsonStore,
         base_adapter: LarkBaseAdapter | None = None,
         manifest_adapter: LocalManifestAdapter | None = None,
+        skill_registry: SkillRegistry | None = None,
     ) -> None:
         self.store = store
         self.store.initialize()
@@ -72,12 +76,14 @@ class WorkbenchService:
         self.standardizer = DocumentStandardizer(self.store.path.parent)
         self.base_adapter = base_adapter or LarkBaseAdapter()
         self.manifest_adapter = manifest_adapter or LocalManifestAdapter()
-        self.jobs = StageJobRunner()
+        self.skills = skill_registry or SkillRegistry()
+        self.jobs = StageJobRunner(build_stage_executors(self.skills))
 
     def get_state(self) -> dict[str, Any]:
         state = self.store.load()
         state["summary"] = self._summary(state)
         state["output_catalog"] = public_catalog()
+        state["skill_catalog"] = self.skills.catalog(state["project"].get("lesson_type", "problem"))
         return state
 
     @retry_concurrent_updates
@@ -89,7 +95,12 @@ class WorkbenchService:
             raise ValidationError(f"unknown project fields: {', '.join(sorted(unknown))}")
         for key in PROJECT_FIELDS:
             if key in patch:
-                project[key] = normalize_deliverables(patch[key]) if key == "default_deliverables" else patch[key]
+                if key == "default_deliverables":
+                    project[key] = normalize_deliverables(patch[key])
+                elif key == "lesson_type":
+                    project[key] = normalize_lesson_type(patch[key])
+                else:
+                    project[key] = patch[key]
         if "intervention_strategies" in patch:
             strategies = patch["intervention_strategies"]
             if not isinstance(strategies, dict):
@@ -683,6 +694,8 @@ class WorkbenchService:
             return any(q["coverage"]["status"] == "无法判断" for q in state["questions"])
         if stage == "selection":
             return any(q["quality"]["confidence"] < 0.6 for q in state["questions"])
+        if stage == "mother_question":
+            return bool(self._unconfirmed_exception_groups(state))
         return False
 
     def _exception_item_ids(self, state: dict[str, Any], stage: str) -> list[str]:
@@ -692,13 +705,31 @@ class WorkbenchService:
             return [q["id"] for q in state["questions"] if q["coverage"]["status"] == "无法判断"]
         if stage == "selection":
             return [q["id"] for q in state["questions"] if q["quality"]["confidence"] < 0.6]
+        if stage == "mother_question":
+            return self._unconfirmed_exception_groups(state)
         return []
+
+    @staticmethod
+    def _unconfirmed_exception_groups(state: dict[str, Any]) -> list[str]:
+        selection = state["selection_runs"][-1] if state["selection_runs"] else None
+        if not selection:
+            return []
+        run = next((item for item in reversed(state["mother_question_runs"]) if item["selection_run_id"] == selection["id"]), None)
+        if not run:
+            return []
+        reviewed = {item["group_id"] for item in state["mother_question_reviews"] if item["mother_question_run_id"] == run["id"]}
+        return [group["id"] for group in run["groups"] if group["exception"] and group["id"] not in reviewed]
 
     def _create_artifacts(self, state: dict[str, Any], run: dict[str, Any]) -> list[dict[str, Any]]:
         selected = [q for q in state["questions"] if q["id"] in run["selected_question_ids"]]
+        packets = {
+            job["stage"]: job for job in state["jobs"]
+            if job.get("run_id") == run["id"] and job.get("status") == "completed" and job.get("execution_mode") == "skill_packet"
+        }
         artifacts = []
         for deliverable_id in run.get("requested_deliverables", ["ppt"]):
             definition = DELIVERABLES[deliverable_id]
+            packet_job = packets.get(definition["target_stage"])
             artifact = {
                 "id": new_id("artifact"), "run_id": run["id"], "deliverable_id": deliverable_id,
                 "target_stage": definition["target_stage"],
@@ -708,7 +739,22 @@ class WorkbenchService:
                 "summary": f"围绕 {len(selected)} 道已入选题目形成“{definition['label']}”结构预览；依赖阶段不额外生成成品，真实 AI/Skill 执行器尚未接入。",
                 "outline": list(definition["outline"]),
                 "revision_notes": [],
+                "skill_packet_job_id": None,
             }
+            if packet_job:
+                output = packet_job["output"]
+                inputs = output.get("inputs", {})
+                primary = next((item for item in output.get("skills", []) if item["role"] == "primary"), None)
+                artifact.update({
+                    "status": "Skill 执行包已就绪，等待 Agent 执行（非正式成品）",
+                    "skill_packet_job_id": packet_job["id"],
+                    "summary": (
+                        f"已按“{output.get('lesson_type_label')}”路由到 Skill {primary['skill'] if primary else '—'}"
+                        f"（{'本机已安装' if primary and primary['resolved']['available'] else '本机未安装'}）；"
+                        f"输入为 {inputs.get('confirmed_group_count', 0)} 组已确认母题/题组、{inputs.get('figure_count', 0)} 张原题图。"
+                        "执行包不是成品，Agent 执行后需回填产出路径。"
+                    ),
+                })
             state["artifacts"].append(artifact)
             artifacts.append(artifact)
         return artifacts

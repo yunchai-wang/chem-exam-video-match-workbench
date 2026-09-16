@@ -149,6 +149,85 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(refreshed["summary"]["eligible_candidate_count"], 3)
         self.assertEqual(self.service.get_state()["summary"]["mother_question_run_count"], 2)
 
+    def test_demo_project_without_real_candidates_keeps_dry_run_executors(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["storyboard"]})
+        self.assertEqual(run["status"], "completed")
+        modes = {job["stage"]: job["execution_mode"] for job in self.service.get_state()["jobs"] if job["run_id"] == run["id"]}
+        self.assertEqual(modes["mother_question"], "dry_run")
+        self.assertEqual(modes["storyboard"], "dry_run")
+        artifact = self.service.get_state()["artifacts"][-1]
+        self.assertIsNone(artifact["skill_packet_job_id"])
+
+    def test_unconfirmed_mother_groups_block_lesson_plan_by_design_gate(self) -> None:
+        selection_id = self._seed_selection_run()
+        self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["lesson_plan"]})
+        self.assertEqual(run["status"], "failed")
+        self.assertEqual(run["stage_states"]["mother_question"], "completed")
+        self.assertEqual(run["stage_states"]["lesson_plan"], "failed")
+        self.assertIn("母题未经确认不能生成教案", run["error"])
+        mother_job = next(job for job in self.service.get_state()["jobs"] if job["run_id"] == run["id"] and job["stage"] == "mother_question")
+        self.assertEqual(mother_job["execution_mode"], "skill_packet")
+        self.assertFalse(mother_job["output"]["lesson_plan_ready"])
+
+    def test_confirmed_mother_groups_freeze_skill_packets_down_to_storyboard(self) -> None:
+        selection_id = self._seed_selection_run()
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.service.batch_confirm_mother_question_groups({"mother_question_run_id": mother["id"]})
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["transcript", "html"]})
+        self.assertEqual(run["status"], "completed")
+        jobs = {job["stage"]: job for job in self.service.get_state()["jobs"] if job["run_id"] == run["id"]}
+        for stage in ("mother_question", "lesson_plan", "transcript", "storyboard"):
+            self.assertEqual(jobs[stage]["execution_mode"], "skill_packet", stage)
+            self.assertFalse(jobs[stage]["output"]["production_ready"])
+            self.assertIn("agent_prompt", jobs[stage]["output"])
+        mother_packet = jobs["mother_question"]["output"]
+        self.assertEqual(mother_packet["inputs"]["confirmed_group_count"], 1)
+        self.assertEqual(mother_packet["inputs"]["member_count"], 2)
+        self.assertEqual(mother_packet["figure_retention"], {"source_count": 2, "retained_count": 2, "policy": "全部原题图表随题保留"})
+        member = mother_packet["inputs"]["confirmed_groups"][0]["members"][0]
+        self.assertEqual(member["figures"][0]["path"], f"{member['asset_id']}.png")
+        self.assertEqual(jobs["transcript"]["output"]["skills"][0]["skill"], "chemistry-problem-script")
+        self.assertEqual(jobs["storyboard"]["output"]["inputs"]["mode"], "html")
+        self.assertEqual(jobs["storyboard"]["output"]["skills"][0]["skill"], "onion-problem-storyboard")
+        artifacts = [item for item in self.service.get_state()["artifacts"] if item["run_id"] == run["id"]]
+        self.assertEqual({item["deliverable_id"] for item in artifacts}, {"transcript", "html"})
+        for artifact in artifacts:
+            self.assertEqual(artifact["skill_packet_job_id"], jobs[artifact["target_stage"]]["id"])
+            self.assertIn("等待 Agent 执行", artifact["status"])
+
+    def test_concept_lesson_type_routes_to_concept_skills(self) -> None:
+        selection_id = self._seed_selection_run()
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.service.batch_confirm_mother_question_groups({"mother_question_run_id": mother["id"]})
+        self.service.update_project({"lesson_type": "concept", "intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["storyboard"]})
+        jobs = {job["stage"]: job for job in self.service.get_state()["jobs"] if job["run_id"] == run["id"]}
+        self.assertEqual(jobs["lesson_plan"]["output"]["skills"][0]["skill"], "chemistry-concept-lesson-framework")
+        self.assertEqual(jobs["transcript"]["output"]["skills"][0]["skill"], "chemistry-concept-script")
+        self.assertEqual(jobs["storyboard"]["output"]["skills"][0]["skill"], "onion-concept-storyboard")
+        self.assertEqual(self.service.get_state()["skill_catalog"]["lesson_type"], "concept")
+
+    def test_exception_groups_pause_mother_stage_under_exceptions_strategy(self) -> None:
+        selection_id = self._seed_selection_run()
+        with self.service.store.transaction() as state:
+            run = state["selection_runs"][-1]
+            for candidate in run["results"]:
+                candidate["tag_profile"]["question"] = []
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.assertTrue(mother["groups"][0]["exception"])
+        strategies = {stage: "auto" for stage in STAGES}
+        strategies["mother_question"] = "exceptions"
+        self.service.update_project({"intervention_strategies": strategies})
+        run = self.service.start_run({"deliverables": ["lesson_plan"]})
+        self.assertEqual(run["status"], "waiting")
+        review = self.service.get_state()["reviews"][-1]
+        self.assertEqual(review["stage"], "mother_question")
+        self.assertEqual(review["item_ids"], [mother["groups"][0]["id"]])
+
     def test_mother_question_review_and_batch_confirm_skip_corrected_groups(self) -> None:
         selection_id = self._seed_selection_run()
         run = self.service.create_mother_question_run({"selection_run_id": selection_id})

@@ -221,6 +221,12 @@
           <div id="default-output-grid" class="output-choice-grid compact"></div>
         </div>
         <div class="settings-section">
+          <h3>课型与 Skill 执行路由</h3>
+          <p>母题、教案、逐字稿、分镜四个阶段不由工作台直接调用模型，而是按课型冻结“Skill 执行包”交给 Agent 执行。这里只显示本机 Skill 是否已安装，不会触发执行。</p>
+          <label class="lesson-type-row">本项目课型<select name="lesson_type" id="lesson-type-select"><option value="problem">解题课</option><option value="concept">概念课</option></select></label>
+          <div id="skill-route-catalog" class="skill-route-catalog"></div>
+        </div>
+        <div class="settings-section">
           <h3>教师介入节点</h3>
           <p>自动推进 / 只看异常 / 每次确认 / 禁止自动执行。未选中的人工节点不会等待老师。</p>
           <div id="strategy-grid" class="strategy-grid"></div>
