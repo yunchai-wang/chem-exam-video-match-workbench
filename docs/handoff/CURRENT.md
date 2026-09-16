@@ -15,7 +15,7 @@
 - Word 工作副本与产出回填基线：`755f5f0 feat(l4): editable Word working copies and skill output write-back`
 - 标签库只读同步基线：`491b0c4 feat(l4): read-only sync of the live label library and tag audit`
 - AI 逐小问补标基线：`26ddfe2 feat(l4): AI unit-tag fill for mother-question boundaries`
-- 视频证据索引基线：见本文件「已真实完成」第 39 条对应提交
+- 视频证据索引基线：`776f48a feat(l4): read-only Feishu index for video screenshots and transcripts`
 - 启动：`python3 apps/l4_course_evolution_workbench.py`
 - 页面：`http://127.0.0.1:8766/`
 
