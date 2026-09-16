@@ -25,6 +25,7 @@ from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
 from .downstream import create_downstream_task
 from .mother_question import build_mother_question_review, build_mother_question_run
+from .ai_unit_tag_fill import apply_ai_unit_tag_fill, build_ai_unit_tag_fill_run
 from .tag_configuration import build_tag_configuration
 from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
 from .skill_routing import SkillRegistry, normalize_lesson_type
@@ -433,6 +434,37 @@ class WorkbenchService:
                 f"{summary['progressive_group_count']} 组递进题组；原题图表 {summary['retained_figure_count']}/{summary['source_figure_count']} 全部保留",
             )
         return result
+
+    def create_ai_tag_fill_run(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        selection_run = self._find(state["selection_runs"], str(request.get("selection_run_id") or ""), "selection run")
+        diagnostic_run = next((item for item in state["diagnostic_runs"] if item["id"] == selection_run.get("diagnostic_run_id")), None)
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == selection_run.get("source_snapshot_id")] or state["question_assets"]
+        snapshot = next((item for item in reversed(state["label_library_snapshots"]) if item.get("vocabulary")), None)
+        dry_run = bool(request.get("dry_run"))
+        scope = str(request.get("scope") or "eligible")
+        result = build_ai_unit_tag_fill_run(
+            selection_run, state["selection_reviews"], assets,
+            label_snapshot=snapshot, unmatched_queue=state["unmatched_label_queue"],
+            diagnostic_run=diagnostic_run, scope=scope,
+        )
+        if dry_run:
+            result["status"] = "dry_run"
+            return result
+        with self.store.transaction() as current:
+            selection = self._find(current["selection_runs"], selection_run["id"], "selection run")
+            asset_pool = current["question_assets"]
+            applied = apply_ai_unit_tag_fill(selection, asset_pool, result)
+            current["ai_tag_fill_runs"] = [item for item in current["ai_tag_fill_runs"] if item["id"] != applied["id"]]
+            current["ai_tag_fill_runs"].append(applied)
+            summary = applied["summary"]
+            self._event(
+                current, "ai_tag_fill.applied",
+                f"已对 {summary['candidate_count']} 道候选做 AI 逐小问补标（待校准）："
+                f"{summary['candidates_with_unit_fills']} 题有小问任务、{summary['core_knowledge_fill_count']} 题有核心知识、"
+                f"{summary['question_type_fill_count']} 题补题型；未识别小问 {summary['unresolved_unit_count']} 个",
+            )
+        return applied
 
     def save_mother_question_review(self, request: dict[str, Any]) -> dict[str, Any]:
         state = self.store.load()
@@ -919,6 +951,7 @@ class WorkbenchService:
             "downstream_task_count": len(state["downstream_tasks"]),
             "mother_question_run_count": len(state["mother_question_runs"]),
             "mother_question_review_count": len(state["mother_question_reviews"]),
+            "ai_tag_fill_run_count": len(state["ai_tag_fill_runs"]),
             "tag_configuration_count": len(state["tag_configurations"]),
             "unmatched_label_count": sum(item.get("status") == "待映射" for item in state["unmatched_label_queue"]),
             "label_library_live": any(item.get("status") == "synced_local_readonly" for item in state["label_library_snapshots"]),

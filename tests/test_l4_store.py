@@ -50,7 +50,7 @@ class JsonStoreTests(unittest.TestCase):
                 state.pop(key, None)
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 14)
+            self.assertEqual(loaded["schema_version"], 15)
             self.assertEqual(loaded["project"]["default_deliverables"], ["ppt"])
             self.assertEqual(loaded["metadata"]["state_revision"], 0)
             self.assertEqual(loaded["question_assets"], [])
@@ -112,7 +112,7 @@ class JsonStoreTests(unittest.TestCase):
             }]
             path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
             loaded = JsonStore(path).load()
-            self.assertEqual(loaded["schema_version"], 14)
+            self.assertEqual(loaded["schema_version"], 15)
             self.assertEqual(loaded["project"]["default_deliverables"], ["ppt"])
             self.assertEqual(len(loaded["label_library_snapshots"]), 2)
             profile = loaded["question_assets"][0]["tag_profile"]

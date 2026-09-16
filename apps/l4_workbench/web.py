@@ -155,6 +155,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/mother-questions":
                 self._json(201, self.service.create_mother_question_run(payload))
                 return
+            if path == "/api/ai-tag-fills":
+                self._json(201, self.service.create_ai_tag_fill_run(payload))
+                return
             if path == "/api/mother-question-reviews":
                 self._json(200, self.service.save_mother_question_review(payload))
                 return

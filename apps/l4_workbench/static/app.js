@@ -619,18 +619,24 @@ function renderMotherQuestionCenter(selection) {
   const reviews = Object.fromEntries((state.mother_question_reviews || []).filter(item => run && item.mother_question_run_id === run.id).map(item => [item.group_id, item]));
   const head = `<div class="panel-title"><div><p class="eyebrow">母题路由 · ${esc(run ? run.rule_version : "mother-question-v0.1")}</p><h3>同构分组、母题提案与递进题组</h3></div><span class="status ${run ? "completed" : "waiting"}">${run ? `${Object.keys(reviews).length}/${run.groups.length} 组已确认` : "尚未生成提案"}</span></div>`;
   if (!run) {
-    node.innerHTML = `${head}<div class="calibration-actions"><p class="quiet">AI 只按显式共同底层结构分组：结构与作答边界一致才整合成母题；同结构但设问不同组成递进题组；仅知识点相同保持独立。每道原题及其全部图表随组保留，系统不自动拼图。</p><div><button class="button primary small" id="create-mother-run">从有效候选生成母题提案</button></div></div>`;
+    node.innerHTML = `${head}<div class="calibration-actions"><p class="quiet">AI 只按显式共同底层结构分组：结构与作答边界一致才整合成母题；同结构但设问不同组成递进题组；仅知识点相同保持独立。每道原题及其全部图表随组保留，系统不自动拼图。</p><div><button class="button secondary small" id="ai-unit-tag-fill">先 AI 逐小问补标（待校准）</button><button class="button primary small" id="create-mother-run">从有效候选生成母题提案</button></div></div>`;
+    node.querySelector("#ai-unit-tag-fill").onclick = () => runAiUnitTagFill(selection.id);
     node.querySelector("#create-mother-run").onclick = () => createMotherQuestionRun(selection.id);
     return;
   }
   const s = run.summary;
   const actionCounts = s.member_action_counts || {};
+  const fill = [...(state.ai_tag_fill_runs || [])].reverse().find(item => item.selection_run_id === selection.id);
+  const fillNote = fill
+    ? `<span class="tag frequency">${esc(fill.source)} · ${fill.summary.candidates_with_unit_fills}/${fill.summary.candidate_count} 题已补小问</span>`
+    : `<span class="tag">尚未 AI 补标</span>`;
   node.innerHTML = `${head}
     <div class="diagnosis-summary mother-summary"><div><b>${s.eligible_candidate_count}</b><span>有效题目单元</span></div><div><b>${s.mother_group_count}</b><span>整合成母题</span></div><div><b>${s.progressive_group_count}</b><span>递进题组</span></div><div><b>${s.independent_count}</b><span>保持独立</span></div><div><b>${s.exception_group_count}</b><span>异常组待看</span></div><div class="${s.figures_fully_retained ? "" : "health-risk"}"><b>${s.retained_figure_count}/${s.source_figure_count}</b><span>原题图表保留</span></div></div>
-    <div class="chip-row">${MEMBER_ACTIONS.map(action => `<span class="tag ${actionTagClass(action)}">${action} ${actionCounts[action] || 0}</span>`).join("")}<span class="tag">${esc(run.lesson_plan_gate)}</span></div>
+    <div class="chip-row">${MEMBER_ACTIONS.map(action => `<span class="tag ${actionTagClass(action)}">${action} ${actionCounts[action] || 0}</span>`).join("")}${fillNote}<span class="tag">${esc(run.lesson_plan_gate)}</span></div>
     <div class="evidence-limit"><strong>分组边界</strong><span>${esc(run.evidence_limits.join(" "))}</span></div>
-    <div class="calibration-actions"><p class="quiet">批量确认只接受非异常组，不覆盖老师已纠正的分组；候选去向变化后可按当前有效去向刷新提案，历史提案与确认记录保留。</p><div><a class="button secondary small" href="/api/exports/mother-questions/${encodeURIComponent(run.id)}.docx">下载审核稿 Word</a><button class="button secondary small" id="refresh-mother-run">按当前去向刷新提案</button><button class="button primary small" id="batch-confirm-mother">批量确认非异常组</button></div></div>
+    <div class="calibration-actions"><p class="quiet">批量确认只接受非异常组，不覆盖老师已纠正的分组；候选去向变化后可按当前有效去向刷新提案，历史提案与确认记录保留。补标不会把整题任务自动下沉到每个小问。</p><div><button class="button secondary small" id="ai-unit-tag-fill">AI 逐小问补标（待校准）</button><a class="button secondary small" href="/api/exports/mother-questions/${encodeURIComponent(run.id)}.docx">下载审核稿 Word</a><button class="button secondary small" id="refresh-mother-run">按当前去向刷新提案</button><button class="button primary small" id="batch-confirm-mother">批量确认非异常组</button></div></div>
     <div class="mother-group-list">${run.groups.map(group => motherGroupCard(run, group, reviews[group.id])).join("")}</div>`;
+  node.querySelector("#ai-unit-tag-fill").onclick = () => runAiUnitTagFill(selection.id, true);
   node.querySelector("#refresh-mother-run").onclick = () => createMotherQuestionRun(selection.id);
   node.querySelector("#batch-confirm-mother").onclick = () => batchConfirmMotherGroups(run.id);
   node.querySelectorAll("[data-mother-group]").forEach(form => form.onsubmit = saveMotherQuestionReview);
@@ -1154,6 +1160,20 @@ async function createMotherQuestionRun(selectionRunId) {
     await load();
     const s = result.summary;
     toast(`已形成 ${s.mother_group_count} 组母题提案、${s.progressive_group_count} 组递进题组；原题图表 ${s.retained_figure_count}/${s.source_figure_count} 全部保留`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function runAiUnitTagFill(selectionRunId, refreshMother = false) {
+  const button = document.querySelector("#ai-unit-tag-fill");
+  if (button) { button.disabled = true; button.textContent = "补标中…"; }
+  try {
+    const result = await api("/api/ai-tag-fills", {method: "POST", body: JSON.stringify({selection_run_id: selectionRunId, scope: "eligible"})});
+    const s = result.summary;
+    if (refreshMother) {
+      await api("/api/mother-questions", {method: "POST", body: JSON.stringify({selection_run_id: selectionRunId})});
+    }
+    await load();
+    toast(`AI 补标（待校准）完成：${s.candidates_with_unit_fills}/${s.candidate_count} 题有小问任务，${s.core_knowledge_fill_count} 题有核心知识；未识别小问 ${s.unresolved_unit_count}`);
   } catch (error) { toast(error.message, true); }
 }
 
