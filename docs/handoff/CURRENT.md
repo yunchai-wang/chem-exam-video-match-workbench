@@ -9,6 +9,7 @@
 - 可选校准台基线：`3207cf4 feat(l4): add optional boundary calibration workbench`
 - 三课库统一基线：`7ff1d84 feat(l4): unify video catalogs without double counting`
 - 真实候选池基线：`d4d6bd3 feat(l4): build real production candidate pool`
+- 多交付目标路由基线：`3cbdc4d feat(l4): route runs by selected deliverables`
 - 启动：`python3 apps/l4_course_evolution_workbench.py`
 - 页面：`http://127.0.0.1:8766/`
 
