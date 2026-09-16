@@ -1,4 +1,4 @@
-# L4 课程自进化平台｜Codex 接力包
+# L4 真题驱动的课程自进化平台｜Codex 接力包
 
 更新时间：2026-09-16
 
@@ -12,6 +12,7 @@
 - 多交付目标路由基线：`3cbdc4d feat(l4): route runs by selected deliverables`
 - 母题路由基线：`c7bb470 feat(l4): route confirmed candidates into mother-question proposals`
 - Skill 执行包基线：`d8d6555 feat(l4): wire mother→lesson→transcript→storyboard stages to local Skills`
+- Word 工作副本与产出回填基线：`755f5f0 feat(l4): editable Word working copies and skill output write-back`
 - 启动：`python3 apps/l4_course_evolution_workbench.py`
 - 页面：`http://127.0.0.1:8766/`
 
@@ -49,6 +50,9 @@
 30. 母题→教案→逐字稿→分镜四个阶段接入本机 Skill（`skill_routing.py` + `stage_executors.py`）。工作台不直接调模型，而是冻结“Skill 执行包”：已确认母题组及全部原题图、门禁、预期产出、可复制的 Agent 提示词；任务记录诚实标为 `skill_packet`（区别于 `dry_run` 与 `production`）。Skill 搜索目录：`~/.codex/skills`、`~/.cursor/skills`、`~/.claude/skills`、`~/.agents/skills`，可用 `L4_SKILL_ROOTS` 覆盖；未安装只标记不伪造。
 31. 路由（按项目课型 `lesson_type` = 解题课/概念课）：母题 → `chemistry-concept-lesson-framework/references/经典母题整合与教师审核.md`（初中，部分适配）＋ `onion-chemistry-course-design-review` 审核稿结构（仅参考）；教案 → 解题课用 `onion-chemistry-course-design-review`（高中 20～25 分钟，标为部分适配并附适配说明）、概念课用 `chemistry-concept-lesson-framework`；逐字稿 → `chemistry-problem-script` / `chemistry-concept-script` ＋ `onion-flavor-script-review` 复审；分镜 → `onion-problem-storyboard` / `onion-concept-storyboard`，附 `validate_storyboard.py` 路径。`onion-chemistry-candidate-assessment`（评估求职候选人）与 `course-data-analyst`（依赖视频数据 MCP）明确不接入生产链。
 32. 门禁落地：母题无教师确认分组时教案阶段按设计失败并给出中文原因；“只看异常”策略下未确认的异常母题组会让运行在母题阶段等待复核；逐字稿/分镜执行包要求 Agent 执行前填入已确认教案 / 定稿逐字稿路径。没有真实候选池的演示项目仍走契约预演，既有测试不变。真实 40 题候选池试跑：确认 8 组后一次运行到分镜，4 个阶段均为 `skill_packet`，10 道原题 10 张图全部进入执行包。全量 125 项测试通过。
+33. 平台正式命名为“L4 真题驱动的课程自进化平台”（页面、README、演示脚本、路线图、SVG 已同步；演示项目名不变）。
+34. Word 工作副本：`docx_writer.py` 仅用标准库生成可编辑 .docx（标题、段落、表格、按原始宽高比内嵌原图，缺图红字占位并附完整性报告），`exports.py` 提供三种下载：候选池、冻结题集、《经典母题整合审核稿（工作台提案版）》。每道原题的全部内容块与图片随题输出，响应头 `X-Figure-Count`/`X-Missing-Figure-Count` 暴露完整性。真实数据副本试跑：候选池 40 图、题集 12 图、审核稿 29 图全部嵌入、0 缺失；macOS QuickLook 可正常渲染。审核稿明确标出“完整母题题面 / 标准答案由 Skill 补入”和教师审核区，不冒充已完成整合。
+35. Skill 产出回填与教师确认：`POST /api/artifacts/<id>/outputs` 登记产出路径（记录登记时是否可读、来源 Skill、版本），`POST /api/artifacts/<id>/confirm` 由教师确认当前版本；反馈重跑会自动作废确认。逐字稿/分镜执行包会读取最近一份教师已确认的教案/逐字稿产出路径并写进门禁，找不到时明确说“工作台没有已确认成品”。全量 133 项测试通过。
 
 ## 未提交到 GitHub 的本地状态
 
@@ -65,12 +69,12 @@
 3. 给每个视频候选补齐实际命中的逐字稿片段、关键截图/页码或时间码，避免只显示视频名；对明显错配提供“排除本候选”及理由入口，并回写项目隔离覆盖规则。
 4. 对 7 个待核同名簇提供合并/拆分入口；身份未确认时仍只显示为候选，不能形成充分覆盖。
 5. 母题路由已落地为 `mother-question-v0.1`；下一步是把作答边界从“整题题型＋任务标签”升级为逐小问任务与解法标签，让真实候选池中的“作答边界待识别”组能收敛为母题或明确拆开。当前 40 题试跑没有一组能直接整合成母题，正是因为逐小问标签缺失，不应通过放松规则来凑数。
-6. Skill 执行包已接入四个阶段；下一步是“执行回填”：Agent 按执行包跑完 Skill 后，把产出（母题审核稿、教案、逐字稿、storyboard.json 等）路径与教师确认状态写回工作台成品记录，让教案确认、逐字稿定稿成为可查询状态，而不是只在门禁文字里要求核对。可先做 `POST /api/artifacts/<id>/outputs` 之类的回填接口 + 成品页展示。
-7. 用真实候选池跑通一次完整 Skill 执行：以 8 组已确认题组为输入，按母题执行包生成《经典母题整合审核稿》并交教师确认，再进教案。解题课教案 Skill 目前只有高中版（部分适配），若初中解题微课教案结构与之差异明显，应新建初中解题课教案 Skill 而不是继续套用。
-8. 增加候选题池与母题提案的 Word 可编辑下载，保证题干、选项、小问、表格和原图随题；下载是工作副本，不取代平台结构化主资产。
+6. 执行回填与 Word 下载已落地。下一步是用真实候选池跑通一次完整 Skill 执行：教师先在工作台确认母题分组，Agent 按母题执行包读取 `chemistry-concept-lesson-framework/references/经典母题整合与教师审核.md`，在下载的《经典母题整合审核稿》基础上补完整母题题面、标准答案与来源映射，回填到成品并交教师确认，再进教案。不要由 Agent 代替教师点“确认”。
+7. 解题课教案 Skill 目前只有高中版（部分适配）。跑过一次真实教案后，若初中解题微课的结构（5～8 分钟、单一认知跃迁）与高中 20～25 分钟版差异明显，应新建“初中解题课教案”Skill 并接入 `STAGE_SKILL_ROUTES`，而不是继续套用。
+8. 成品页目前只登记产出路径；可再加“读取回填的 .docx/.json 摘要”和“版本差异”视图，以及 storyboard.json 的自动校验（调用执行包里的 `validator_path`）。
 
 验收标准：标签值能追溯到明确版本，核心知识与干扰/提及知识分离；视频证据能定位到真实片段/截图且错配可排除；母题只合并同构单元并保留全部原题图；候选题可编辑下载不丢图表；教师可选介入且无反馈不阻塞；桌面/移动端无溢出；全量测试通过。
 
 ## 可直接交给梦楠 Codex 的续作提示词
 
-请接力开发这个 L4 课程自进化平台。先读取 `docs/handoff/CURRENT.md`、设计文档和路线图，确认分支为 `feature/l4-real-ingestion`，运行全量测试建立基线（`python3 -m unittest discover -s tests`；若 shell 设置了代理，API 测试已自动绕过）。母题路由 `mother-question-v0.1`（`apps/l4_workbench/mother_question.py`）与 Skill 执行包（`skill_routing.py`、`stage_executors.py`）已存在，不要重写；执行包是交给 Agent 的输入，不是成品，`skill_packet` 不得改标为 `production`。先完成标签底座的下一纵切：通过 lark-cli 只读同步现行六维标签值、状态、旧新映射和备注到使用者本地快照，用小规模题目/视频金样本补核心知识、干扰项知识、逐小问问题/解法、视频教学目标、片段类型和时间码，并重跑 `production-coverage-v0.4` 与母题提案，观察“作答边界待识别”组是否收敛。随后推进逐字稿命中片段、关键截图/页码或时间码和错配排除，再把已确认母题接入驾驶舱 `mother_question` 阶段执行器和教案阶段。不要把全部知识或仅提及知识冒充教学目标，不把同知识点但考查逻辑或作答边界不同的题硬拼，也不要通过放松边界规则来凑出母题；母题必须保留原题及全部图表。不要提交真实标签导出、试卷、题图、逐字稿、视频截图、账号信息或本地状态；不要把宣传匹配结论用于生产覆盖；不要让教师反馈成为 AI 继续运行的前提。完成后做桌面端和移动端验收，提交代码并更新本接力文件。
+请接力开发这个 L4 真题驱动的课程自进化平台。先读取 `docs/handoff/CURRENT.md`、设计文档和路线图，确认分支为 `feature/l4-real-ingestion`，运行全量测试建立基线（`python3 -m unittest discover -s tests`；若 shell 设置了代理，API 测试已自动绕过）。母题路由 `mother-question-v0.1`（`apps/l4_workbench/mother_question.py`）与 Skill 执行包（`skill_routing.py`、`stage_executors.py`）已存在，不要重写；执行包是交给 Agent 的输入，不是成品，`skill_packet` 不得改标为 `production`。先完成标签底座的下一纵切：通过 lark-cli 只读同步现行六维标签值、状态、旧新映射和备注到使用者本地快照，用小规模题目/视频金样本补核心知识、干扰项知识、逐小问问题/解法、视频教学目标、片段类型和时间码，并重跑 `production-coverage-v0.4` 与母题提案，观察“作答边界待识别”组是否收敛。随后推进逐字稿命中片段、关键截图/页码或时间码和错配排除，再把已确认母题接入驾驶舱 `mother_question` 阶段执行器和教案阶段。不要把全部知识或仅提及知识冒充教学目标，不把同知识点但考查逻辑或作答边界不同的题硬拼，也不要通过放松边界规则来凑出母题；母题必须保留原题及全部图表。不要提交真实标签导出、试卷、题图、逐字稿、视频截图、账号信息或本地状态；不要把宣传匹配结论用于生产覆盖；不要让教师反馈成为 AI 继续运行的前提。完成后做桌面端和移动端验收，提交代码并更新本接力文件。
