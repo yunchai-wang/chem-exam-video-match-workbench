@@ -32,6 +32,7 @@ from .skill_routing import SkillRegistry, normalize_lesson_type
 from .stage_executors import build_stage_executors
 from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
 from .label_library_sync import audit_tag_profiles, build_label_library_snapshot, fetch_label_tables
+from .video_evidence_index import apply_evidence_index_to_videos, build_video_evidence_index, fetch_video_evidence_sources
 
 
 ARTIFACT_OUTPUT_KINDS = {"docx", "markdown", "json", "csv", "pptx", "html", "pdf", "folder", "other"}
@@ -534,6 +535,37 @@ class WorkbenchService:
         self._event(state, "label_library.mapped", f"待映射标签“{entry['label']}”→{decision}{'：' + mapped_to if mapped_to else ''}")
         self.store.save(state)
         return entry
+
+    def sync_video_evidence_index(self, request: dict[str, Any]) -> dict[str, Any]:
+        evidence_dir = self.store.path.parent / "video_evidence_index"
+        raw_dir = Path(str(request.get("raw_dir") or evidence_dir / "raw")).expanduser()
+        fetch_report = None
+        if request.get("fetch", True):
+            fetch_report = fetch_video_evidence_sources(raw_dir)
+        snapshot = build_video_evidence_index(raw_dir)
+        with self.store.transaction() as state:
+            join = apply_evidence_index_to_videos(state["video_assets"], snapshot)
+            # Persist a compact snapshot without every candidate blob if huge; keep entries for local use.
+            compact = {key: value for key, value in snapshot.items() if key != "entries"}
+            compact["entry_count"] = snapshot["summary"]["entry_count"]
+            compact["join"] = join
+            # Keep entries in the gitignored values file only.
+            values_path = evidence_dir / "index-latest.json"
+            values_path.parent.mkdir(parents=True, exist_ok=True)
+            values_path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+            compact["values_path"] = str(values_path)
+            state["video_evidence_index_snapshots"] = [
+                item for item in state["video_evidence_index_snapshots"] if item["id"] != compact["id"]
+            ]
+            state["video_evidence_index_snapshots"].append(compact)
+            summary = snapshot["summary"]
+            self._event(
+                state, "video_evidence_index.synced",
+                f"已{'从飞书只读同步并' if fetch_report else '用本地快照'}冻结视频证据索引 {compact['id']}："
+                f"{summary['entry_count']} 条、定稿优先 {summary['preferred_dinggao']}、录音稿 {summary['preferred_recording']}、"
+                f"合集文档 {summary['preferred_collection']}；已回写 {join['matched_assets']} 个视频实体",
+            )
+        return {"snapshot": compact, "join": join, "fetched": bool(fetch_report)}
 
     # -- editable working copies ---------------------------------------------
     def export_selection_docx(self, selection_run_id: str) -> tuple[bytes, str, dict[str, Any]]:

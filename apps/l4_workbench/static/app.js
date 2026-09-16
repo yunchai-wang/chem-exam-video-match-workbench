@@ -165,6 +165,18 @@ async function syncLabelLibrary(fetch) {
   } catch (error) { toast(error.message, true); await load(); }
 }
 
+async function syncVideoEvidenceIndex(fetch) {
+  const button = document.querySelector(fetch ? "#sync-video-evidence-index" : "#rebuild-video-evidence-index");
+  if (button) { button.disabled = true; button.textContent = fetch ? "正在只读拉取截图与逐字稿指针…" : "重算中…"; }
+  try {
+    const result = await api("/api/video-evidence-index/sync", {method: "POST", body: JSON.stringify({fetch})});
+    await load();
+    const s = result.snapshot.summary || {};
+    const j = result.join || {};
+    toast(`证据索引已冻结：${s.entry_count || 0} 条（定稿 ${s.preferred_dinggao || 0} / 录音 ${s.preferred_recording || 0} / 合集 ${s.preferred_collection || 0}），回写 ${j.matched_assets || 0} 个视频`);
+  } catch (error) { toast(error.message, true); await load(); }
+}
+
 function renderTagConfigurations() {
   const node = document.querySelector("#tag-config-summary");
   const health = document.querySelector("#tag-config-health");
@@ -241,7 +253,8 @@ function renderVideoEvidence() {
     return;
   }
   const counts = videoImport.transcript_status_counts || {};
-  const strong = (counts["强匹配-文件名"] || 0) + (counts["强匹配-文件名+正文"] || 0) + (counts["本地素材直接匹配"] || 0);
+  const strong = (counts["强匹配-文件名"] || 0) + (counts["强匹配-文件名+正文"] || 0) + (counts["本地素材直接匹配"] || 0)
+    + (state.video_assets || []).filter(item => String(item.transcript_status || "").startsWith("索引")).length;
   const weak = (counts["弱匹配待人工复核"] || 0) + (counts["弱匹配待复核"] || 0);
   const diagnostic = [...(state.diagnostic_runs || [])].reverse()[0];
   const sample = diagnostic && [...(state.gold_sample_sets || [])].reverse().find(item => item.diagnostic_run_id === diagnostic.id);
@@ -259,14 +272,23 @@ function renderVideoEvidence() {
     return `<div class="coverage-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.status)}：${esc(item.reason)}</small></div><div>${candidate}</div></div>`;
   }).join("") : "";
   const transcriptUnmatched = state.video_assets.filter(item => item.transcript_status === "未匹配").length;
+  const indexed = state.video_assets.filter(item => String(item.transcript_status || "").startsWith("索引")).length;
+  const withLocator = state.video_assets.filter(item => item.segment_locator).length;
   const catalogCounts = videoImport.catalog_counts || {};
   const catalogCards = Object.entries(catalogCounts).map(([catalog, count]) => `<span class="tag catalog-tag"><b>${esc(catalog)}</b> ${count} 条目录记录</span>`).join("");
   const overlapBreakdown = videoImport.cross_catalog_entity_count
     ? `已确认 ${videoImport.confirmed_cross_catalog_entity_count || 0} 组 · 待核对 ${videoImport.candidate_cross_catalog_entity_count ?? videoImport.cross_catalog_entity_count} 组`
     : "没有跨课库同名簇";
+  const evidenceIndex = [...(state.video_evidence_index_snapshots || [])].reverse()[0];
+  const indexSummary = evidenceIndex
+    ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">索引定稿/录音 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span></div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
+    : `<p class="quiet">尚未同步飞书截图表与 Base 逐字稿指针。同步只读拉取链接/附件名/时间码，不把正文写入仓库；多份逐字稿优先定稿，其次录音稿。</p>`;
   node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.listing_count || videoImport.record_count}</b><span>课库目录记录</span></div><div><b>${videoImport.video_asset_count}</b><span>去重视频实体</span></div><div><b>${videoImport.cross_catalog_entity_count || 0}</b><span>跨课库同名簇</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
     <div class="catalog-strip">${catalogCards || `<span class="quiet">旧版清单未记录课库统计，重新导入后补齐。</span>`}<span class="tag catalog-tag">${esc(overlapBreakdown)}</span></div>
-    <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。候选会同时检索教材同步课、重难点培优和中考总复习培优；跨课库同名视频只占一个候选位置，但保留全部目录归属。旧 matches 和宣传白名单不作为生产覆盖结论。</p><div>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
+    ${indexSummary}
+    <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。候选会同时检索教材同步课、重难点培优和中考总复习培优；跨课库同名视频只占一个候选位置，但保留全部目录归属。旧 matches 和宣传白名单不作为生产覆盖结论。</p><div><button class="button secondary small" id="sync-video-evidence-index">只读同步截图+逐字稿索引</button><button class="button secondary small" id="rebuild-video-evidence-index">用本地快照重算索引</button>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
+  node.querySelector("#sync-video-evidence-index").onclick = () => syncVideoEvidenceIndex(true);
+  node.querySelector("#rebuild-video-evidence-index").onclick = () => syncVideoEvidenceIndex(false);
   if (action) node.querySelector("#run-coverage-diagnosis").onclick = () => runCoverageDiagnosis(diagnostic.id, sample.id, videoImport.id);
 }
 

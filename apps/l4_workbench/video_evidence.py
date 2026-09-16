@@ -19,6 +19,7 @@ VIDEO_ADAPTER_VERSION = "video-manifest-v0.3"
 COVERAGE_RULE_VERSION = "production-coverage-v0.4"
 STRONG_TRANSCRIPT_STATES = {"强匹配-文件名", "强匹配-文件名+正文", "本地素材直接匹配"}
 WEAK_TRANSCRIPT_STATES = {"弱匹配待人工复核", "弱匹配待复核"}
+INDEXED_TRANSCRIPT_STATES = {"索引定稿-待打开核验", "索引录音稿-待打开核验"}
 
 # A production match cannot rely on a structure label copied from an older
 # promotion-oriented manifest. At least one anchor group must also appear in
@@ -283,12 +284,16 @@ def _coverage_candidate(
     target_overlap: list[str],
     target_gate: str,
 ) -> dict[str, Any]:
-    strong_transcript = video["transcript_status"] in STRONG_TRANSCRIPT_STATES
+    strong_transcript = (
+        video["transcript_status"] in STRONG_TRANSCRIPT_STATES
+        or video["transcript_status"] in INDEXED_TRANSCRIPT_STATES
+    )
     coverage_candidate = bool(task_overlap and strong_transcript and target_gate in {"passed", "question_core_unresolved"})
     rank_score = 4 + min(len(task_overlap), 3) * 3 + (3 if strong_transcript else 0) + (2 if target_overlap else 0) + (1 if video["screenshot_tokens"] else 0)
     if coverage_candidate:
         target_reason = f"，教学目标交集为{'、'.join(target_overlap)}" if target_overlap else "；题目核心知识待识别，暂未启用知识目标门禁"
-        reason = f"同一底层结构“{structure}”，任务交集为{'、'.join(task_overlap)}{target_reason}；逐字稿摘要可核验。"
+        index_note = "索引定稿/录音稿可打开核验" if video["transcript_status"] in INDEXED_TRANSCRIPT_STATES else "逐字稿摘要可核验"
+        reason = f"同一底层结构“{structure}”，任务交集为{'、'.join(task_overlap)}{target_reason}；{index_note}。"
     elif target_gate == "mentioned_only":
         reason = "共同核心知识在视频中只是被提及，并非该片段教学目标，按生产口径不算覆盖。"
     elif target_gate == "target_missing":
@@ -299,6 +304,7 @@ def _coverage_candidate(
         reason = f"结构与任务相交，但逐字稿匹配状态为“{video['transcript_status']}”，证据不足。"
     else:
         reason = f"只命中底层结构“{structure}”，未通过设问任务门禁。"
+    preferred = ((video.get("evidence_index") or {}).get("preferred_transcript") or {})
     return {
         "video_id": video["video_id"], "video_name": video["video_name"], "structure": structure,
         "catalogs": video.get("catalogs") or [video.get("source") or "未标注课库"],
@@ -313,7 +319,8 @@ def _coverage_candidate(
         "prerequisite_knowledge_tags": video.get("prerequisite_knowledge_tags", []),
         "mentioned_knowledge_tags": video.get("mentioned_knowledge_tags", []),
         "segment_type": video.get("segment_type", "未标注"), "segment_locator": video.get("segment_locator", ""),
-        "evidence_level": video["evidence_level"], "screenshot_materialized": False,
+        "evidence_level": video["evidence_level"], "screenshot_materialized": bool(video.get("screenshot_tokens")),
+        "preferred_transcript": preferred or None,
         "coverage_candidate": coverage_candidate, "rank_score": rank_score, "reason": reason,
     }
 
