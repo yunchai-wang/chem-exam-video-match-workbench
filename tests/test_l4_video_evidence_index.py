@@ -10,7 +10,11 @@ from apps.l4_workbench.video_evidence_index import (
     INDEXED_DINGGAO,
     apply_evidence_index_to_videos,
     build_video_evidence_index,
+    enrich_collection_documents,
+    parse_collection_document,
 )
+from apps.l4_workbench.video_evidence import apply_candidate_exclusions, build_coverage_run
+
 
 
 def write_sheet(path: Path, annotated_csv: str) -> None:
@@ -85,6 +89,94 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         run = build_coverage_run(diagnostic, gold, video_import, [video])
         self.assertEqual(run["results"][0]["status"], "部分覆盖候选")
         self.assertTrue(run["results"][0]["candidates"][0]["coverage_candidate"])
+
+    def test_collection_doc_lifts_dinggao_and_segments(self) -> None:
+        xml = """
+        <title>合集</title>
+        <h3>定稿👇</h3>
+        <p><source name="【定稿】示例题.docx" mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document" token="tok1"/></p>
+        <p><cite doc-id="doc录音" file-type="docx" title="【录音稿】示例题" type="doc"></cite></p>
+        <p><source name="【定稿】示例.pptx" mime="application/vnd.openxmlformats-officedocument.presentationml.presentation" token="ppt1"/></p>
+        <h1>视频分片段</h1>
+        <table><tr><td><p>0:00-0:34</p></td><td><p>引入</p></td></tr>
+        <tr><td><p>0:35-8:00</p></td><td><p>例题</p></td></tr></table>
+        """
+        parsed = parse_collection_document(xml)
+        kinds = {item["kind"] for item in parsed["transcript_pointers"]}
+        self.assertIn("定稿", kinds)
+        self.assertIn("录音稿", kinds)
+        self.assertTrue(all("pptx" not in (item.get("title") or "").lower() or item["kind"] != "定稿" or "docx" in item["title"].lower() for item in parsed["transcript_pointers"]))
+        self.assertFalse(any("pptx" in (item.get("title") or "").lower() for item in parsed["transcript_pointers"]))
+        self.assertIn("0:00-0:34 引入", parsed["segment_locators"])
+
+        write_sheet(self.raw / "sheet-jG6GT9.csv-get.json", "\n".join([
+            "知识点名称（视频名称）,视频ID",
+            "NaOH变质后的成分分析题,vid-coll",
+        ]))
+        for sheet_id in ("sheet-e1mSBg", "sheet-L43kZ6"):
+            write_sheet(self.raw / f"{sheet_id}.csv-get.json", "视频名称\n")
+        (self.raw / "base-chem-pmo.records.ndjson").write_text(json.dumps({
+            "fields": {
+                "视频名称": "NaOH变质后的成分分析题",
+                "视频名称 / 文档链接": "[合集](https://guanghe.feishu.cn/docx/CollTok123)",
+            }
+        }, ensure_ascii=False) + "\n", encoding="utf-8")
+        for table_id in ("base-new-zk-b", "base-hard-b-total", "wiki-new-textbook-pmo"):
+            (self.raw / f"{table_id}.records.ndjson").write_text("", encoding="utf-8")
+
+        collections = self.raw / "collections"
+        collections.mkdir()
+        (collections / "CollTok123.fetch.json").write_text(json.dumps({
+            "data": {"document": {"content": xml}}
+        }, ensure_ascii=False), encoding="utf-8")
+
+        snapshot = build_video_evidence_index(self.raw)
+        enrichment = enrich_collection_documents(self.raw, snapshot, fetch=False)
+        self.assertEqual(enrichment["preferred_upgraded_from_collection"], 1)
+        entry = next(item for item in snapshot["entries"] if "NaOH" in (item.get("primary_name") or ""))
+        self.assertEqual(entry["preferred_transcript"]["kind"], "定稿")
+        self.assertTrue(any("0:00-0:34" in locator for locator in entry["segment_locators"]))
+        self.assertEqual(snapshot["sync_version"], "video-evidence-index-v0.2")
+
+        assets = [{
+            "video_id": "vid-coll", "video_name": "NaOH变质后的成分分析题",
+            "alias_video_ids": ["vid-coll"], "transcript_status": "未匹配",
+            "transcript_evidence": "", "screenshot_tokens": [], "segment_locator": "",
+            "issue_codes": ["transcript_not_verified"], "evidence_level": "E0",
+        }]
+        apply_evidence_index_to_videos(assets, snapshot)
+        self.assertEqual(assets[0]["transcript_status"], INDEXED_DINGGAO)
+        self.assertTrue(str(assets[0]["segment_locator"]).startswith("0:00-0:34"))
+
+    def test_exclude_candidate_recomputes_status(self) -> None:
+        video_good = {
+            "video_id": "v-good", "video_name": "好视频", "catalogs": ["重难点"],
+            "structural_keys": ["溶解度曲线"], "task_tags": ["信息提取"],
+            "transcript_status": INDEXED_DINGGAO, "screenshot_tokens": ["s"],
+            "teaching_target_tags": ["溶解度曲线"], "mentioned_knowledge_tags": [],
+            "lesson_mode": "解题课", "knowledge_contract": "problem_lesson_video",
+            "prerequisite_knowledge_tags": [], "segment_type": "例题", "segment_locator": "1:00-2:00",
+            "evidence_level": "E2", "hierarchy": "溶解度曲线", "content_summary": "溶解度曲线读图",
+            "transcript_evidence": "[定稿] x.docx",
+            "evidence_index": {"preferred_transcript": {"kind": "定稿", "title": "x.docx", "url": None}},
+        }
+        video_bad = {**video_good, "video_id": "v-bad", "video_name": "错配视频"}
+        diagnostic = {"id": "d1", "label_library_snapshot": {"id": "lib"}, "results": [{
+            "asset_id": "q1", "source_name": "卷", "question_no": "1",
+            "structural_keys": ["溶解度曲线"], "task_tags": ["信息提取"],
+            "tag_profile": {"knowledge": {"core": ["溶解度曲线"]}},
+        }]}
+        gold = {"id": "g1", "items": [{"asset_id": "q1"}]}
+        video_import = {"id": "vi1"}
+        run = build_coverage_run(diagnostic, gold, video_import, [video_good, video_bad])
+        self.assertEqual(run["results"][0]["status"], "部分覆盖候选")
+        apply_candidate_exclusions(run, [{
+            "id": "ex1", "asset_id": "q1", "video_id": "v-good", "reason": "考查小问不同", "status": "excluded",
+        }])
+        active = [item for item in run["results"][0]["candidates"] if not item.get("excluded")]
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0]["video_id"], "v-bad")
+        self.assertEqual(run["exclusion_count"], 1)
 
 
 if __name__ == "__main__":

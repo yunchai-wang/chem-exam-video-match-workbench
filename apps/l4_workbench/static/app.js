@@ -167,13 +167,14 @@ async function syncLabelLibrary(fetch) {
 
 async function syncVideoEvidenceIndex(fetch) {
   const button = document.querySelector(fetch ? "#sync-video-evidence-index" : "#rebuild-video-evidence-index");
-  if (button) { button.disabled = true; button.textContent = fetch ? "正在只读拉取截图与逐字稿指针…" : "重算中…"; }
+  if (button) { button.disabled = true; button.textContent = fetch ? "正在只读拉取截图、逐字稿与合集文档…" : "重算中…"; }
   try {
     const result = await api("/api/video-evidence-index/sync", {method: "POST", body: JSON.stringify({fetch})});
     await load();
     const s = result.snapshot.summary || {};
     const j = result.join || {};
-    toast(`证据索引已冻结：${s.entry_count || 0} 条（定稿 ${s.preferred_dinggao || 0} / 录音 ${s.preferred_recording || 0} / 合集 ${s.preferred_collection || 0}），回写 ${j.matched_assets || 0} 个视频`);
+    const e = result.collection_enrichment || {};
+    toast(`证据索引已冻结：${s.entry_count || 0} 条（定稿 ${s.preferred_dinggao || 0} / 录音 ${s.preferred_recording || 0} / 合集 ${s.preferred_collection || 0}），合集升格 ${e.preferred_upgraded_from_collection || 0}，回写 ${j.matched_assets || 0} 个视频`);
   } catch (error) { toast(error.message, true); await load(); }
 }
 
@@ -265,9 +266,9 @@ function renderVideoEvidence() {
     ? `<button class="button primary small" id="run-coverage-diagnosis">运行保守覆盖候选</button>` : "";
   const summary = coverage ? `<div class="diagnosis-summary video-summary"><div><b>${coverage.summary["部分覆盖候选"] || 0}</b><span>结构＋任务＋逐字稿证据</span></div><div><b>${coverage.summary["证据不足"] || 0}</b><span>结构相似但门禁不足</span></div><div><b>${coverage.summary["未发现可核验证据"] || 0}</b><span>未召回可靠候选</span></div><div><b>${coverage.summary["无法判断"] || 0}</b><span>题目底层结构待补</span></div></div>` : "";
   const rows = coverage ? coverage.results.slice(0, 12).map(item => {
-    const best = item.candidates[0];
+    const best = (item.candidates || []).find(candidate => !candidate.excluded) || item.candidates?.[0];
     const candidate = best
-      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}</strong><span class="catalog-line">课库：${esc((best.catalogs || []).join("、") || "未标注")}${best.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span class="catalog-line">片段：${esc(best.segment_type || "未标注")} ${esc(best.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(best.teaching_target_gate))}</span><small>${esc(best.reason)}</small>`
+      ? `<strong>${esc(best.video_id)}｜${esc(best.video_name)}${best.excluded ? "（已排除）" : ""}</strong><span class="catalog-line">课库：${esc((best.catalogs || []).join("、") || "未标注")}${best.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span class="catalog-line">片段：${esc(best.segment_type || "未标注")} ${esc(best.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(best.teaching_target_gate))}</span><small>${esc(best.reason)}</small>${best.excluded ? "" : `<button class="button secondary small" data-exclude-candidate data-coverage-run="${esc(coverage.id)}" data-asset="${esc(item.asset_id)}" data-video="${esc(best.video_id)}">排除本候选</button>`}`
       : `<strong>暂无视频候选</strong><small>${esc(item.reason)}</small>`;
     return `<div class="coverage-row"><div><strong>${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</strong><small>${esc(item.status)}：${esc(item.reason)}</small></div><div>${candidate}</div></div>`;
   }).join("") : "";
@@ -280,9 +281,10 @@ function renderVideoEvidence() {
     ? `已确认 ${videoImport.confirmed_cross_catalog_entity_count || 0} 组 · 待核对 ${videoImport.candidate_cross_catalog_entity_count ?? videoImport.cross_catalog_entity_count} 组`
     : "没有跨课库同名簇";
   const evidenceIndex = [...(state.video_evidence_index_snapshots || [])].reverse()[0];
+  const enrichment = evidenceIndex?.collection_enrichment;
   const indexSummary = evidenceIndex
-    ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">索引定稿/录音 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span></div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
-    : `<p class="quiet">尚未同步飞书截图表与 Base 逐字稿指针。同步只读拉取链接/附件名/时间码，不把正文写入仓库；多份逐字稿优先定稿，其次录音稿。</p>`;
+    ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">索引定稿/录音 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span>${enrichment ? `<span class="tag">合集升格 ${enrichment.preferred_upgraded_from_collection || 0}</span>` : ""}</div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
+    : `<p class="quiet">尚未同步飞书截图表与 Base 逐字稿指针。同步只读拉取链接/附件名/时间码，并解析合集文档内定稿/录音稿指针；不把正文写入仓库。</p>`;
   node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.listing_count || videoImport.record_count}</b><span>课库目录记录</span></div><div><b>${videoImport.video_asset_count}</b><span>去重视频实体</span></div><div><b>${videoImport.cross_catalog_entity_count || 0}</b><span>跨课库同名簇</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
     <div class="catalog-strip">${catalogCards || `<span class="quiet">旧版清单未记录课库统计，重新导入后补齐。</span>`}<span class="tag catalog-tag">${esc(overlapBreakdown)}</span></div>
     ${indexSummary}
@@ -290,6 +292,9 @@ function renderVideoEvidence() {
   node.querySelector("#sync-video-evidence-index").onclick = () => syncVideoEvidenceIndex(true);
   node.querySelector("#rebuild-video-evidence-index").onclick = () => syncVideoEvidenceIndex(false);
   if (action) node.querySelector("#run-coverage-diagnosis").onclick = () => runCoverageDiagnosis(diagnostic.id, sample.id, videoImport.id);
+  node.querySelectorAll("[data-exclude-candidate]").forEach(button => {
+    button.onclick = () => excludeCoverageCandidate(button.dataset.coverageRun, button.dataset.asset, button.dataset.video);
+  });
 }
 
 function renderCalibrationWorkbench() {
@@ -329,7 +334,7 @@ function renderCalibrationWorkbench() {
     };
     const image = asset?.content_blocks.find(block => block.type === "image" && block.path);
     const visual = image ? `<a href="${assetUrl(image.path)}" target="_blank" rel="noopener"><img src="${assetUrl(image.path)}" alt="${esc(asset.title)}原题图" loading="lazy"></a>` : `<div class="asset-visual-placeholder">本题没有已物化题图</div>`;
-    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}</strong><span>课库：${esc((candidate.catalogs || []).join("、") || "未标注")}${candidate.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span>片段：${esc(candidate.segment_type || "未标注")} ${esc(candidate.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(candidate.teaching_target_gate))}</span><span>${esc(candidate.reason)}</span></li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
+    const videos = coverageItem.candidates.length ? coverageItem.candidates.map(candidate => `<li><strong>${esc(candidate.video_id)}｜${esc(candidate.video_name)}${candidate.excluded ? "（已排除）" : ""}</strong><span>课库：${esc((candidate.catalogs || []).join("、") || "未标注")}${candidate.identity_status === "候选同一视频" ? " · 同名簇待核对" : ""}</span><span>片段：${esc(candidate.segment_type || "未标注")} ${esc(candidate.segment_locator || "无时间码")} · 教学目标门禁：${esc(teachingTargetGateLabel(candidate.teaching_target_gate))}</span><span>${esc(candidate.reason)}</span>${candidate.excluded ? "" : `<button type="button" class="button secondary small" data-exclude-candidate data-coverage-run="${esc(coverage.id)}" data-asset="${esc(item.asset_id)}" data-video="${esc(candidate.video_id)}">排除本候选</button>`}</li>`).join("") : `<li><span>${esc(coverageItem.reason)}</span></li>`;
     const issue = asset?.issue_codes?.length ? `<span class="tag risk">异常复核</span>` : "";
     const saved = review ? `<span class="tag ${review.status === "corrected" ? "frequency" : "good"}">${review.status === "corrected" ? "已纠正" : "已接受"}</span>` : `<span class="tag">未介入</span>`;
     const teacherReason = review?.reason_source === "teacher" ? review.reason : "";
@@ -338,6 +343,9 @@ function renderCalibrationWorkbench() {
   node.innerHTML = `<div class="diagnosis-summary video-summary"><div><b>${reviews.length}</b><span>已接受或纠正</span></div><div><b>${corrected}</b><span>形成隔离规则建议</span></div><div><b>${followup}</b><span>仍有证据边界</span></div><div><b>${unreviewed}</b><span>未介入但不阻塞</span></div></div><div class="calibration-actions"><p class="quiet">批量通过只接受非异常项，已有人工纠正不会被覆盖；科学性“待人工核验”等证据边界会原样保留。</p><button class="button primary small" id="batch-pass-calibrations">批量通过非异常项</button></div><div class="calibration-workbench-list">${cards}</div>`;
   node.querySelectorAll("[data-calibration-asset]").forEach(form => form.onsubmit = saveCalibration);
   node.querySelector("#batch-pass-calibrations").onclick = () => batchPassCalibrations(diagnostic.id, sample.id, coverage.id);
+  node.querySelectorAll("[data-exclude-candidate]").forEach(button => {
+    button.onclick = () => excludeCoverageCandidate(button.dataset.coverageRun, button.dataset.asset, button.dataset.video);
+  });
 }
 
 function renderStandardAssets() {
@@ -1090,6 +1098,23 @@ async function runCoverageDiagnosis(diagnosticRunId, goldSampleId, videoImportId
     await api("/api/coverage-diagnostics", {method: "POST", body: JSON.stringify({diagnostic_run_id: diagnosticRunId, gold_sample_id: goldSampleId, video_import_id: videoImportId})});
     await load();
     toast("保守视频覆盖候选已生成；充分覆盖仍保留教研复核门禁");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function excludeCoverageCandidate(coverageRunId, assetId, videoId) {
+  const reason = window.prompt("排除理由（必填，例如：题干结构不同 / 考查的是另一小问）");
+  if (reason == null) return;
+  if (!String(reason).trim()) {
+    toast("排除错配候选必须填写理由", true);
+    return;
+  }
+  try {
+    await api("/api/coverage-candidates/exclude", {
+      method: "POST",
+      body: JSON.stringify({coverage_run_id: coverageRunId, asset_id: assetId, video_id: videoId, reason: String(reason).trim()}),
+    });
+    await load();
+    toast("已排除该视频候选；覆盖状态已按剩余候选重算，不阻塞 AI");
   } catch (error) { toast(error.message, true); }
 }
 

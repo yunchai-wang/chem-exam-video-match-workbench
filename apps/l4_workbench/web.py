@@ -113,6 +113,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/video-evidence-index/sync":
                 self._json(201, self.service.sync_video_evidence_index(payload))
                 return
+            if path == "/api/coverage-candidates/exclude":
+                self._json(200, self.service.exclude_coverage_candidate(payload))
+                return
             if path == "/api/base/previews":
                 self._json(200, self.service.preview_base(payload))
                 return

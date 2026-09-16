@@ -20,7 +20,7 @@ from .manifest_adapter import LocalManifestAdapter
 from .pipeline import SourceSnapshotManager
 from .standardization import DocumentStandardizer, stable_id
 from .store import ConcurrentUpdateError, JsonStore
-from .video_evidence import build_coverage_run, build_video_import, load_video_records
+from .video_evidence import apply_candidate_exclusions, build_coverage_run, build_video_import, load_video_records
 from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
 from .downstream import create_downstream_task
@@ -32,8 +32,12 @@ from .skill_routing import SkillRegistry, normalize_lesson_type
 from .stage_executors import build_stage_executors
 from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
 from .label_library_sync import audit_tag_profiles, build_label_library_snapshot, fetch_label_tables
-from .video_evidence_index import apply_evidence_index_to_videos, build_video_evidence_index, fetch_video_evidence_sources
-
+from .video_evidence_index import (
+    apply_evidence_index_to_videos,
+    build_video_evidence_index,
+    enrich_collection_documents,
+    fetch_video_evidence_sources,
+)
 
 ARTIFACT_OUTPUT_KINDS = {"docx", "markdown", "json", "csv", "pptx", "html", "pdf", "folder", "other"}
 
@@ -306,9 +310,14 @@ class WorkbenchService:
         gold_sample = self._find(state["gold_sample_sets"], str(request.get("gold_sample_id") or ""), "gold sample")
         video_import = self._find(state["video_imports"], str(request.get("video_import_id") or ""), "video import")
         videos = [item for item in state["video_assets"] if item.get("source_snapshot_id") == video_import["source_snapshot_id"]]
-        result = build_coverage_run(diagnostic_run, gold_sample, video_import, videos)
+        result = build_coverage_run(
+            diagnostic_run, gold_sample, video_import, videos,
+            exclusions=state.get("coverage_candidate_exclusions") or [],
+        )
         existing = next((item for item in state["coverage_runs"] if item["id"] == result["id"]), None)
         if existing:
+            apply_candidate_exclusions(existing, state.get("coverage_candidate_exclusions") or [])
+            self.store.save(state)
             return existing
         assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == diagnostic_run["source_snapshot_id"]]
         with self.store.transaction() as current:
@@ -543,12 +552,20 @@ class WorkbenchService:
         if request.get("fetch", True):
             fetch_report = fetch_video_evidence_sources(raw_dir)
         snapshot = build_video_evidence_index(raw_dir)
+        parse_collections = request.get("parse_collections", True)
+        enrichment = None
+        if parse_collections:
+            enrichment = enrich_collection_documents(
+                raw_dir, snapshot, fetch=bool(request.get("fetch", True)),
+            )
         with self.store.transaction() as state:
             join = apply_evidence_index_to_videos(state["video_assets"], snapshot)
             # Persist a compact snapshot without every candidate blob if huge; keep entries for local use.
             compact = {key: value for key, value in snapshot.items() if key != "entries"}
             compact["entry_count"] = snapshot["summary"]["entry_count"]
             compact["join"] = join
+            if enrichment is not None:
+                compact["collection_enrichment"] = enrichment
             # Keep entries in the gitignored values file only.
             values_path = evidence_dir / "index-latest.json"
             values_path.parent.mkdir(parents=True, exist_ok=True)
@@ -559,13 +576,65 @@ class WorkbenchService:
             ]
             state["video_evidence_index_snapshots"].append(compact)
             summary = snapshot["summary"]
+            upgraded = (enrichment or {}).get("preferred_upgraded_from_collection", 0)
             self._event(
                 state, "video_evidence_index.synced",
                 f"已{'从飞书只读同步并' if fetch_report else '用本地快照'}冻结视频证据索引 {compact['id']}："
                 f"{summary['entry_count']} 条、定稿优先 {summary['preferred_dinggao']}、录音稿 {summary['preferred_recording']}、"
-                f"合集文档 {summary['preferred_collection']}；已回写 {join['matched_assets']} 个视频实体",
+                f"合集文档 {summary['preferred_collection']}"
+                f"{f'、合集升格 {upgraded}' if enrichment is not None else ''}；"
+                f"已回写 {join['matched_assets']} 个视频实体",
             )
-        return {"snapshot": compact, "join": join, "fetched": bool(fetch_report)}
+        return {"snapshot": compact, "join": join, "fetched": bool(fetch_report), "collection_enrichment": enrichment}
+
+    def exclude_coverage_candidate(self, request: dict[str, Any]) -> dict[str, Any]:
+        coverage_run_id = str(request.get("coverage_run_id") or "").strip()
+        asset_id = str(request.get("asset_id") or "").strip()
+        video_id = str(request.get("video_id") or "").strip()
+        reason = str(request.get("reason") or "").strip()
+        if not coverage_run_id or not asset_id or not video_id:
+            raise ValidationError("coverage_run_id、asset_id、video_id 均必填")
+        if not reason:
+            raise ValidationError("排除错配候选必须填写理由")
+        with self.store.transaction() as state:
+            run = self._find(state["coverage_runs"], coverage_run_id, "coverage run")
+            result = next((item for item in run["results"] if item["asset_id"] == asset_id), None)
+            if result is None:
+                raise ValidationError(f"coverage result not found for asset {asset_id}")
+            candidate = next((item for item in result.get("candidates") or [] if item["video_id"] == video_id), None)
+            if candidate is None:
+                raise ValidationError(f"video candidate {video_id} not found on this question")
+            existing = next(
+                (
+                    item for item in state["coverage_candidate_exclusions"]
+                    if item["asset_id"] == asset_id and item["video_id"] == video_id and item.get("status") == "excluded"
+                ),
+                None,
+            )
+            if existing:
+                existing["reason"] = reason
+                existing["coverage_run_id"] = coverage_run_id
+                existing["updated_at"] = now()
+                exclusion = existing
+            else:
+                exclusion = {
+                    "id": new_id("covex"),
+                    "coverage_run_id": coverage_run_id,
+                    "asset_id": asset_id,
+                    "video_id": video_id,
+                    "video_name": candidate.get("video_name"),
+                    "reason": reason,
+                    "status": "excluded",
+                    "created_at": now(),
+                    "updated_at": now(),
+                }
+                state["coverage_candidate_exclusions"].append(exclusion)
+            apply_candidate_exclusions(run, state["coverage_candidate_exclusions"])
+            self._event(
+                state, "coverage.candidate_excluded",
+                f"已排除候选 {video_id}（题目 {asset_id}）：{reason}",
+            )
+        return {"exclusion": exclusion, "coverage_run": run}
 
     # -- editable working copies ---------------------------------------------
     def export_selection_docx(self, selection_run_id: str) -> tuple[bytes, str, dict[str, Any]]:

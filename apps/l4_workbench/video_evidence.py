@@ -209,6 +209,7 @@ def build_coverage_run(
     gold_sample: dict[str, Any],
     video_import: dict[str, Any],
     video_assets: list[dict[str, Any]],
+    exclusions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not video_assets:
         raise ValidationError("coverage diagnosis requires video assets")
@@ -236,35 +237,88 @@ def build_coverage_run(
                 if previous is None or candidate["rank_score"] > previous["rank_score"]:
                     candidates[video["video_id"]] = candidate
         ranked = sorted(candidates.values(), key=lambda item: (-item["rank_score"], item["video_id"]))[:3]
-        if not question["structural_keys"]:
-            status = "无法判断"
-            reason = "题目缺少可验证的共同底层结构，不能仅凭知识点召回视频。"
-        elif not ranked:
-            status = "未发现可核验证据"
-            reason = "现有视频元数据中没有命中同一底层结构；这不等同于确认课库绝对未覆盖。"
-        elif ranked[0]["coverage_candidate"]:
-            status = "部分覆盖候选"
-            reason = "至少一个视频同时满足底层结构和设问任务门禁；仍需核对小问、作答边界及原视频截图。"
-        else:
-            status = "证据不足"
-            reason = "仅找到结构相近或逐字稿证据较弱的视频，按生产口径不判定已覆盖。"
-        results.append({
+        item = {
             "asset_id": question["asset_id"], "source_name": question["source_name"], "question_no": question["question_no"],
-            "status": status, "reason": reason, "candidates": ranked, "teacher_conclusion": "待复核",
-        })
-    summary = Counter(item["status"] for item in results)
+            "status": "", "reason": "", "candidates": ranked, "teacher_conclusion": "待复核",
+            "structure_missing": not bool(question.get("structural_keys")),
+        }
+        _recompute_coverage_result(item)
+        results.append(item)
     digest = hashlib.sha256(json.dumps({
         "diagnosis": diagnostic_run["id"], "sample": gold_sample["id"], "video_import": video_import["id"], "rule": COVERAGE_RULE_VERSION,
     }, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-    return {
+    run = {
         "id": f"coverage-{digest[:14]}", "diagnostic_run_id": diagnostic_run["id"],
         "gold_sample_id": gold_sample["id"], "video_import_id": video_import["id"],
         "rule_version": COVERAGE_RULE_VERSION, "status": "completed_with_manual_review",
-        "summary": dict(summary), "result_count": len(results), "results": results,
+        "summary": {}, "result_count": len(results), "results": results,
         "label_library_snapshot_id": diagnostic_run.get("label_library_snapshot", {}).get("id"),
-        "evidence_limits": ["原宣传匹配结论未被复用为生产覆盖结论。", "错误选项或内容中仅提及的知识点不算视频教学目标。", "自动结果最高只到“部分覆盖候选”，充分覆盖必须核验小问与作答边界。"],
+        "evidence_limits": [
+            "原宣传匹配结论未被复用为生产覆盖结论。",
+            "错误选项或内容中仅提及的知识点不算视频教学目标。",
+            "自动结果最高只到“部分覆盖候选”，充分覆盖必须核验小问与作答边界。",
+            "教师可排除错配候选；排除需写理由，不阻塞后续 AI 运行。",
+        ],
         "created_at": now(),
     }
+    apply_candidate_exclusions(run, exclusions or [])
+    return run
+
+
+def apply_candidate_exclusions(run: dict[str, Any], exclusions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Mark teacher-excluded video candidates and recompute per-question coverage status."""
+    active = {
+        (item["asset_id"], item["video_id"]): item
+        for item in exclusions
+        if item.get("status", "excluded") == "excluded"
+    }
+    for result in run.get("results") or []:
+        rewritten = []
+        for candidate in result.get("candidates") or []:
+            key = (result["asset_id"], candidate["video_id"])
+            if key in active:
+                exclusion = active[key]
+                reason = str(exclusion.get("reason") or "").strip()
+                rewritten.append({
+                    **candidate,
+                    "excluded": True,
+                    "coverage_candidate": False,
+                    "rank_score": -1,
+                    "exclusion_id": exclusion.get("id"),
+                    "reason": f"教师已排除本候选{'：' + reason if reason else '。'}",
+                })
+            else:
+                rewritten.append({**candidate, "excluded": False})
+        rewritten.sort(key=lambda item: (-item.get("rank_score", 0), item["video_id"]))
+        result["candidates"] = rewritten
+        _recompute_coverage_result(result)
+    run["summary"] = dict(Counter(item["status"] for item in run.get("results") or []))
+    run["exclusion_count"] = sum(
+        1 for result in run.get("results") or [] for candidate in result.get("candidates") or [] if candidate.get("excluded")
+    )
+    return run
+
+
+def _recompute_coverage_result(result: dict[str, Any]) -> None:
+    if result.get("structure_missing"):
+        result["status"] = "无法判断"
+        result["reason"] = "题目缺少可验证的共同底层结构，不能仅凭知识点召回视频。"
+        return
+    active = [item for item in result.get("candidates") or [] if not item.get("excluded")]
+    if not active:
+        if any(item.get("excluded") for item in result.get("candidates") or []):
+            result["status"] = "未发现可核验证据"
+            result["reason"] = "可用候选均已被教师排除；这不等于确认课库绝对未覆盖。"
+        else:
+            result["status"] = "未发现可核验证据"
+            result["reason"] = "现有视频元数据中没有命中同一底层结构；这不等同于确认课库绝对未覆盖。"
+        return
+    if active[0].get("coverage_candidate"):
+        result["status"] = "部分覆盖候选"
+        result["reason"] = "至少一个视频同时满足底层结构和设问任务门禁；仍需核对小问、作答边界及原视频截图。"
+    else:
+        result["status"] = "证据不足"
+        result["reason"] = "仅找到结构相近或逐字稿证据较弱的视频，按生产口径不判定已覆盖。"
 
 
 def load_video_records(path: Path) -> list[dict[str, Any]]:

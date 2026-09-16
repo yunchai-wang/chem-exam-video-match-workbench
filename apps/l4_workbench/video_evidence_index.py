@@ -22,10 +22,22 @@ from .domain import ValidationError
 from .video_evidence import STRONG_TRANSCRIPT_STATES, WEAK_TRANSCRIPT_STATES, normalize_video_title
 
 
-SYNC_VERSION = "video-evidence-index-v0.1"
+SYNC_VERSION = "video-evidence-index-v0.2"
 INDEXED_DINGGAO = "索引定稿-待打开核验"
 INDEXED_RECORDING = "索引录音稿-待打开核验"
 INDEXED_TRANSCRIPT_STATES = {INDEXED_DINGGAO, INDEXED_RECORDING}
+
+DOCX_TOKEN = re.compile(r"/docx/([A-Za-z0-9]+)")
+SOURCE_TAG = re.compile(r"<source\b([^>]*)/?>", re.I)
+CITE_TAG = re.compile(r"<cite\b([^>]*)/?>", re.I)
+XML_ATTR = re.compile(r'([\w-]+)="([^"]*)"')
+SEGMENT_ROW = re.compile(
+    r"<tr>\s*<td><p>(\d{1,2}\s*[:：]\s*\d{2}[^<]*)</p></td>\s*<td><p>([^<]*)</p></td>\s*</tr>",
+    re.I,
+)
+DOC_SUFFIXES = (".docx", ".doc", ".pdf", ".txt")
+PPT_SUFFIXES = (".pptx", ".ppt")
+MEDIA_SUFFIXES = (".mp3", ".mp4", ".wav", ".m4a", ".mov")
 
 SCREENSHOT_SHEETS = [
     {
@@ -307,10 +319,242 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
         "synced_at": now(),
         "evidence_limits": [
             "索引只保存链接、附件名与截图/时间码定位，不把逐字稿正文写入代码仓库。",
-            "合集云文档内的附件需打开文档后再核验；索引命中不等于已完成人工审稿。",
-            "覆盖诊断可将索引定稿/录音稿视为可核验指针，但仍需打开核对小问与作答边界。",
+            "合集云文档可只读解析其中的定稿/录音稿/逐字稿指针与片段表；PPT 定稿与音视频附件不算逐字稿。",
+            "索引命中不等于已完成人工审稿；覆盖诊断仍需打开核对小问与作答边界。",
         ],
+        "collection_enrichment": None,
     }
+
+
+def enrich_collection_documents(
+    raw_dir: Path,
+    snapshot: dict[str, Any],
+    *,
+    fetch: bool = True,
+    identity: str = "user",
+) -> dict[str, Any]:
+    """Open collection docx links read-only; lift 定稿/录音稿 pointers and segment tables."""
+    collections_dir = raw_dir / "collections"
+    collections_dir.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "LARK_CLI_NO_PROXY": "1"}
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        env.pop(key, None)
+
+    url_by_token: dict[str, str] = {}
+    for entry in snapshot.get("entries") or []:
+        for candidate in entry.get("transcript_candidates") or []:
+            if candidate.get("kind") != "合集文档":
+                continue
+            token = _docx_token(candidate.get("url") or "")
+            if token:
+                url_by_token[token] = str(candidate["url"]).split("?", 1)[0]
+
+    report: dict[str, Any] = {
+        "collection_url_count": len(url_by_token),
+        "fetched": 0,
+        "cached": 0,
+        "failed": 0,
+        "failures": [],
+        "pointer_count": 0,
+        "segment_locator_count": 0,
+        "entries_touched": 0,
+        "preferred_upgraded_from_collection": 0,
+    }
+    parsed_by_token: dict[str, dict[str, Any]] = {}
+    for token, url in sorted(url_by_token.items()):
+        cache = collections_dir / f"{token}.fetch.json"
+        payload: dict[str, Any] | None = None
+        if cache.is_file() and not fetch:
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+            report["cached"] += 1
+        elif cache.is_file() and fetch:
+            # Refresh when fetch=True; keep stale cache on soft-fail.
+            try:
+                payload = _fetch_collection_doc(url, env, identity=identity)
+                cache.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                report["fetched"] += 1
+            except ValidationError as error:
+                payload = json.loads(cache.read_text(encoding="utf-8"))
+                report["cached"] += 1
+                report["failures"].append({"token": token, "url": url, "error": str(error), "used_cache": True})
+        else:
+            try:
+                payload = _fetch_collection_doc(url, env, identity=identity)
+                cache.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                report["fetched"] += 1
+            except ValidationError as error:
+                report["failed"] += 1
+                report["failures"].append({"token": token, "url": url, "error": str(error), "used_cache": False})
+                continue
+        content = (((payload or {}).get("data") or {}).get("document") or {}).get("content") or ""
+        if not content and isinstance(payload, dict):
+            content = str(payload.get("content") or "")
+        parsed_by_token[token] = parse_collection_document(content)
+
+    for entry in snapshot.get("entries") or []:
+        before_kind = (entry.get("preferred_transcript") or {}).get("kind")
+        touched = False
+        for candidate in list(entry.get("transcript_candidates") or []):
+            if candidate.get("kind") != "合集文档":
+                continue
+            token = _docx_token(candidate.get("url") or "")
+            parsed = parsed_by_token.get(token)
+            if not parsed:
+                continue
+            touched = True
+            for pointer in parsed.get("transcript_pointers") or []:
+                _offer_transcript(entry, {
+                    "kind": pointer["kind"],
+                    "title": pointer["title"],
+                    "url": pointer.get("url"),
+                    "file_token": pointer.get("file_token"),
+                    "source_id": f"collection:{token}",
+                    "source_label": f"合集解析·{candidate.get('title') or token}",
+                    "match_status": "from_collection_doc",
+                })
+                report["pointer_count"] += 1
+            locators = parsed.get("segment_locators") or []
+            if locators:
+                entry["segment_locators"] = list(dict.fromkeys([*(entry.get("segment_locators") or []), *locators]))
+                report["segment_locator_count"] += len(locators)
+        if touched:
+            report["entries_touched"] += 1
+            entry["preferred_transcript"] = _prefer_transcript(entry.get("transcript_candidates") or [])
+            after_kind = (entry.get("preferred_transcript") or {}).get("kind")
+            if before_kind == "合集文档" and after_kind in {"定稿", "录音稿"}:
+                report["preferred_upgraded_from_collection"] += 1
+
+    values = snapshot.get("entries") or []
+    snapshot["summary"] = {
+        "entry_count": len(values),
+        "with_preferred_transcript": sum(1 for item in values if item.get("preferred_transcript")),
+        "preferred_dinggao": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "定稿"),
+        "preferred_recording": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "录音稿"),
+        "preferred_collection": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "合集文档"),
+        "with_segment_locator": sum(1 for item in values if item.get("segment_locators")),
+        "with_screenshot_token": sum(1 for item in values if item.get("screenshot_tokens")),
+        "source_sheet_count": snapshot.get("summary", {}).get("source_sheet_count", 0),
+        "source_table_count": snapshot.get("summary", {}).get("source_table_count", 0),
+        "collection_docs_parsed": report["fetched"] + report["cached"],
+        "collection_preferred_upgraded": report["preferred_upgraded_from_collection"],
+    }
+    checksum = hashlib.sha256(json.dumps([
+        (item["key"], (item.get("preferred_transcript") or {}).get("kind"), (item.get("preferred_transcript") or {}).get("title"),
+         item.get("segment_locators"), item.get("screenshot_tokens"))
+        for item in values
+    ], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+    snapshot["id"] = f"video-evidence-index-{checksum[:12]}"
+    snapshot["checksum"] = checksum
+    snapshot["sync_version"] = SYNC_VERSION
+    snapshot["selection_policy"] = (
+        "同一视频多份逐字稿时优先最后一份定稿，其次录音稿，再次合集云文档链接；"
+        "合集文档会只读解析其中的定稿/录音稿/逐字稿指针与片段时间表；不下载正文进仓库。"
+    )
+    snapshot["collection_enrichment"] = report
+    snapshot["synced_at"] = now()
+    return report
+
+
+def parse_collection_document(content: str) -> dict[str, Any]:
+    """Extract transcript pointers and segment locators from a collection doc XML body."""
+    pointers: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add(pointer: dict[str, Any]) -> None:
+        signature = json.dumps(
+            {"kind": pointer.get("kind"), "title": pointer.get("title"), "url": pointer.get("url"), "file_token": pointer.get("file_token")},
+            ensure_ascii=False, sort_keys=True,
+        )
+        if signature in seen:
+            return
+        seen.add(signature)
+        pointers.append(pointer)
+
+    for match in SOURCE_TAG.finditer(content or ""):
+        attrs = dict(XML_ATTR.findall(match.group(1)))
+        name = attrs.get("name") or ""
+        kind = _kind_from_collection_attachment(name, attrs.get("mime") or "")
+        if not kind:
+            continue
+        add({
+            "kind": kind,
+            "title": name,
+            "url": None,
+            "file_token": attrs.get("token"),
+            "origin": "collection_attachment",
+        })
+    for match in CITE_TAG.finditer(content or ""):
+        attrs = dict(XML_ATTR.findall(match.group(1)))
+        title = attrs.get("title") or ""
+        kind = _kind_from_collection_cite(title)
+        if not kind:
+            continue
+        doc_id = attrs.get("doc-id") or ""
+        file_type = attrs.get("file-type") or "docx"
+        url = None
+        if doc_id:
+            url = (
+                f"https://guanghe.feishu.cn/wiki/{doc_id}"
+                if file_type == "wiki"
+                else f"https://guanghe.feishu.cn/docx/{doc_id}"
+            )
+        add({
+            "kind": kind,
+            "title": title,
+            "url": url,
+            "file_token": doc_id or None,
+            "origin": "collection_cite",
+        })
+
+    locators: list[str] = []
+    for match in SEGMENT_ROW.finditer(content or ""):
+        locator = re.sub(r"\s+", "", match.group(1)).replace("：", ":")
+        label = _clean(match.group(2))
+        locators.append(f"{locator} {label}".strip() if label else locator)
+    return {"transcript_pointers": pointers, "segment_locators": list(dict.fromkeys(locators))}
+
+
+def _kind_from_collection_attachment(name: str, mime: str) -> str | None:
+    text = str(name or "")
+    lower = text.lower()
+    mime_l = str(mime or "").lower()
+    if lower.endswith(PPT_SUFFIXES) or "presentation" in mime_l or "PPT定稿" in text:
+        return None
+    if lower.endswith(MEDIA_SUFFIXES) or mime_l.startswith(("audio/", "video/", "image/")):
+        return None
+    is_doc = lower.endswith(DOC_SUFFIXES) or "wordprocessing" in mime_l or "pdf" in mime_l
+    if "逐字稿" in text:
+        return "定稿"
+    if "定稿" in text and is_doc:
+        return "定稿"
+    if "录音稿" in text or ("脚本" in text and is_doc and "PPT" not in text):
+        return "录音稿"
+    return None
+
+
+def _kind_from_collection_cite(title: str) -> str | None:
+    text = str(title or "")
+    if any(marker in text for marker in ("PPT", "教案", "反馈", "说课", "大纲")):
+        return None
+    if "逐字稿" in text or "定稿" in text:
+        return "定稿"
+    if "录音稿" in text:
+        return "录音稿"
+    return None
+
+
+def _docx_token(url: str) -> str | None:
+    match = DOCX_TOKEN.search(str(url or ""))
+    return match.group(1) if match else None
+
+
+def _fetch_collection_doc(url: str, env: dict[str, str], *, identity: str) -> dict[str, Any]:
+    return _run([
+        "lark-cli", "docs", "+fetch",
+        "--doc", url,
+        "--doc-format", "xml",
+        "--as", identity,
+    ], env)
 
 
 def apply_evidence_index_to_videos(video_assets: list[dict[str, Any]], snapshot: dict[str, Any]) -> dict[str, Any]:
