@@ -37,7 +37,7 @@
         <span class="rule-pill" id="rule-version">规则版本 —</span>
         <span class="rule-pill" id="label-library-version">标签库 —</span>
         <button class="button secondary" id="auto-mode">切换为完全自动</button>
-        <button class="button primary" id="start-run">开始 AI 运行</button>
+        <button class="button primary" id="start-run">按所选产出运行</button>
       </div>
     </header>
 
@@ -50,6 +50,13 @@
         </div>
         <div class="hero-orbit"><span>诊断</span><span>生产</span><span>验证</span><strong>进化</strong></div>
       </div>
+
+      <article class="panel output-planner">
+        <div class="panel-title"><div><p class="eyebrow">本次交付目标</p><h3>老师选择最终要拿到什么，AI 自动补齐依赖</h3></div><span class="safe-badge">仅本次生效</span></div>
+        <div id="run-output-picker" class="output-choice-grid"></div>
+        <div class="output-route-preview"><strong>本次自动运行路径</strong><span id="output-route-preview">—</span></div>
+        <p class="form-hint">经过某个依赖阶段，不等于额外交付该阶段成品。例如选择“逐字稿”会先完成教案依赖，但只交付逐字稿。项目默认可在“生产项目设置”中随时修改。</p>
+      </article>
 
       <div class="metrics" id="metrics"></div>
 
@@ -207,6 +214,11 @@
       <div class="section-heading"><div><p class="eyebrow">当前生产项目</p><h2>目标、介入方式与连接配置</h2><p>项目默认可以随时调整；单次任务设置将优先覆盖项目默认。</p></div></div>
       <form id="project-form" class="panel settings-form">
         <div class="form-grid" id="project-fields"></div>
+        <div class="settings-section">
+          <h3>项目默认交付物</h3>
+          <p>新一轮任务默认勾选这些成品；驾驶舱里的单次选择只覆盖本次，不会悄悄修改这里。</p>
+          <div id="default-output-grid" class="output-choice-grid compact"></div>
+        </div>
         <div class="settings-section">
           <h3>教师介入节点</h3>
           <p>自动推进 / 只看异常 / 每次确认 / 禁止自动执行。未选中的人工节点不会等待老师。</p>

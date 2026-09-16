@@ -74,7 +74,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         try:
             payload = self._payload()
             if path == "/api/runs":
-                self._json(201, self.service.start_run())
+                self._json(201, self.service.start_run(payload))
                 return
             if path == "/api/source-snapshots":
                 self._json(201, self.service.create_source_snapshot(payload))

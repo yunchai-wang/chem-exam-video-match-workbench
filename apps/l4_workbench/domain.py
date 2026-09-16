@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 11
+CURRENT_SCHEMA_VERSION = 12
 
 
 STAGES = [
@@ -156,6 +156,10 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
         state.setdefault("parse_quality_reviews", [])
         state.setdefault("project", {}).setdefault("active_tag_configuration_id", None)
         state["schema_version"] = 11
+        version = 11
+    if version == 11:
+        state.setdefault("project", {}).setdefault("default_deliverables", ["ppt"])
+        state["schema_version"] = 12
     return state
 
 
@@ -168,6 +172,9 @@ def validate_state(state: dict[str, Any]) -> None:
     project = state.get("project")
     if not isinstance(project, dict):
         raise ValidationError("project must be an object")
+
+    from .output_planning import normalize_deliverables
+    normalize_deliverables(project.get("default_deliverables"))
 
     strategies = project.get("intervention_strategies", {})
     for stage in STAGES:

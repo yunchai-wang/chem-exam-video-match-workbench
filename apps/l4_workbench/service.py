@@ -25,12 +25,13 @@ from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
 from .downstream import create_downstream_task
 from .tag_configuration import build_tag_configuration
+from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
 
 
 PROJECT_FIELDS = {
     "name", "subject", "grade", "target_students", "target_region",
     "target_exam_type", "target_year", "content_scope", "planned_artifact",
-    "problem_to_solve", "maturity", "intervention_scope",
+    "problem_to_solve", "maturity", "intervention_scope", "default_deliverables",
 }
 
 
@@ -75,6 +76,7 @@ class WorkbenchService:
     def get_state(self) -> dict[str, Any]:
         state = self.store.load()
         state["summary"] = self._summary(state)
+        state["output_catalog"] = public_catalog()
         return state
 
     @retry_concurrent_updates
@@ -86,7 +88,7 @@ class WorkbenchService:
             raise ValidationError(f"unknown project fields: {', '.join(sorted(unknown))}")
         for key in PROJECT_FIELDS:
             if key in patch:
-                project[key] = patch[key]
+                project[key] = normalize_deliverables(patch[key]) if key == "default_deliverables" else patch[key]
         if "intervention_strategies" in patch:
             strategies = patch["intervention_strategies"]
             if not isinstance(strategies, dict):
@@ -444,8 +446,13 @@ class WorkbenchService:
         return question
 
     @retry_concurrent_updates
-    def start_run(self) -> dict[str, Any]:
+    def start_run(self, request: dict[str, Any] | None = None) -> dict[str, Any]:
         state = self.store.load()
+        request = request or {}
+        deliverables = normalize_deliverables(
+            request.get("deliverables", state["project"]["default_deliverables"])
+        )
+        required_stages = required_stages_for(deliverables)
         for question in state["questions"]:
             priority, reason, intervention = recommend_priority(question, state["project"])
             question["production_priority"] = priority
@@ -453,13 +460,19 @@ class WorkbenchService:
             question["intervention"] = intervention
         run = {
             "id": new_id("run"), "mode": "full", "status": "running", "created_at": now(),
-            "current_stage": STAGES[0], "stage_states": {stage: "pending" for stage in STAGES},
+            "current_stage": required_stages[0],
+            "stage_states": {stage: ("pending" if stage in required_stages else "not_requested") for stage in STAGES},
+            "requested_deliverables": deliverables,
+            "required_stages": required_stages,
+            "skipped_stages": [stage for stage in STAGES if stage not in required_stages],
+            "delivery_scope": "once",
             "rule_version": state["project"]["rule_version"],
             "source_snapshot_ids": [item["id"] for item in state["source_snapshots"]],
             "selected_question_ids": [q["id"] for q in state["questions"] if q.get("selected_for_candidate")],
         }
         state["runs"].append(run)
-        self._event(state, "run.started", "AI 已开始纵向闭环运行", run["id"])
+        labels = "、".join(DELIVERABLES[item]["label"] for item in deliverables)
+        self._event(state, "run.started", f"AI 已按本次交付目标开始运行：{labels}", run["id"])
         self._advance(state, run, 0)
         self.store.save(state)
         return run
@@ -498,7 +511,12 @@ class WorkbenchService:
         state = self.store.load()
         artifact = self._find(state["artifacts"], artifact_id, "artifact")
         root_stage, rationale = classify_feedback(text)
-        rerun_stages = affected_stages(root_stage)
+        source_run = self._find(state["runs"], artifact["run_id"], "run")
+        source_required_stages = source_run.get("required_stages", STAGES)
+        rerun_stages = [stage for stage in affected_stages(root_stage) if stage in source_required_stages]
+        if not rerun_stages:
+            target_stage = artifact.get("target_stage", source_required_stages[-1])
+            rerun_stages = [target_stage]
         feedback = {
             "id": new_id("feedback"), "artifact_id": artifact_id, "text": text.strip(), "created_at": now(),
             "root_stage": root_stage, "root_stage_label": STAGE_LABELS[root_stage],
@@ -517,11 +535,13 @@ class WorkbenchService:
             "evidence_feedback_id": feedback["id"], "created_at": now(),
         }
         state["rules"].append(experiment)
-        source_run = self._find(state["runs"], artifact["run_id"], "run")
         rerun = {
             "id": new_id("run"), "mode": "targeted_rerun", "status": "running", "created_at": now(),
             "current_stage": rerun_stages[0],
             "stage_states": {stage: ("pending" if stage in rerun_stages else "not_affected") for stage in STAGES},
+            "requested_deliverables": [artifact.get("deliverable_id", "ppt")],
+            "required_stages": source_required_stages,
+            "skipped_stages": [stage for stage in STAGES if stage not in source_required_stages],
             "rule_version": experiment["id"], "selected_question_ids": artifact["question_ids"],
             "source_snapshot_ids": source_run.get("source_snapshot_ids", []), "feedback_id": feedback["id"],
         }
@@ -566,8 +586,12 @@ class WorkbenchService:
         return publication
 
     def _advance(self, state: dict[str, Any], run: dict[str, Any], start_index: int) -> None:
+        required_stages = run.get("required_stages", STAGES)
         for index in range(start_index, len(STAGES)):
             stage = STAGES[index]
+            if stage not in required_stages:
+                run["stage_states"][stage] = "not_requested"
+                continue
             run["current_stage"] = stage
             has_exception = self._stage_has_exception(state, stage)
             strategy = state["project"]["intervention_strategies"][stage]
@@ -599,8 +623,9 @@ class WorkbenchService:
             run["stage_states"][stage] = "completed"
             self._event(state, "stage.completed", f"AI 已完成{STAGE_LABELS[stage]}", run["id"])
         run["status"] = "completed"
-        self._create_artifact(state, run)
-        self._event(state, "run.completed", "纵向闭环执行契约已完成；真实生产执行器待接入", run["id"])
+        run["current_stage"] = required_stages[-1]
+        self._create_artifacts(state, run)
+        self._event(state, "run.completed", "本次所选交付目标的执行契约已完成；真实生产执行器待接入", run["id"])
 
     def _stage_has_exception(self, state: dict[str, Any], stage: str) -> bool:
         if stage == "standardization":
@@ -620,19 +645,24 @@ class WorkbenchService:
             return [q["id"] for q in state["questions"] if q["quality"]["confidence"] < 0.6]
         return []
 
-    def _create_artifact(self, state: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    def _create_artifacts(self, state: dict[str, Any], run: dict[str, Any]) -> list[dict[str, Any]]:
         selected = [q for q in state["questions"] if q["id"] in run["selected_question_ids"]]
-        artifact = {
-            "id": new_id("artifact"), "run_id": run["id"],
-            "title": f"{state['project']['name']}｜成品草案", "kind": state["project"]["planned_artifact"],
-            "status": "执行契约预览（非正式生产成品）", "version": 1,
-            "question_ids": [q["id"] for q in selected], "created_at": now(), "updated_at": now(),
-            "summary": f"围绕 {len(selected)} 道已入选题目生成结构预览；真实 AI/Skill 执行器尚未接入，不能作为正式教案或逐字稿使用。",
-            "outline": ["学习目标与学生卡点", "经典母题与原题图表", "方法建构与作答边界", "变式迁移与反馈点", "逐页分镜、清保增说明与素材清单"],
-            "revision_notes": [],
-        }
-        state["artifacts"].append(artifact)
-        return artifact
+        artifacts = []
+        for deliverable_id in run.get("requested_deliverables", ["ppt"]):
+            definition = DELIVERABLES[deliverable_id]
+            artifact = {
+                "id": new_id("artifact"), "run_id": run["id"], "deliverable_id": deliverable_id,
+                "target_stage": definition["target_stage"],
+                "title": f"{state['project']['name']}｜{definition['label']}", "kind": definition["label"],
+                "status": "执行契约预览（非正式生产成品）", "version": 1,
+                "question_ids": [q["id"] for q in selected], "created_at": now(), "updated_at": now(),
+                "summary": f"围绕 {len(selected)} 道已入选题目形成“{definition['label']}”结构预览；依赖阶段不额外生成成品，真实 AI/Skill 执行器尚未接入。",
+                "outline": list(definition["outline"]),
+                "revision_notes": [],
+            }
+            state["artifacts"].append(artifact)
+            artifacts.append(artifact)
+        return artifacts
 
     def _summary(self, state: dict[str, Any]) -> dict[str, Any]:
         latest_run = state["runs"][-1] if state["runs"] else None

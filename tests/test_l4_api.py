@@ -47,6 +47,13 @@ class ApiTests(unittest.TestCase):
         status, run = self.request("/api/runs", "POST", {})
         self.assertEqual(status, 201)
         self.assertIn(run["status"], {"waiting", "completed"})
+        self.assertEqual(run["requested_deliverables"], ["ppt"])
+
+    def test_run_accepts_one_off_deliverable_selection(self) -> None:
+        status, run = self.request("/api/runs", "POST", {"deliverables": ["candidate_pool"]})
+        self.assertEqual(status, 201)
+        self.assertEqual(run["required_stages"], ["standardization", "diagnosis", "selection"])
+        self.assertEqual(run["stage_states"]["storyboard"], "not_requested")
 
     def test_invalid_project_field_is_400(self) -> None:
         request = urllib.request.Request(

@@ -8,7 +8,7 @@ const FIELDS = [
   ["name", "生产项目名称", false], ["target_students", "目标学生层", false],
   ["target_region", "目标地区", false], ["target_exam_type", "目标考试类型", false],
   ["target_year", "目标年份", false], ["content_scope", "内容 / 课程范围", false],
-  ["planned_artifact", "计划产物", true], ["problem_to_solve", "本次要解决的问题", true],
+  ["problem_to_solve", "本次要解决的问题", true],
 ];
 const PERMISSIONS = {
   feishu_write: "写入飞书云文档", pmo_update: "更新 PMO 状态",
@@ -19,6 +19,7 @@ let selectedOnly = false;
 let basePreview = null;
 let manifestPreview = null;
 let currentCandidateIds = [];
+let runSelectionDraft = null;
 
 const ROLE_LABELS = ["母题候选", "核心例题", "同构练习", "变式练习", "迁移练习", "检测题", "基础巩固题"];
 const USAGE_SCENARIOS = ["视频生产", "习题册", "作业", "学案", "专题资料", "备考题池"];
@@ -56,7 +57,9 @@ function render() {
     ? `标签库 ${labelLibrary.prompt_versions.question_type}/${labelLibrary.prompt_versions.question}/${labelLibrary.prompt_versions.knowledge}`
     : "标签库未冻结";
   document.querySelector("#next-action").textContent = state.summary.ai_next_action;
-  document.querySelector("#project-contract").textContent = `${project.target_students}｜${project.target_region}｜${project.target_exam_type} ${project.target_year}｜${project.planned_artifact}`;
+  const defaults = outputLabels(project.default_deliverables || []);
+  document.querySelector("#project-contract").textContent = `${project.target_students}｜${project.target_region}｜${project.target_exam_type} ${project.target_year}｜默认交付：${defaults.join("、")}`;
+  renderOutputPlanner();
   renderMetrics();
   renderStages();
   renderReviews();
@@ -374,6 +377,43 @@ function renderMetrics() {
   document.querySelector("#metrics").innerHTML = items.map(([value, label]) => `<div class="metric"><b>${esc(value)}</b><span>${label}</span></div>`).join("");
 }
 
+function outputLabels(ids) {
+  const catalog = Object.fromEntries((state.output_catalog || []).map(item => [item.id, item]));
+  return ids.map(id => catalog[id]?.label || id);
+}
+
+function outputChoices(selected, name) {
+  const chosen = new Set(selected || []);
+  return (state.output_catalog || []).map(item => `
+    <label class="output-choice ${chosen.has(item.id) ? "selected" : ""}">
+      <input type="checkbox" name="${name}" value="${esc(item.id)}" ${chosen.has(item.id) ? "checked" : ""}>
+      <span><strong>${esc(item.label)}</strong><small>${esc(item.description)}</small></span>
+    </label>`).join("");
+}
+
+function selectedOutputs(selector) {
+  return [...document.querySelectorAll(`${selector} input:checked`)].map(input => input.value);
+}
+
+function renderOutputPlanner() {
+  const picker = document.querySelector("#run-output-picker");
+  picker.innerHTML = outputChoices(runSelectionDraft || state.project.default_deliverables, "run-deliverable");
+  picker.querySelectorAll("input").forEach(input => input.onchange = () => {
+    input.closest(".output-choice").classList.toggle("selected", input.checked);
+    renderOutputRoutePreview();
+  });
+  renderOutputRoutePreview();
+}
+
+function renderOutputRoutePreview() {
+  const selected = selectedOutputs("#run-output-picker");
+  const catalog = Object.fromEntries((state.output_catalog || []).map(item => [item.id, item]));
+  const targetIndexes = selected.map(id => STAGES.findIndex(([stage]) => stage === catalog[id]?.target_stage));
+  const finalIndex = targetIndexes.length ? Math.max(...targetIndexes) : -1;
+  const route = finalIndex >= 0 ? STAGES.slice(0, finalIndex + 1).map(([, label]) => label).join(" → ") : "请至少选择一种产出物";
+  document.querySelector("#output-route-preview").textContent = route;
+}
+
 function renderStages() {
   const run = state.runs.at(-1);
   const statuses = run?.stage_states || {};
@@ -383,8 +423,8 @@ function renderStages() {
   document.querySelector("#stage-list").innerHTML = STAGES.map(([key, label], index) => {
     const status = statuses[key] || "pending";
     const strategy = STRATEGIES[state.project.intervention_strategies[key]];
-    const statusText = {completed: "已完成", pending: "待运行", waiting: "待确认", blocked: "已阻止", not_affected: "本次不受影响"}[status] || status;
-    return `<div class="stage ${status}"><span class="stage-index">${status === "completed" ? "✓" : index + 1}</span><div><strong>${label}</strong><small> · ${strategy}</small></div><span class="tag">${statusText}</span></div>`;
+    const statusText = {completed: "已完成", pending: "待运行", waiting: "待确认", blocked: "已阻止", not_affected: "本次不受影响", not_requested: "本次不运行"}[status] || status;
+    return `<div class="stage ${status}"><span class="stage-index">${status === "completed" ? "✓" : status === "not_requested" ? "—" : index + 1}</span><div><strong>${label}</strong><small> · ${strategy}</small></div><span class="tag">${statusText}</span></div>`;
   }).join("");
 }
 
@@ -606,12 +646,18 @@ function renderRules() {
 function renderSettings() {
   const project = state.project;
   document.querySelector("#project-fields").innerHTML = FIELDS.map(([key, label, wide]) => `<div class="field ${wide ? "wide" : ""}"><label>${label}</label><input name="${key}" value="${esc(project[key])}"></div>`).join("");
+  const defaultGrid = document.querySelector("#default-output-grid");
+  defaultGrid.innerHTML = outputChoices(project.default_deliverables, "default-deliverable");
+  defaultGrid.querySelectorAll("input").forEach(input => input.onchange = () => input.closest(".output-choice").classList.toggle("selected", input.checked));
   document.querySelector("#strategy-grid").innerHTML = STAGES.map(([key, label]) => `<label class="strategy-row"><span>${label}</span><select name="strategy-${key}">${Object.entries(STRATEGIES).map(([value, text]) => `<option value="${value}" ${project.intervention_strategies[key] === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`).join("");
   document.querySelector("#permission-grid").innerHTML = Object.entries(PERMISSIONS).map(([key, label]) => `<label class="permission"><input type="checkbox" name="permission-${key}" ${project.preauthorizations[key] ? "checked" : ""}>${label}</label>`).join("");
 }
 
 async function startRun() {
-  try { await api("/api/runs", {method: "POST", body: "{}"}); await load(); toast("AI 已按当前介入策略推进"); }
+  const deliverables = selectedOutputs("#run-output-picker");
+  if (!deliverables.length) { toast("请至少选择一种本次产出物", true); return; }
+  runSelectionDraft = deliverables;
+  try { await api("/api/runs", {method: "POST", body: JSON.stringify({deliverables})}); await load(); toast(`AI 已按“${outputLabels(deliverables).join("、")}”推进`); }
   catch (error) { toast(error.message, true); }
 }
 async function approveReview(id) {
@@ -636,9 +682,11 @@ async function saveProject(event) {
   const form = new FormData(event.target);
   const payload = {intervention_strategies: {}, preauthorizations: {}};
   FIELDS.forEach(([key]) => payload[key] = form.get(key));
+  payload.default_deliverables = form.getAll("default-deliverable");
+  if (!payload.default_deliverables.length) { toast("项目默认交付物至少保留一种", true); return; }
   STAGES.forEach(([key]) => payload.intervention_strategies[key] = form.get(`strategy-${key}`));
   Object.keys(PERMISSIONS).forEach(key => payload.preauthorizations[key] = form.has(`permission-${key}`));
-  try { await api("/api/project", {method: "PATCH", body: JSON.stringify(payload)}); await load(); toast("当前生产项目设置已保存"); }
+  try { await api("/api/project", {method: "PATCH", body: JSON.stringify(payload)}); runSelectionDraft = null; await load(); toast("当前生产项目设置已保存"); }
   catch (error) { toast(error.message, true); }
 }
 async function setFullAuto() {

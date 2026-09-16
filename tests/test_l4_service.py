@@ -27,6 +27,35 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(run["status"], "completed")
         self.assertEqual(len(self.service.get_state()["artifacts"]), 1)
 
+    def test_candidate_pool_run_prunes_later_production_stages(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["candidate_pool"]})
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(run["required_stages"], STAGES[:3])
+        self.assertEqual(run["stage_states"]["lesson_plan"], "not_requested")
+        jobs = [item["stage"] for item in self.service.get_state()["jobs"] if item["run_id"] == run["id"]]
+        self.assertEqual(jobs, STAGES[:3])
+        artifact = self.service.get_state()["artifacts"][-1]
+        self.assertEqual(artifact["deliverable_id"], "candidate_pool")
+
+    def test_transcript_dependency_does_not_create_lesson_plan_artifact(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["transcript"]})
+        artifacts = [item for item in self.service.get_state()["artifacts"] if item["run_id"] == run["id"]]
+        self.assertEqual(run["required_stages"][-1], "transcript")
+        self.assertEqual([item["deliverable_id"] for item in artifacts], ["transcript"])
+
+    def test_one_off_output_override_does_not_change_project_default(self) -> None:
+        self.service.update_project({
+            "default_deliverables": ["lesson_plan"],
+            "intervention_strategies": {stage: "auto" for stage in STAGES},
+        })
+        self.service.start_run({"deliverables": ["candidate_pool"]})
+        self.assertEqual(self.service.get_state()["project"]["default_deliverables"], ["lesson_plan"])
+
+        default_run = self.service.start_run()
+        self.assertEqual(default_run["requested_deliverables"], ["lesson_plan"])
+
     def test_confirm_strategy_pauses_only_at_configured_stage(self) -> None:
         strategies = {stage: "auto" for stage in STAGES}
         strategies["lesson_plan"] = "confirm"

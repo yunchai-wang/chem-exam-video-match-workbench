@@ -1,5 +1,5 @@
 {
-  "schema_version": 11,
+  "schema_version": 12,
   "metadata": {
     "state_revision": 0,
     "updated_at": null
@@ -69,6 +69,7 @@
     "target_year": "2027",
     "content_scope": "水与溶液、实验探究",
     "planned_artifact": "解题课逐字稿 + PPT 分镜",
+    "default_deliverables": ["ppt"],
     "problem_to_solve": "找出真题趋势中的实质视频缺口，并用最小充分方式补强",
     "maturity": "逐项校准",
     "rule_version": "project-rule-v1.0",
