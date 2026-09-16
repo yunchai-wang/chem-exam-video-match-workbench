@@ -124,6 +124,15 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if path == "/api/downstream-tasks":
                 self._json(201, self.service.create_downstream_task(payload))
                 return
+            if path == "/api/mother-questions":
+                self._json(201, self.service.create_mother_question_run(payload))
+                return
+            if path == "/api/mother-question-reviews":
+                self._json(200, self.service.save_mother_question_review(payload))
+                return
+            if path == "/api/mother-question-reviews/batch-confirm":
+                self._json(200, self.service.batch_confirm_mother_question_groups(payload))
+                return
             if path == "/api/backtests/freezes":
                 self._json(201, self.service.freeze_predictions(payload))
                 return

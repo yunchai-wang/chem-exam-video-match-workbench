@@ -24,6 +24,7 @@ from .video_evidence import build_coverage_run, build_video_import, load_video_r
 from .calibration import build_calibration_review
 from .selection import build_selection_review, build_selection_run
 from .downstream import create_downstream_task
+from .mother_question import build_mother_question_review, build_mother_question_run
 from .tag_configuration import build_tag_configuration
 from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
 
@@ -396,6 +397,54 @@ class WorkbenchService:
             self._event(current, "downstream.task_created", f"已冻结 {question_set['item_count']} 道题并创建{task['task_type']}任务契约")
         return result
 
+    def create_mother_question_run(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        selection_run = self._find(state["selection_runs"], str(request.get("selection_run_id") or ""), "selection run")
+        diagnostic_run = next((item for item in state["diagnostic_runs"] if item["id"] == selection_run.get("diagnostic_run_id")), None)
+        assets = [item for item in state["question_assets"] if item.get("source_snapshot_id") == selection_run.get("source_snapshot_id")]
+        result = build_mother_question_run(selection_run, state["selection_reviews"], assets, diagnostic_run)
+        existing = next((item for item in state["mother_question_runs"] if item["id"] == result["id"]), None)
+        if existing:
+            return existing
+        with self.store.transaction() as current:
+            if any(item["id"] == result["id"] for item in current["mother_question_runs"]):
+                return result
+            current["mother_question_runs"].append(result)
+            summary = result["summary"]
+            self._event(
+                current, "mother_question.proposed",
+                f"已从 {summary['eligible_candidate_count']} 道有效候选形成 {summary['mother_group_count']} 组母题提案、"
+                f"{summary['progressive_group_count']} 组递进题组；原题图表 {summary['retained_figure_count']}/{summary['source_figure_count']} 全部保留",
+            )
+        return result
+
+    def save_mother_question_review(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        run = self._find(state["mother_question_runs"], str(request.get("mother_question_run_id") or ""), "mother question run")
+        review = build_mother_question_review(run, request)
+        with self.store.transaction() as current:
+            current["mother_question_reviews"] = [item for item in current["mother_question_reviews"] if item["id"] != review["id"]]
+            current["mother_question_reviews"].append(review)
+            action = "纠正" if review["status"] == "corrected" else "确认"
+            self._event(current, "mother_question.reviewed", f"已{action}母题分组：{review['group_id']}（{review['mode']}）")
+        return review
+
+    def batch_confirm_mother_question_groups(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        run = self._find(state["mother_question_runs"], str(request.get("mother_question_run_id") or ""), "mother question run")
+        existing = {item["group_id"]: item for item in state["mother_question_reviews"] if item["mother_question_run_id"] == run["id"]}
+        passed, skipped = [], []
+        for group in run["groups"]:
+            if group["exception"] or existing.get(group["id"], {}).get("status") == "corrected":
+                skipped.append(group["id"])
+                continue
+            passed.append(build_mother_question_review(run, {"group_id": group["id"]}, mode="batch_confirm"))
+        with self.store.transaction() as current:
+            passed_ids = {item["id"] for item in passed}
+            current["mother_question_reviews"] = [item for item in current["mother_question_reviews"] if item["id"] not in passed_ids] + passed
+            self._event(current, "mother_question.batch_confirmed", f"已批量确认 {len(passed)} 组非异常母题提案，保留 {len(skipped)} 组待处理")
+        return {"passed_count": len(passed), "skipped_count": len(skipped), "skipped_group_ids": skipped, "reviews": passed}
+
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
         with self.store.transaction() as state:
@@ -698,6 +747,8 @@ class WorkbenchService:
             "selection_review_count": len(state["selection_reviews"]),
             "question_set_count": len(state["question_sets"]),
             "downstream_task_count": len(state["downstream_tasks"]),
+            "mother_question_run_count": len(state["mother_question_runs"]),
+            "mother_question_review_count": len(state["mother_question_reviews"]),
             "tag_configuration_count": len(state["tag_configurations"]),
             "state_revision": state["metadata"]["state_revision"],
             "latest_run_status": latest_run["status"] if latest_run else "尚未运行",

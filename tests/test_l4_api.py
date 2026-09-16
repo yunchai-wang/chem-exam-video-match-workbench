@@ -18,6 +18,15 @@ SEED = ROOT / "sample_data" / "l4_workbench" / "seed.json"
 
 
 class ApiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        # Loopback requests must never be routed through a developer's shell proxy.
+        urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        urllib.request.install_opener(urllib.request.build_opener())
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         service = WorkbenchService(JsonStore(Path(self.temp.name) / "state.json", SEED))
@@ -111,6 +120,20 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 201)
         self.assertEqual(result["precision"], 1.0)
+
+    def test_mother_question_routes_reject_unknown_context(self) -> None:
+        for path in ("/api/mother-questions", "/api/mother-question-reviews", "/api/mother-question-reviews/batch-confirm"):
+            request = urllib.request.Request(
+                self.base + path, data=json.dumps({"selection_run_id": "missing", "mother_question_run_id": "missing"}).encode("utf-8"),
+                method="POST", headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as context:
+                urllib.request.urlopen(request)
+            self.assertEqual(context.exception.code, 400)
+            context.exception.close()
+        _, state = self.request("/api/state")
+        self.assertEqual(state["mother_question_runs"], [])
+        self.assertEqual(state["summary"]["mother_question_run_count"], 0)
 
     def test_tag_configuration_can_be_created_through_api(self) -> None:
         status, config = self.request("/api/tag-configurations", "POST", {

@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 
-CURRENT_SCHEMA_VERSION = 12
+CURRENT_SCHEMA_VERSION = 13
 
 
 STAGES = [
@@ -160,6 +160,11 @@ def migrate_state(value: dict[str, Any]) -> dict[str, Any]:
     if version == 11:
         state.setdefault("project", {}).setdefault("default_deliverables", ["ppt"])
         state["schema_version"] = 12
+        version = 12
+    if version == 12:
+        state.setdefault("mother_question_runs", [])
+        state.setdefault("mother_question_reviews", [])
+        state["schema_version"] = 13
     return state
 
 
@@ -205,6 +210,7 @@ def validate_state(state: dict[str, Any]) -> None:
         "calibration_reviews",
         "selection_runs", "selection_reviews",
         "question_sets", "downstream_tasks",
+        "mother_question_runs", "mother_question_reviews",
         "label_library_snapshots",
         "tag_configurations", "unmatched_label_queue", "parse_quality_reviews",
     ):

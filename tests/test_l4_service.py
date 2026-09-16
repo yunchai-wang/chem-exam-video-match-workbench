@@ -108,6 +108,63 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(state["project"]["active_tag_configuration_id"], config["id"])
         self.assertEqual(state["tag_configurations"][-1]["status"], "AI初版·可运行")
 
+    def _seed_selection_run(self) -> str:
+        def candidate(cid: str, route: str = "进入课程生产") -> dict:
+            return {
+                "id": f"candidate-{cid}", "asset_id": cid, "source_name": f"2026 {cid}", "question_no": "16",
+                "title": f"{cid} 题", "units": [{"id": f"{cid}-whole", "label": "整题", "kind": "whole_question"}],
+                "ai_next_route": route, "structural_keys": ["控制变量实验"],
+                "tag_profile": {"question_type": "科学探究题", "question": ["设计方案"], "context": [], "knowledge": {"core": ["控制变量法"]}},
+                "difficulty": {"level": "中等"}, "quality": {"score": 4}, "frequency": {"numerator": 6},
+                "production_priority": {"recommendation": "P2"},
+            }
+        with self.service.store.transaction() as state:
+            state["question_assets"].extend([
+                {"id": cid, "source_snapshot_id": "snap-mq", "image_integrity": "preserved", "issue_codes": [],
+                 "content_blocks": [{"type": "image", "path": f"{cid}.png"}], "fingerprint": cid, "duplicate_group_id": None}
+                for cid in ("mq-a", "mq-b", "mq-c")
+            ])
+            state["selection_runs"].append({
+                "id": "selection-mq", "diagnostic_run_id": "diagnosis-mq", "source_snapshot_id": "snap-mq",
+                "results": [candidate("mq-a"), candidate("mq-b"), candidate("mq-c", "暂不使用")],
+            })
+        return "selection-mq"
+
+    def test_mother_question_run_is_idempotent_and_refreshes_after_route_changes(self) -> None:
+        selection_id = self._seed_selection_run()
+        first = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        again = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.assertEqual(first["id"], again["id"])
+        self.assertEqual(first["summary"]["eligible_candidate_count"], 2)
+        self.assertEqual(first["summary"]["mother_group_count"], 1)
+        self.assertEqual(len(self.service.get_state()["mother_question_runs"]), 1)
+
+        with self.service.store.transaction() as state:
+            state["selection_reviews"].append({
+                "id": "selection-review-mq", "selection_run_id": selection_id, "candidate_id": "candidate-mq-c",
+                "decision": "进入课程生产", "selected_unit_ids": ["mq-c-whole"],
+            })
+        refreshed = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.assertNotEqual(refreshed["id"], first["id"])
+        self.assertEqual(refreshed["summary"]["eligible_candidate_count"], 3)
+        self.assertEqual(self.service.get_state()["summary"]["mother_question_run_count"], 2)
+
+    def test_mother_question_review_and_batch_confirm_skip_corrected_groups(self) -> None:
+        selection_id = self._seed_selection_run()
+        run = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        group = run["groups"][0]
+        review = self.service.save_mother_question_review({
+            "mother_question_run_id": run["id"], "group_id": group["id"],
+            "decision": "递进题组", "reason": "两题作答边界不同",
+        })
+        self.assertEqual(review["status"], "corrected")
+        result = self.service.batch_confirm_mother_question_groups({"mother_question_run_id": run["id"]})
+        self.assertEqual(result["passed_count"], 0)
+        self.assertEqual(result["skipped_group_ids"], [group["id"]])
+        reviews = self.service.get_state()["mother_question_reviews"]
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0]["mode"], "递进题组")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -177,6 +177,7 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
         "title": asset.get("title") or "题目资产", "units": _question_units(asset),
         "tag_profile": diagnosis.get("tag_profile") or asset.get("tag_profile", {}),
         "label_library_snapshot_id": diagnosis.get("tag_profile", {}).get("library_snapshot_id"),
+        "structural_keys": list(structural_keys),
         "frequency": {
             **diagnosis["frequency"], "level": frequency_level, "independent_dimension": True,
             "reason": _effective_reason("frequency", corrected_fields, calibration_reason, diagnosis["frequency"]["reason"]),

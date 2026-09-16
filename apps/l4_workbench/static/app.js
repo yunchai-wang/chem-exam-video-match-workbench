@@ -454,12 +454,14 @@ function renderQuestions() {
     });
     currentCandidateIds = questions.map(item => item.id);
     renderDownstreamTaskCenter(selection, questions);
+    renderMotherQuestionCenter(selection);
     document.querySelector("#question-list").innerHTML = questions.map(item => selectionCard(item, reviews[item.id])).join("") || `<div class="empty-state"><strong>没有符合条件的真实候选</strong><span>调整筛选条件后再试。</span></div>`;
     document.querySelectorAll("[data-selection-review]").forEach(form => form.onsubmit = saveSelectionReview);
     return;
   }
   currentCandidateIds = [];
   renderDownstreamTaskCenter(null, []);
+  renderMotherQuestionCenter(null);
   renderSelectionOverview(null);
   const questions = state.questions.filter(q => (!selectedOnly || q.selected_for_candidate) && JSON.stringify(q).toLowerCase().includes(search));
   document.querySelector("#question-list").innerHTML = questions.map(questionCard).join("") || `<div class="empty-state"><strong>没有符合条件的题目</strong><span>调整筛选条件后再试。</span></div>`;
@@ -532,6 +534,93 @@ function updateDownstreamTaskCount() {
   document.querySelector("#downstream-task-hint").textContent = taskType === "自定义"
     ? "自定义任务使用当前全部可见题目，并要求填写产出目标。"
     : `只冻结当前可见且已标记“${taskType}”的题；如需增减，请先修改题卡的可用场景并保存。`;
+}
+
+const MOTHER_MODES = ["整合成母题", "递进题组", "保持独立"];
+const MEMBER_ACTIONS = ["保留", "合并", "改写", "舍弃"];
+const VISUAL_POLICIES = ["并列原图", "典型原图＋并列附图", "经核对的可编辑重建图"];
+
+function modeTagClass(mode) {
+  return ({"整合成母题": "good", "递进题组": "frequency", "保持独立": ""})[mode] ?? "";
+}
+
+function actionTagClass(action) {
+  return ({"保留": "good", "合并": "frequency", "改写": "frequency", "舍弃": "risk"})[action] ?? "";
+}
+
+function renderMotherQuestionCenter(selection) {
+  const node = document.querySelector("#mother-question-center");
+  if (!selection) {
+    node.innerHTML = `<p class="quiet">形成真实候选池并确认去向后，可从“进入课程生产／进入母题改造”的题目单元生成母题提案。只按共同底层结构分组，保留全部原题图表。</p>`;
+    return;
+  }
+  const run = [...(state.mother_question_runs || [])].reverse().find(item => item.selection_run_id === selection.id);
+  const reviews = Object.fromEntries((state.mother_question_reviews || []).filter(item => run && item.mother_question_run_id === run.id).map(item => [item.group_id, item]));
+  const head = `<div class="panel-title"><div><p class="eyebrow">母题路由 · ${esc(run ? run.rule_version : "mother-question-v0.1")}</p><h3>同构分组、母题提案与递进题组</h3></div><span class="status ${run ? "completed" : "waiting"}">${run ? `${Object.keys(reviews).length}/${run.groups.length} 组已确认` : "尚未生成提案"}</span></div>`;
+  if (!run) {
+    node.innerHTML = `${head}<div class="calibration-actions"><p class="quiet">AI 只按显式共同底层结构分组：结构与作答边界一致才整合成母题；同结构但设问不同组成递进题组；仅知识点相同保持独立。每道原题及其全部图表随组保留，系统不自动拼图。</p><div><button class="button primary small" id="create-mother-run">从有效候选生成母题提案</button></div></div>`;
+    node.querySelector("#create-mother-run").onclick = () => createMotherQuestionRun(selection.id);
+    return;
+  }
+  const s = run.summary;
+  const actionCounts = s.member_action_counts || {};
+  node.innerHTML = `${head}
+    <div class="diagnosis-summary mother-summary"><div><b>${s.eligible_candidate_count}</b><span>有效题目单元</span></div><div><b>${s.mother_group_count}</b><span>整合成母题</span></div><div><b>${s.progressive_group_count}</b><span>递进题组</span></div><div><b>${s.independent_count}</b><span>保持独立</span></div><div><b>${s.exception_group_count}</b><span>异常组待看</span></div><div class="${s.figures_fully_retained ? "" : "health-risk"}"><b>${s.retained_figure_count}/${s.source_figure_count}</b><span>原题图表保留</span></div></div>
+    <div class="chip-row">${MEMBER_ACTIONS.map(action => `<span class="tag ${actionTagClass(action)}">${action} ${actionCounts[action] || 0}</span>`).join("")}<span class="tag">${esc(run.lesson_plan_gate)}</span></div>
+    <div class="evidence-limit"><strong>分组边界</strong><span>${esc(run.evidence_limits.join(" "))}</span></div>
+    <div class="calibration-actions"><p class="quiet">批量确认只接受非异常组，不覆盖老师已纠正的分组；候选去向变化后可按当前有效去向刷新提案，历史提案与确认记录保留。</p><div><button class="button secondary small" id="refresh-mother-run">按当前去向刷新提案</button><button class="button primary small" id="batch-confirm-mother">批量确认非异常组</button></div></div>
+    <div class="mother-group-list">${run.groups.map(group => motherGroupCard(run, group, reviews[group.id])).join("")}</div>`;
+  node.querySelector("#refresh-mother-run").onclick = () => createMotherQuestionRun(selection.id);
+  node.querySelector("#batch-confirm-mother").onclick = () => batchConfirmMotherGroups(run.id);
+  node.querySelectorAll("[data-mother-group]").forEach(form => form.onsubmit = saveMotherQuestionReview);
+}
+
+function motherGroupCard(run, group, review) {
+  const effectiveMode = review?.mode || group.mode;
+  const actions = review?.member_actions || Object.fromEntries(group.members.map(member => [member.id, member.action]));
+  const anchor = review?.anchor_member_id ?? group.proposal.anchor_member_id;
+  const visualPolicy = review?.visual_policy || group.proposal.visual_policy;
+  const flags = group.exception_flags.map(flag => `<span class="tag risk">${esc(flag)}</span>`).join("");
+  const saved = review ? `<span class="tag ${review.status === "corrected" ? "risk" : "good"}">${review.status === "corrected" ? "已纠正" : "已确认"} · ${esc(review.lesson_plan_gate)}</span>` : `<span class="tag">未介入 · 不阻塞</span>`;
+  const members = group.members.map(member => {
+    const asset = state.question_assets.find(candidate => candidate.id === member.asset_id);
+    const images = (asset?.content_blocks || []).filter(block => block.type === "image" && block.path);
+    const figures = images.length
+      ? images.map(block => `<a href="${assetUrl(block.path)}" target="_blank" rel="noopener"><img src="${assetUrl(block.path)}" alt="${esc(member.title)}原题图" loading="lazy"></a>`).join("")
+      : `<div class="asset-visual-placeholder">${member.image_incomplete ? "原题图不完整，教案将受阻" : "本题未声明独立题图"}</div>`;
+    const boundary = member.answer_boundary;
+    const action = actions[member.id] || member.action;
+    return `<div class="mother-member ${member.id === anchor ? "anchor" : ""}">
+      <div class="mother-figures">${figures}</div>
+      <div class="mother-member-body">
+        <p class="eyebrow">${esc(member.source_name)} · 第 ${esc(member.question_no)} 题${member.id === anchor ? " · 典型原题" : ""}</p>
+        <strong>${esc(member.title)}</strong>
+        <div class="chip-row"><span class="tag ${actionTagClass(action)}">${esc(action)}</span><span class="tag">难度：${esc(member.difficulty)}</span><span class="tag">${esc(member.route)}</span><span class="tag">${member.figures.length} 个图表全部保留</span></div>
+        <small>单元：${esc(member.unit_labels.join("、") || "整题")}<br>作答边界（${esc(boundary.status)}）：${esc(boundary.question_type || "题型待识别")} · ${esc(boundary.tasks.join("、") || "任务标签待识别")}</small>
+        <small class="member-reason">${esc(member.action_reason)}</small>
+        <label class="member-action">去向<select name="action-${esc(member.id)}">${MEMBER_ACTIONS.map(value => `<option ${value === action ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+      </div>
+    </div>`;
+  }).join("");
+  const proposal = group.proposal;
+  const proposalDetail = group.mode === "整合成母题"
+    ? `<span><b>共同结构</b>${esc(proposal.shared_structure)}</span><span><b>共同作答边界</b>${esc(proposal.shared_boundary.question_type || "—")} · ${esc(proposal.shared_boundary.tasks.join("、") || "—")}</span><span><b>情境变体</b>${proposal.context_variants.map(item => `${esc(item.source_name)}（${esc(item.context_tags.join("、") || "情境标签待补")}）`).join("；")}</span><span><b>图表呈现</b>${esc(proposal.visual_policy_status)}</span>`
+    : `<span><b>提案</b>${esc(proposal.title)}</span>${proposal.steps?.length ? `<span><b>台阶顺序</b>${proposal.steps.map((step, index) => `${index + 1}. ${esc(step.difficulty)}｜${esc(step.tasks.join("、") || "任务待识别")}`).join("；")}</span>` : ""}<span><b>图表呈现</b>${esc(proposal.visual_policy_status)}</span>`;
+  const anchorOptions = group.members.filter(member => (actions[member.id] || member.action) !== "舍弃").map(member => `<option value="${esc(member.id)}" ${member.id === anchor ? "selected" : ""}>${esc(member.source_name)} 第 ${esc(member.question_no)} 题</option>`).join("");
+  return `<form class="mother-group" data-mother-group="${esc(group.id)}" data-mother-run="${esc(run.id)}">
+    <div class="mother-group-head"><div><p class="eyebrow">${esc(group.structural_key || "无共同底层结构")} · ${group.member_count} 道原题</p><h4>${esc(proposal.title)}</h4></div><div class="chip-row"><span class="tag ${modeTagClass(effectiveMode)}">${esc(effectiveMode)}${review && review.mode !== group.mode ? `（AI：${esc(group.mode)}）` : ""}</span>${flags}${saved}</div></div>
+    <p class="quiet">${esc(group.mode_reason)}</p>
+    <div class="mother-proposal">${proposalDetail}<span><b>下一步门禁</b>${esc(proposal.next_stage_gate)}</span></div>
+    <div class="mother-members">${members}</div>
+    <div class="mother-review-row">
+      <label>分组决定<select name="decision">${["按 AI 提案确认", ...MOTHER_MODES].map(value => `<option ${value === (review ? (review.mode === group.mode ? "按 AI 提案确认" : review.mode) : "按 AI 提案确认") ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+      <label>典型原题<select name="anchor_member_id"><option value="">不指定</option>${anchorOptions}</select></label>
+      <label>图表呈现<select name="visual_policy">${VISUAL_POLICIES.map(value => `<option ${value === visualPolicy ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+      <label class="reason-field">理由<input name="reason" value="${esc(review?.status === "corrected" ? review.reason : "")}" placeholder="改分组、改成员去向或改典型原题时必填；直接确认可留空"></label>
+      <button class="button secondary small" type="submit">保存本组决定</button>
+    </div>
+    <p class="selection-footnote">图表策略只是当前项目偏好；改分组或成员去向会形成隔离规则候选。无论哪种选择，每道原题的全部图表都随组保留，系统不会自动拼接。</p>
+  </form>`;
 }
 
 function selectionContext() {
@@ -908,6 +997,45 @@ async function createDownstreamTask(event) {
   } catch (error) { toast(error.message, true); }
 }
 
+async function createMotherQuestionRun(selectionRunId) {
+  const button = document.querySelector("#create-mother-run") || document.querySelector("#refresh-mother-run");
+  if (button) { button.disabled = true; button.textContent = "分组中…"; }
+  try {
+    const result = await api("/api/mother-questions", {method: "POST", body: JSON.stringify({selection_run_id: selectionRunId})});
+    await load();
+    const s = result.summary;
+    toast(`已形成 ${s.mother_group_count} 组母题提案、${s.progressive_group_count} 组递进题组；原题图表 ${s.retained_figure_count}/${s.source_figure_count} 全部保留`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function saveMotherQuestionReview(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  const memberActions = {};
+  form.querySelectorAll('select[name^="action-"]').forEach(select => { memberActions[select.name.replace("action-", "")] = select.value; });
+  try {
+    await api("/api/mother-question-reviews", {method: "POST", body: JSON.stringify({
+      mother_question_run_id: form.dataset.motherRun, group_id: form.dataset.motherGroup,
+      decision: values.get("decision"), member_actions: memberActions,
+      anchor_member_id: values.get("anchor_member_id") || null,
+      visual_policy: values.get("visual_policy"), reason: values.get("reason"),
+    })});
+    await load();
+    toast("母题分组决定已保存；纠正理由只进入当前项目隔离规则");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function batchConfirmMotherGroups(runId) {
+  const button = document.querySelector("#batch-confirm-mother");
+  if (button) { button.disabled = true; button.textContent = "处理中…"; }
+  try {
+    const result = await api("/api/mother-question-reviews/batch-confirm", {method: "POST", body: JSON.stringify({mother_question_run_id: runId})});
+    await load();
+    toast(`已批量确认 ${result.passed_count} 组，保留 ${result.skipped_count} 组异常或人工纠正对象`);
+  } catch (error) { toast(error.message, true); }
+}
+
 async function batchPassSelections(selectionRunId) {
   const button = document.querySelector("#batch-pass-selections");
   if (button) { button.disabled = true; button.textContent = "处理中…"; }
@@ -941,12 +1069,17 @@ async function evaluateFreeze(id) {
   } catch (error) { toast(error.message, true); }
 }
 
-document.querySelectorAll(".nav-item").forEach(button => button.onclick = () => {
+function showPage(page) {
+  const button = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (!button) return;
   document.querySelectorAll(".nav-item").forEach(x => x.classList.remove("active"));
   document.querySelectorAll(".page").forEach(x => x.classList.remove("active"));
   button.classList.add("active");
-  document.querySelector(`#page-${button.dataset.page}`).classList.add("active");
-});
+  document.querySelector(`#page-${page}`).classList.add("active");
+  if (location.hash !== `#${page}`) history.replaceState(null, "", `#${page}`);
+}
+document.querySelectorAll(".nav-item").forEach(button => button.onclick = () => showPage(button.dataset.page));
+showPage(location.hash.replace("#", "") || "dashboard");
 document.querySelector("#start-run").onclick = startRun;
 document.querySelector("#auto-mode").onclick = setFullAuto;
 document.querySelector("#project-form").onsubmit = saveProject;
