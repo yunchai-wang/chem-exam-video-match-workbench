@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1660" role="img" aria-labelledby="title desc">
-  <title id="title">L4 考情驱动课程自进化平台关键界面蓝图</title>
+  <title id="title">L4 真题驱动的课程自进化平台关键界面蓝图</title>
   <desc id="desc">一张大画板展示项目首页、资料接入与标准化、趋势与课程缺口、好题与生产优先级、内容生产与版本反馈五个中保真页面。</desc>
 
   <defs>
@@ -33,7 +33,7 @@
       <circle cx="88" cy="93" r="4" fill="#FFFFFF"/>
       <circle cx="101" cy="80" r="4" fill="#FFFFFF"/>
       <circle cx="114" cy="93" r="4" fill="#FFFFFF"/>
-      <text x="154" y="86" font-size="38" font-weight="700" fill="#19213D">L4 考情驱动课程自进化平台</text>
+      <text x="154" y="86" font-size="38" font-weight="700" fill="#19213D">L4 真题驱动的课程自进化平台</text>
       <text x="154" y="120" font-size="20" fill="#6B728D">5 个关键页面 · 中保真界面蓝图 · 让业务流程、人工边界与规则回显同时可见</text>
       <rect x="2040" y="66" width="290" height="46" rx="23" fill="#FFFFFF" stroke="#DDE1F1"/>
       <circle cx="2074" cy="89" r="8" fill="#0F9D8B"/>

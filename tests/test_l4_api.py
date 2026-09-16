@@ -135,6 +135,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(state["mother_question_runs"], [])
         self.assertEqual(state["summary"]["mother_question_run_count"], 0)
 
+    def test_docx_export_and_artifact_write_back_reject_unknown_ids(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            urllib.request.urlopen(self.base + "/api/exports/selections/missing.docx")
+        self.assertEqual(context.exception.code, 404)
+        context.exception.close()
+        for path in ("/api/artifacts/missing/outputs", "/api/artifacts/missing/confirm"):
+            request = urllib.request.Request(
+                self.base + path, data=json.dumps({"outputs": [{"path": "/tmp/x.docx", "kind": "docx"}]}).encode("utf-8"),
+                method="POST", headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as context:
+                urllib.request.urlopen(request)
+            self.assertEqual(context.exception.code, 400)
+            context.exception.close()
+
     def test_tag_configuration_can_be_created_through_api(self) -> None:
         status, config = self.request("/api/tag-configurations", "POST", {
             "name": "已有少量标签",

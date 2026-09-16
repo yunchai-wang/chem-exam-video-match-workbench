@@ -497,7 +497,7 @@ function renderDownstreamTaskCenter(selection, visibleQuestions) {
   }).reverse();
   const taskRows = tasks.length ? tasks.map(item => {
     const set = (state.question_sets || []).find(candidate => candidate.id === item.question_set_id);
-    return `<div class="downstream-task-row"><div><strong>${esc(item.name)}</strong><small>${esc(item.task_type)} · ${set?.item_count || 0} 题 · ${esc(item.target_region || "未限定地区")}</small></div><span class="tag">${esc(item.status)}</span></div>`;
+    return `<div class="downstream-task-row"><div><strong>${esc(item.name)}</strong><small>${esc(item.task_type)} · ${set?.item_count || 0} 题 · ${esc(item.target_region || "未限定地区")}</small></div><div class="chip-row" style="margin:0"><span class="tag">${esc(item.status)}</span>${set ? `<a class="button secondary small" href="/api/exports/question-sets/${encodeURIComponent(set.id)}.docx">下载题集 Word</a>` : ""}</div></div>`;
   }).join("") : `<p class="quiet">尚未建立下游任务。新建后会冻结题目、小问、角色标签与原题图引用。</p>`;
   node.innerHTML = `<div class="panel-title"><div><p class="eyebrow">多用途题目资产</p><h3>基于当前筛选结果新建任务</h3></div><span class="status completed">${visibleQuestions.length} 题当前可见</span></div>
     <p class="quiet">视频优先级只服务课程生产；习题册等任务会重新按目标学生、难度梯度和题目角色编排。</p>
@@ -572,7 +572,7 @@ function renderMotherQuestionCenter(selection) {
     <div class="diagnosis-summary mother-summary"><div><b>${s.eligible_candidate_count}</b><span>有效题目单元</span></div><div><b>${s.mother_group_count}</b><span>整合成母题</span></div><div><b>${s.progressive_group_count}</b><span>递进题组</span></div><div><b>${s.independent_count}</b><span>保持独立</span></div><div><b>${s.exception_group_count}</b><span>异常组待看</span></div><div class="${s.figures_fully_retained ? "" : "health-risk"}"><b>${s.retained_figure_count}/${s.source_figure_count}</b><span>原题图表保留</span></div></div>
     <div class="chip-row">${MEMBER_ACTIONS.map(action => `<span class="tag ${actionTagClass(action)}">${action} ${actionCounts[action] || 0}</span>`).join("")}<span class="tag">${esc(run.lesson_plan_gate)}</span></div>
     <div class="evidence-limit"><strong>分组边界</strong><span>${esc(run.evidence_limits.join(" "))}</span></div>
-    <div class="calibration-actions"><p class="quiet">批量确认只接受非异常组，不覆盖老师已纠正的分组；候选去向变化后可按当前有效去向刷新提案，历史提案与确认记录保留。</p><div><button class="button secondary small" id="refresh-mother-run">按当前去向刷新提案</button><button class="button primary small" id="batch-confirm-mother">批量确认非异常组</button></div></div>
+    <div class="calibration-actions"><p class="quiet">批量确认只接受非异常组，不覆盖老师已纠正的分组；候选去向变化后可按当前有效去向刷新提案，历史提案与确认记录保留。</p><div><a class="button secondary small" href="/api/exports/mother-questions/${encodeURIComponent(run.id)}.docx">下载审核稿 Word</a><button class="button secondary small" id="refresh-mother-run">按当前去向刷新提案</button><button class="button primary small" id="batch-confirm-mother">批量确认非异常组</button></div></div>
     <div class="mother-group-list">${run.groups.map(group => motherGroupCard(run, group, reviews[group.id])).join("")}</div>`;
   node.querySelector("#refresh-mother-run").onclick = () => createMotherQuestionRun(selection.id);
   node.querySelector("#batch-confirm-mother").onclick = () => batchConfirmMotherGroups(run.id);
@@ -650,7 +650,7 @@ function renderSelectionOverview(selection) {
   node.innerHTML = `<div class="panel-title"><div><p class="eyebrow">真实候选池 · ${esc(selection.rule_version)}</p><h3>${s.evaluated_count} 道金样本已完成独立判断</h3></div><span class="status completed">教研预测</span></div>
     <div class="diagnosis-summary selection-summary"><div><b>${s.high_frequency_count}</b><span>高频</span></div><div><b>${s.good_question_count}</b><span>好题候选</span></div><div><b>${s.high_frequency_and_good_count}</b><span>高频且好题</span></div><div><b>${s.p1_count} / ${s.p2_count}</b><span>P1 / P2</span></div><div><b>${reviewCount}</b><span>教师已介入</span></div></div>
     <div class="evidence-limit"><strong>证据边界</strong><span>${esc(selection.evidence_limits.join(" "))}</span></div>
-    <div class="calibration-actions"><p class="quiet">“只看已入选”按当前有效去向筛选“进入课程生产”。批量通过只接受非异常项，不覆盖老师已纠正的结果。</p><button class="button secondary small" id="batch-pass-selections">批量通过非异常项</button></div>`;
+    <div class="calibration-actions"><p class="quiet">“只看已入选”按当前有效去向筛选“进入课程生产”。批量通过只接受非异常项，不覆盖老师已纠正的结果。Word 是带全部原题图的工作副本，不取代平台结构化主资产。</p><div><a class="button secondary small" href="/api/exports/selections/${encodeURIComponent(selection.id)}.docx">下载候选池 Word</a><button class="button secondary small" id="batch-pass-selections">批量通过非异常项</button></div></div>`;
   node.querySelector("#batch-pass-selections").onclick = () => batchPassSelections(selection.id);
 }
 
@@ -725,13 +725,62 @@ function renderArtifacts() {
     <article class="artifact"><div><p class="eyebrow">${esc(a.kind)} · V${a.version}</p><h3>${esc(a.title)}</h3><p class="artifact-meta">${esc(a.status)}｜${esc(a.updated_at)}</p><p>${esc(a.summary)}</p>
       <ol class="outline">${a.outline.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
       ${skillPacketMarkup(jobsById[a.skill_packet_job_id])}
+      ${artifactOutputsMarkup(a)}
       ${a.revision_notes.map(n => `<div class="revision">V${n.version}：${esc(n.summary)}（${n.rerun_stages.join(" → ")}）</div>`).join("")}
     </div><div class="feedback-box"><strong>只在成品处反馈也可以</strong><p class="quiet">例如：“逐字稿不够口语”“第二题不适合做母题”“原题图表缺失”。AI 会逆向归因。</p><textarea data-feedback="${a.id}" placeholder="写下修改意见，不需要判断应该改哪条规则…"></textarea><button class="button primary" data-submit-feedback="${a.id}">提交反馈并局部重跑</button></div></article>`).join("");
   document.querySelectorAll("[data-submit-feedback]").forEach(button => button.onclick = () => submitFeedback(button.dataset.submitFeedback));
+  document.querySelectorAll("[data-register-outputs]").forEach(form => form.onsubmit = registerArtifactOutputs);
+  document.querySelectorAll("[data-confirm-artifact]").forEach(button => button.onclick = () => confirmArtifact(button.dataset.confirmArtifact));
   document.querySelectorAll("[data-copy-prompt]").forEach(button => button.onclick = async () => {
     const text = document.querySelector(`[data-prompt-text="${button.dataset.copyPrompt}"]`)?.textContent || "";
     try { await navigator.clipboard.writeText(text); toast("Agent 提示词已复制"); } catch (error) { toast("复制失败，请手动选择文本", true); }
   });
+}
+
+function artifactOutputsMarkup(artifact) {
+  const outputs = artifact.outputs || [];
+  const current = outputs.filter(item => item.artifact_version === artifact.version);
+  const confirmation = artifact.confirmation;
+  const rows = outputs.length ? outputs.map(item => `<div class="output-row"><div><strong>${esc(item.path)}</strong><small>${esc(item.kind)} · V${item.artifact_version} · ${esc(item.produced_by)}${item.skill ? ` · ${esc(item.skill)}` : ""}${item.note ? ` · ${esc(item.note)}` : ""}</small></div><span class="tag ${item.exists_on_register ? "good" : "risk"}">${item.exists_on_register ? "登记时可读" : "登记时不可读"}</span></div>`).join("") : `<p class="quiet">尚未回填 Skill 产出。Agent 按执行包跑完后，把生成文件的本地路径登记到这里；确认后下游阶段才会把它当作已确认输入。</p>`;
+  const confirmState = confirmation
+    ? `<span class="tag good">教师已确认 V${confirmation.version} · ${esc(confirmation.confirmed_at)}</span>${confirmation.reason ? `<small class="member-reason">${esc(confirmation.reason)}</small>` : ""}`
+    : `<span class="tag">V${artifact.version} 未确认</span>`;
+  const confirmButton = current.length && !confirmation ? `<button class="button primary small" type="button" data-confirm-artifact="${esc(artifact.id)}">确认当前版本 V${artifact.version}</button>` : "";
+  return `<div class="artifact-outputs">
+    <div class="skill-packet-head"><strong>Skill 产出回填与教师确认</strong>${confirmState}</div>
+    <div class="output-list">${rows}</div>
+    <form class="output-form" data-register-outputs="${esc(artifact.id)}">
+      <label>产出文件路径<input name="path" placeholder="/本地路径/教案初稿.docx" required></label>
+      <label>类型<select name="kind">${["docx","markdown","json","csv","pptx","html","pdf","folder","other"].map(kind => `<option>${kind}</option>`).join("")}</select></label>
+      <label>来源 Skill<input name="skill" placeholder="例如 chemistry-problem-script"></label>
+      <label class="task-goal">备注<input name="note" placeholder="版本、审稿轮次或需要教师注意的点"></label>
+      <button class="button secondary small" type="submit">登记产出</button>
+      ${confirmButton}
+    </form>
+  </div>`;
+}
+
+async function registerArtifactOutputs(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  try {
+    await api(`/api/artifacts/${form.dataset.registerOutputs}/outputs`, {method: "POST", body: JSON.stringify({
+      skill: values.get("skill"), outputs: [{path: values.get("path"), kind: values.get("kind"), note: values.get("note")}],
+    })});
+    await load();
+    toast("Skill 产出已回填；确认前不会被下游阶段读取");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function confirmArtifact(id) {
+  const reason = window.prompt("确认理由（可留空）：", "") ?? null;
+  if (reason === null) return;
+  try {
+    await api(`/api/artifacts/${id}/confirm`, {method: "POST", body: JSON.stringify({reason})});
+    await load();
+    toast("已确认当前版本；下游阶段执行包会读取该产出");
+  } catch (error) { toast(error.message, true); }
 }
 
 function skillPacketMarkup(job) {

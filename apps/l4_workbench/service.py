@@ -29,6 +29,10 @@ from .tag_configuration import build_tag_configuration
 from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
 from .skill_routing import SkillRegistry, normalize_lesson_type
 from .stage_executors import build_stage_executors
+from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
+
+
+ARTIFACT_OUTPUT_KINDS = {"docx", "markdown", "json", "csv", "pptx", "html", "pdf", "folder", "other"}
 
 
 PROJECT_FIELDS = {
@@ -456,6 +460,80 @@ class WorkbenchService:
             self._event(current, "mother_question.batch_confirmed", f"已批量确认 {len(passed)} 组非异常母题提案，保留 {len(skipped)} 组待处理")
         return {"passed_count": len(passed), "skipped_count": len(skipped), "skipped_group_ids": skipped, "reviews": passed}
 
+    # -- editable working copies ---------------------------------------------
+    def export_selection_docx(self, selection_run_id: str) -> tuple[bytes, str, dict[str, Any]]:
+        state = self.store.load()
+        selection = self._find(state["selection_runs"], selection_run_id, "selection run")
+        payload, report = build_selection_docx(selection, state["selection_reviews"], state["question_assets"], self.store.path.parent)
+        return payload, f"候选池-{selection['id']}.docx", report
+
+    def export_question_set_docx(self, question_set_id: str) -> tuple[bytes, str, dict[str, Any]]:
+        state = self.store.load()
+        question_set = self._find(state["question_sets"], question_set_id, "question set")
+        task = next((item for item in state["downstream_tasks"] if item.get("question_set_id") == question_set["id"]), None)
+        payload, report = build_question_set_docx(question_set, task, state["question_assets"], self.store.path.parent)
+        return payload, f"{question_set['name']}-{question_set['version']}.docx", report
+
+    def export_mother_question_docx(self, run_id: str) -> tuple[bytes, str, dict[str, Any]]:
+        state = self.store.load()
+        run = self._find(state["mother_question_runs"], run_id, "mother question run")
+        payload, report = build_mother_question_docx(run, state["mother_question_reviews"], state["question_assets"], self.store.path.parent)
+        return payload, f"经典母题整合审核稿-{run['id']}.docx", report
+
+    # -- skill output write-back and teacher confirmation ---------------------
+    @retry_concurrent_updates
+    def register_artifact_outputs(self, artifact_id: str, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        artifact = self._find(state["artifacts"], artifact_id, "artifact")
+        outputs = request.get("outputs")
+        if not isinstance(outputs, list) or not outputs:
+            raise ValidationError("outputs must be a non-empty list")
+        recorded = []
+        for item in outputs:
+            if not isinstance(item, dict) or not str(item.get("path") or "").strip():
+                raise ValidationError("each output requires a path")
+            kind = str(item.get("kind") or "other")
+            if kind not in ARTIFACT_OUTPUT_KINDS:
+                raise ValidationError(f"invalid output kind: {kind}")
+            path = Path(str(item["path"]).strip()).expanduser()
+            recorded.append({
+                "id": new_id("output"), "path": str(path), "kind": kind,
+                "exists_on_register": path.exists(),
+                "produced_by": str(item.get("produced_by") or request.get("produced_by") or "agent"),
+                "skill": str(item.get("skill") or request.get("skill") or ""),
+                "note": str(item.get("note") or "").strip(),
+                "artifact_version": artifact["version"], "registered_at": now(),
+            })
+        artifact.setdefault("outputs", []).extend(recorded)
+        artifact["confirmation"] = None
+        artifact["status"] = "Skill 产出已回填，待教师确认（非正式成品）"
+        artifact["updated_at"] = now()
+        missing = sum(not item["exists_on_register"] for item in recorded)
+        suffix = f"，其中 {missing} 个路径当前不可读" if missing else ""
+        self._event(state, "artifact.outputs_registered", f"已为“{artifact['kind']}”回填 {len(recorded)} 个 Skill 产出{suffix}")
+        self.store.save(state)
+        return artifact
+
+    @retry_concurrent_updates
+    def confirm_artifact(self, artifact_id: str, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        artifact = self._find(state["artifacts"], artifact_id, "artifact")
+        current_outputs = [item for item in artifact.get("outputs", []) if item["artifact_version"] == artifact["version"]]
+        if not current_outputs:
+            raise ValidationError("当前版本还没有回填任何 Skill 产出，不能确认执行契约或执行包本身")
+        artifact["confirmation"] = {
+            "version": artifact["version"], "confirmed_at": now(), "confirmed_by": "teacher",
+            "reason": str(request.get("reason") or "").strip(),
+            "primary_output_id": str(request.get("primary_output_id") or current_outputs[0]["id"]),
+        }
+        if artifact["confirmation"]["primary_output_id"] not in {item["id"] for item in current_outputs}:
+            raise ValidationError("primary_output_id must reference an output of the current version")
+        artifact["status"] = f"教师已确认 V{artifact['version']}"
+        artifact["updated_at"] = now()
+        self._event(state, "artifact.confirmed", f"教师已确认“{artifact['kind']}” V{artifact['version']}；下游阶段可读取该版本")
+        self.store.save(state)
+        return artifact
+
     def freeze_predictions(self, request: dict[str, Any]) -> dict[str, Any]:
         freeze = create_prediction_freeze(request)
         with self.store.transaction() as state:
@@ -622,6 +700,7 @@ class WorkbenchService:
         rerun["status"] = "completed"
         artifact["version"] += 1
         artifact["updated_at"] = now()
+        artifact["confirmation"] = None
         artifact["status"] = "执行契约重跑预览（非正式生产成品）"
         artifact["revision_notes"].append({
             "version": artifact["version"], "feedback_id": feedback["id"], "rerun_stages": rerun_stages,
@@ -740,6 +819,8 @@ class WorkbenchService:
                 "outline": list(definition["outline"]),
                 "revision_notes": [],
                 "skill_packet_job_id": None,
+                "outputs": [],
+                "confirmation": None,
             }
             if packet_job:
                 output = packet_job["output"]

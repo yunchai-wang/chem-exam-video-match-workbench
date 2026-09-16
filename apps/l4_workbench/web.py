@@ -8,7 +8,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from .domain import ValidationError
 from .service import WorkbenchService
@@ -42,6 +42,28 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "private, max-age=300")
             self.end_headers()
             self.wfile.write(target.read_bytes())
+            return
+        match = re.fullmatch(r"/api/exports/(selections|question-sets|mother-questions)/([^/]+)\.docx", path)
+        if match:
+            exporters = {
+                "selections": self.service.export_selection_docx,
+                "question-sets": self.service.export_question_set_docx,
+                "mother-questions": self.service.export_mother_question_docx,
+            }
+            try:
+                payload, filename, report = exporters[match.group(1)](unquote(match.group(2)))
+            except ValidationError as error:
+                self._json(404, {"error": str(error)})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(filename)}")
+            self.send_header("X-Figure-Count", str(report["figure_count"]))
+            self.send_header("X-Missing-Figure-Count", str(report["missing_figure_count"]))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
             return
         static_path = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/app.js": "app.js"}.get(path)
         if static_path:
@@ -142,6 +164,14 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             match = re.fullmatch(r"/api/artifacts/([^/]+)/feedback", path)
             if match:
                 self._json(201, self.service.add_artifact_feedback(match.group(1), str(payload.get("text", ""))))
+                return
+            match = re.fullmatch(r"/api/artifacts/([^/]+)/outputs", path)
+            if match:
+                self._json(201, self.service.register_artifact_outputs(match.group(1), payload))
+                return
+            match = re.fullmatch(r"/api/artifacts/([^/]+)/confirm", path)
+            if match:
+                self._json(200, self.service.confirm_artifact(match.group(1), payload))
                 return
             match = re.fullmatch(r"/api/source-snapshots/([^/]+)/standardize", path)
             if match:

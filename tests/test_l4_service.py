@@ -228,6 +228,76 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(review["stage"], "mother_question")
         self.assertEqual(review["item_ids"], [mother["groups"][0]["id"]])
 
+    def test_confirmed_lesson_plan_output_feeds_the_transcript_packet(self) -> None:
+        selection_id = self._seed_selection_run()
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.service.batch_confirm_mother_question_groups({"mother_question_run_id": mother["id"]})
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        first = self.service.start_run({"deliverables": ["lesson_plan"]})
+        plan = next(item for item in self.service.get_state()["artifacts"] if item["run_id"] == first["id"])
+        with self.assertRaises(Exception):
+            self.service.confirm_artifact(plan["id"], {})
+        plan_path = Path(self.temp.name) / "教案初稿.docx"
+        plan_path.write_bytes(b"docx")
+        registered = self.service.register_artifact_outputs(plan["id"], {
+            "skill": "onion-chemistry-course-design-review",
+            "outputs": [{"path": str(plan_path), "kind": "docx"}, {"path": str(Path(self.temp.name) / "missing.md"), "kind": "markdown"}],
+        })
+        self.assertEqual([item["exists_on_register"] for item in registered["outputs"]], [True, False])
+        self.assertIn("待教师确认", registered["status"])
+        confirmed = self.service.confirm_artifact(plan["id"], {"reason": "目标与例题功能核对通过"})
+        self.assertEqual(confirmed["status"], "教师已确认 V1")
+        self.assertEqual(confirmed["confirmation"]["primary_output_id"], registered["outputs"][0]["id"])
+
+        second = self.service.start_run({"deliverables": ["transcript"]})
+        transcript_job = next(job for job in self.service.get_state()["jobs"] if job["run_id"] == second["id"] and job["stage"] == "transcript")
+        inputs = transcript_job["output"]["inputs"]
+        self.assertTrue(inputs["lesson_plan_confirmed"])
+        self.assertEqual(inputs["lesson_plan_document"], str(plan_path))
+        self.assertEqual(inputs["lesson_plan_artifact_id"], plan["id"])
+        self.assertIn("已找到教师确认的教案", transcript_job["output"]["gates"][0])
+
+    def test_feedback_rerun_invalidates_a_previous_confirmation(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["lesson_plan"]})
+        artifact = next(item for item in self.service.get_state()["artifacts"] if item["run_id"] == run["id"])
+        path = Path(self.temp.name) / "plan.docx"
+        path.write_bytes(b"x")
+        self.service.register_artifact_outputs(artifact["id"], {"outputs": [{"path": str(path), "kind": "docx"}]})
+        self.service.confirm_artifact(artifact["id"], {})
+        result = self.service.add_artifact_feedback(artifact["id"], "教案里例题顺序不对")
+        self.assertIsNone(result["artifact"]["confirmation"])
+        self.assertEqual(result["artifact"]["version"], 2)
+        with self.assertRaises(Exception):
+            self.service.confirm_artifact(artifact["id"], {})
+
+    def test_docx_exports_cover_selection_question_set_and_mother_run(self) -> None:
+        selection_id = self._seed_selection_run()
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        with self.service.store.transaction() as state:
+            for candidate in state["selection_runs"][-1]["results"]:
+                candidate.update({
+                    "ai_role_labels": ["核心例题"], "ai_usage_scenarios": ["习题册"], "title": candidate["id"],
+                    "frequency": {"level": "高频", "numerator": 6, "denominator": 10, "reason": "6/10"},
+                    "quality": {"recommendation": "AI候选好题", "reason": "3/4", "score": 4},
+                    "coverage": {"status": "证据不足", "reason": "无强证据"},
+                    "production_priority": {"recommendation": "P2", "status": "教研预测", "reason": "两项成立"},
+                })
+            state["selection_runs"][-1]["rule_version"] = "production-selection-v0.3"
+            state["selection_runs"][-1]["summary"] = {"evaluated_count": 3, "high_frequency_count": 3, "good_question_count": 3, "high_frequency_and_good_count": 3, "p1_count": 0, "p2_count": 3, "p3_count": 0, "not_produce_count": 0}
+            state["selection_runs"][-1]["evidence_limits"] = []
+        task = self.service.create_downstream_task({"selection_run_id": selection_id, "task_type": "习题册", "candidate_ids": ["candidate-mq-a", "candidate-mq-b"]})
+        for exporter, identifier in (
+            (self.service.export_selection_docx, selection_id),
+            (self.service.export_question_set_docx, task["question_set"]["id"]),
+            (self.service.export_mother_question_docx, mother["id"]),
+        ):
+            payload, filename, report = exporter(identifier)
+            self.assertTrue(filename.endswith(".docx"))
+            self.assertEqual(payload[:2], b"PK")
+            self.assertGreater(report["figure_count"], 0)
+            self.assertEqual(report["missing_figure_count"], report["figure_count"])  # seeded assets have no real image files
+
     def test_mother_question_review_and_batch_confirm_skip_corrected_groups(self) -> None:
         selection_id = self._seed_selection_run()
         run = self.service.create_mother_question_run({"selection_run_id": selection_id})

@@ -16,7 +16,7 @@
   <circle cx="95" cy="87" r="24" fill="#6EA8FE" opacity="0.24"/>
   <circle cx="95" cy="87" r="11" fill="#8CC8FF"/>
   <path d="M88 87 L93 92 L103 80" fill="none" stroke="#15264A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="137" y="82" font-family="Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">L4 考情驱动课程自进化平台</text>
+  <text x="137" y="82" font-family="Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">L4 真题驱动的课程自进化平台</text>
   <text x="137" y="122" font-family="Noto Sans SC, sans-serif" font-size="18" fill="#CEDBFA">从多源真题到课程交付，再把真实反馈变成可验证、可批准、可回退的下一版规则</text>
   <rect x="1270" y="70" width="230" height="50" rx="25" fill="#FFFFFF" opacity="0.12"/>
   <text x="1385" y="102" text-anchor="middle" font-family="Noto Sans SC, sans-serif" font-size="17" font-weight="600" fill="#FFFFFF">本地 Web ＋ 个人闭环 Base</text>

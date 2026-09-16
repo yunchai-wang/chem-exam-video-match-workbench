@@ -17,7 +17,7 @@ STATE_PATH = ROOT / "outputs" / "l4_workbench" / "state.json"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="L4 课程自进化平台")
+    parser = argparse.ArgumentParser(description="L4 真题驱动的课程自进化平台")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--state", type=Path, default=STATE_PATH)
@@ -25,7 +25,7 @@ def main() -> None:
 
     service = WorkbenchService(JsonStore(args.state, SEED_PATH))
     server = make_server(service, args.host, args.port)
-    print(f"L4 课程自进化平台：http://{args.host}:{server.server_port}")
+    print(f"L4 真题驱动的课程自进化平台：http://{args.host}:{server.server_port}")
     print(f"本地状态：{args.state}")
     try:
         server.serve_forever()

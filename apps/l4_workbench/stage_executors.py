@@ -153,6 +153,7 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
         return dry_run_output(state, run, "上游教案阶段为契约预演，逐字稿阶段保持契约预演。")
     lesson_type = upstream["lesson_type"]
     skills = registry.route("transcript", lesson_type)
+    confirmed_plan = _confirmed_artifact(state, "lesson_plan")
     packet = {
         "execution_mode": "skill_packet", "production_ready": False, "result_type": "skill_packet",
         "stage": "transcript", "status": PACKET_STATUS,
@@ -164,11 +165,17 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
             "confirmed_group_count": upstream["inputs"]["confirmed_group_count"],
             "figure_count": upstream["inputs"]["figure_count"],
             "project": upstream["inputs"]["project"],
-            "lesson_plan_document": None,
+            "lesson_plan_document": confirmed_plan["path"] if confirmed_plan else None,
+            "lesson_plan_confirmed": bool(confirmed_plan),
+            "lesson_plan_artifact_id": confirmed_plan["artifact_id"] if confirmed_plan else None,
         },
         "figure_retention": upstream["figure_retention"],
         "gates": [
-            "逐字稿只读取教师确认的教案，不擅自改变教学目标和题目边界；工作台尚未记录教案确认状态，Agent 执行前必须向教师核对并把已确认教案路径填入 inputs.lesson_plan_document。",
+            (
+                f"逐字稿只读取教师确认的教案：已找到教师确认的教案 {confirmed_plan['artifact_title']} V{confirmed_plan['version']}（{confirmed_plan['path']}），以此为唯一主输入，不擅自改变教学目标和题目边界。"
+                if confirmed_plan else
+                "逐字稿只读取教师确认的教案；工作台目前没有任何教师已确认的教案成品。Agent 执行前必须先让教师在“成品与后验反馈”页确认教案版本，并把路径填入 inputs.lesson_plan_document。"
+            ),
             "按 Skill 的多步流程（初稿→洋葱味道点评→修改→润色→终稿）执行，每步输出可编辑 .docx。",
             "信息时序复核：学生此刻已看到并理解的信息才能被调用；画面切换、高亮与台词同步。",
         ],
@@ -189,6 +196,7 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
     deliverables = run.get("requested_deliverables", [])
     mode = "html" if "html" in deliverables else "ppt"
     validator = next((item["validator_path"] for item in skills if item.get("validator_path")), None)
+    confirmed_script = _confirmed_artifact(state, "transcript")
     packet = {
         "execution_mode": "skill_packet", "production_ready": False, "result_type": "skill_packet",
         "stage": "storyboard", "status": PACKET_STATUS,
@@ -201,11 +209,17 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
             "confirmed_group_count": upstream["inputs"]["confirmed_group_count"],
             "figure_count": upstream["inputs"]["figure_count"],
             "project": upstream["inputs"]["project"],
-            "final_transcript_document": None,
+            "final_transcript_document": confirmed_script["path"] if confirmed_script else None,
+            "transcript_confirmed": bool(confirmed_script),
+            "transcript_artifact_id": confirmed_script["artifact_id"] if confirmed_script else None,
         },
         "figure_retention": upstream["figure_retention"],
         "gates": [
-            "以明确标为“定稿/终稿”的逐字稿和原题为主输入；未定稿不得以视觉制作绕过教研审核，Agent 执行前须把定稿路径填入 inputs.final_transcript_document。",
+            (
+                f"以教师确认的定稿逐字稿为主输入：已找到 {confirmed_script['artifact_title']} V{confirmed_script['version']}（{confirmed_script['path']}）。"
+                if confirmed_script else
+                "以明确标为“定稿/终稿”的逐字稿和原题为主输入；工作台目前没有教师已确认的逐字稿成品，未定稿不得以视觉制作绕过教研审核，Agent 执行前须让教师确认逐字稿版本并把路径填入 inputs.final_transcript_document。"
+            ),
             "不重绘会造成科学失真的原题图；高风险科学图优先保留原图或重建为经核对的可编辑矢量图。",
             f"storyboard.json 生成后运行校验脚本：{validator or '（校验脚本未在本机找到）'}。",
         ],
@@ -259,6 +273,25 @@ def _frozen_group(group: dict[str, Any], review: dict[str, Any] | None, assets: 
         "anchor_member_id": anchor, "exception_flags": group["exception_flags"],
         "members": members,
     }
+
+
+def _confirmed_artifact(state: dict[str, Any], target_stage: str) -> dict[str, Any] | None:
+    """Latest teacher-confirmed artifact for a stage, with its primary output path."""
+    for artifact in reversed(state.get("artifacts", [])):
+        confirmation = artifact.get("confirmation")
+        if artifact.get("target_stage") != target_stage or not confirmation:
+            continue
+        if confirmation.get("version") != artifact.get("version"):
+            continue
+        outputs = artifact.get("outputs", [])
+        primary = next((item for item in outputs if item["id"] == confirmation.get("primary_output_id")), None)
+        if primary is None:
+            continue
+        return {
+            "artifact_id": artifact["id"], "artifact_title": artifact.get("title"), "version": artifact["version"],
+            "path": primary["path"], "kind": primary["kind"], "confirmed_at": confirmation.get("confirmed_at"),
+        }
+    return None
 
 
 def _stage_output(state: dict[str, Any], run: dict[str, Any], stage: str) -> dict[str, Any] | None:
