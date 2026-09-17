@@ -172,6 +172,28 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(mother_job["output"]["lesson_plan_ready"])
         self.assertEqual(self.service.get_state()['mother_question_reviews'], [])
 
+    def test_single_group_production_excludes_other_groups_and_keeps_scope_on_revision(self) -> None:
+        selection_id = self._seed_selection_run()
+        with self.service.store.transaction() as state:
+            for candidate in state["selection_runs"][-1]["results"]:
+                candidate["ai_next_route"] = "进入课程生产"
+            state["selection_runs"][-1]["results"][-1]["structural_keys"] = ["another structure"]
+        mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.assertGreater(len(mother["groups"]), 1)
+        group = next(g for g in mother["groups"] if not g["exception"])
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["lesson_plan"], "mother_group_ids": [group["id"]]})
+        job = next(j for j in self.service.get_state()["jobs"] if j["run_id"] == run["id"] and j["stage"] == "lesson_plan")
+        self.assertEqual([g["group_id"] for g in job["output"]["inputs"]["confirmed_groups"]], [group["id"]])
+        self.assertEqual(set(run["selected_question_ids"]), {m["asset_id"] for m in group["members"]})
+        artifact = self.service.get_state()["artifacts"][-1]
+        result = self.service.add_artifact_feedback(artifact["id"], "教案补上判断理由")
+        self.assertEqual(result["run"]["mother_group_ids"], [group["id"]])
+        all_run = self.service.start_run({"deliverables": ["lesson_plan"]})
+        self.assertNotEqual(run["production_input_fingerprint"], all_run["production_input_fingerprint"])
+        with self.assertRaisesRegex(ValueError, "题组已变化"):
+            self.service.start_run({"mother_group_ids": ["not-a-group"]})
+
     def test_confirmed_mother_groups_freeze_skill_packets_down_to_storyboard(self) -> None:
         selection_id = self._seed_selection_run()
         mother = self.service.create_mother_question_run({"selection_run_id": selection_id})
@@ -244,7 +266,7 @@ class ServiceTests(unittest.TestCase):
             "outputs": [{"path": str(plan_path), "kind": "docx"}, {"path": str(Path(self.temp.name) / "missing.md"), "kind": "markdown"}],
         })
         self.assertEqual([item["exists_on_register"] for item in registered["outputs"]], [True, False])
-        self.assertIn("待教师确认", registered["status"])
+        self.assertIn("等待 AI 质量检查", registered["status"])
         confirmed = self.service.confirm_artifact(plan["id"], {"reason": "目标与例题功能核对通过"})
         self.assertEqual(confirmed["status"], "教师已确认 V1")
         self.assertEqual(confirmed["confirmation"]["primary_output_id"], registered["outputs"][0]["id"])
@@ -253,7 +275,7 @@ class ServiceTests(unittest.TestCase):
         transcript_job = next(job for job in self.service.get_state()["jobs"] if job["run_id"] == second["id"] and job["stage"] == "transcript")
         inputs = transcript_job["output"]["inputs"]
         self.assertTrue(inputs["lesson_plan_confirmed"])
-        self.assertEqual(inputs["lesson_plan_document"], str(plan_path))
+        self.assertEqual(inputs["lesson_plan_document"], registered["outputs"][0]["stored_path"])
         self.assertEqual(inputs["lesson_plan_artifact_id"], plan["id"])
         self.assertIn("已找到教师确认的教案", transcript_job["output"]["gates"][0])
 
@@ -270,6 +292,100 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(result["artifact"]["version"], 2)
         with self.assertRaises(Exception):
             self.service.confirm_artifact(artifact["id"], {})
+
+    def test_registered_output_preserves_original_bytes_and_detects_archive_changes(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        self.service.start_run({"deliverables": ["lesson_plan"]})
+        artifact = self.service.get_state()["artifacts"][-1]
+        source = Path(self.temp.name) / "plan.md"
+        source.write_text("Original lesson", encoding="utf-8")
+        output = self.service.register_artifact_outputs(artifact["id"], {
+            "outputs": [{"path": str(source), "kind": "markdown"}],
+        })["outputs"][0]
+        source.write_text("External edit", encoding="utf-8")
+        stored, name = self.service.artifact_output_file(artifact["id"], output["id"])
+        self.assertEqual(stored.read_text(), "Original lesson")
+        self.assertEqual(name, "plan.md")
+        self.service.confirm_artifact(artifact["id"], {})
+        stored.write_text("Tampered archive", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "存档已变化"):
+            self.service.artifact_output_file(artifact["id"], output["id"])
+        with self.assertRaisesRegex(ValueError, "存档已变化"):
+            self.service.confirm_artifact(artifact["id"], {})
+
+    def test_repeated_feedback_keeps_real_skill_packet_and_previous_version_context(self) -> None:
+        selection_id = self._seed_selection_run()
+        self.service.create_mother_question_run({"selection_run_id": selection_id})
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        run = self.service.start_run({"deliverables": ["lesson_plan", "transcript"]})
+        artifact = next(a for a in self.service.get_state()["artifacts"] if a["run_id"] == run["id"] and a["target_stage"] == "lesson_plan")
+        previous_run = run["id"]
+        for version in (1, 2):
+            source = Path(self.temp.name) / "plan.md"
+            source.write_text(f"Plan V{version}", encoding="utf-8")
+            output = self.service.register_artifact_outputs(artifact["id"], {
+                "outputs": [{"path": str(source), "kind": "markdown"}],
+            })["outputs"][-1]
+            self.service.confirm_artifact(artifact["id"], {})
+            feedback = f"教案第{version}处缺少控制变量的理由"
+            result = self.service.add_artifact_feedback(artifact["id"], feedback)
+            self.assertEqual(result["artifact"]["version"], version + 1)
+            self.assertIsNone(result["artifact"]["confirmation"])
+            self.assertEqual(result["run"]["parent_run_id"], previous_run)
+            jobs = [j for j in self.service.get_state()["jobs"] if j["run_id"] == result["run"]["id"]]
+            self.assertEqual([j["stage"] for j in jobs], ["lesson_plan"])
+            self.assertEqual(jobs[0]["execution_mode"], "skill_packet")
+            self.assertEqual(result["artifact"]["skill_packet_job_id"], jobs[0]["id"])
+            self.assertIn(feedback, jobs[0]["output"]["agent_prompt"])
+            context = jobs[0]["output"]["revision_context"]
+            self.assertEqual(context["previous_version"], version)
+            self.assertEqual(context["previous_outputs"][0]["stored_path"], output["stored_path"])
+            self.assertEqual(context["previous_confirmation"]["version"], version)
+            previous_run = result["run"]["id"]
+        first_output = self.service.get_state()["artifacts"][0]["outputs"][0]
+        self.assertEqual(Path(first_output["stored_path"]).read_text(), "Plan V1")
+
+    def test_failed_revision_still_invalidates_confirmation(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        self.service.start_run({"deliverables": ["lesson_plan"]})
+        artifact = self.service.get_state()["artifacts"][-1]
+        source = Path(self.temp.name) / "plan.md"
+        source.write_text("Original", encoding="utf-8")
+        self.service.register_artifact_outputs(artifact["id"], {"outputs": [{"path": str(source), "kind": "markdown"}]})
+        self.service.confirm_artifact(artifact["id"], {})
+        def fail(state, run):
+            raise RuntimeError("executor unavailable")
+        self.service.jobs.executors["lesson_plan"] = fail
+        result = self.service.add_artifact_feedback(artifact["id"], "教案需要修改")
+        self.assertEqual(result["run"]["status"], "failed")
+        self.assertIsNone(result["artifact"]["confirmation"])
+        self.assertEqual(result["artifact"]["version"], 2)
+        self.assertEqual(result["artifact"]["revision_notes"][-1]["previous_confirmation"]["version"], 1)
+
+    def test_quality_review_obeys_strategy_requires_evidence_and_withdraws_failed_acceptance(self) -> None:
+        self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
+        self.service.start_run({"deliverables": ["lesson_plan"]})
+        artifact = self.service.get_state()["artifacts"][-1]
+        source = Path(self.temp.name) / "plan.md"
+        source.write_text("Lesson draft", encoding="utf-8")
+        output = self.service.register_artifact_outputs(artifact["id"], {"outputs": [{"path": str(source), "kind": "markdown"}]})["outputs"][0]
+        checks = {key: {"status": "pass", "evidence": f"Checked {key} against fixture"} for key in (
+            "scientific_accuracy", "source_fidelity", "figure_retention", "teaching_alignment", "feedback_resolution")}
+        request = {"primary_output_id": output["id"], "reviewed_by": "test-agent", "checks": checks}
+        with self.assertRaisesRegex(ValueError, "五项检查"):
+            self.service.review_artifact_quality(artifact["id"], {**request, "checks": {}})
+        accepted = self.service.review_artifact_quality(artifact["id"], request)
+        self.assertEqual(accepted["confirmation"]["confirmed_by"], "agent_quality_check")
+        self.assertEqual(accepted["quality_reviews"][-1]["sha256"], output["sha256"])
+        self.service.update_project({"intervention_strategies": {"lesson_plan": "confirm"}})
+        waiting = self.service.review_artifact_quality(artifact["id"], request)
+        self.assertIsNone(waiting["confirmation"])
+        self.assertIn("教师确认", waiting["status"])
+        self.service.update_project({"intervention_strategies": {"lesson_plan": "auto"}})
+        checks["scientific_accuracy"] = {"status": "fail", "evidence": "Equation not balanced"}
+        failed = self.service.review_artifact_quality(artifact["id"], request)
+        self.assertIsNone(failed["confirmation"])
+        self.assertIn("需修改", failed["status"])
 
     def test_docx_exports_cover_selection_question_set_and_mother_run(self) -> None:
         selection_id = self._seed_selection_run()

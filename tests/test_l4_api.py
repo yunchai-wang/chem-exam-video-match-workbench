@@ -58,6 +58,26 @@ class ApiTests(unittest.TestCase):
         self.assertIn(run["status"], {"waiting", "completed"})
         self.assertEqual(run["requested_deliverables"], ["ppt"])
 
+    def test_download_registered_output_by_id_preserves_version(self) -> None:
+        self.request("/api/project", "PATCH", {"intervention_strategies": {
+            stage: "auto" for stage in ["standardization", "diagnosis", "selection", "mother_question", "lesson_plan", "transcript", "storyboard"]}})
+        self.request("/api/runs", "POST", {"deliverables": ["lesson_plan"]})
+        _, state = self.request("/api/state")
+        artifact = state["artifacts"][-1]
+        source = Path(self.temp.name) / "教案.md"
+        source.write_bytes(b"version one")
+        _, registered = self.request(f"/api/artifacts/{artifact['id']}/outputs", "POST", {"outputs": [{"path": str(source), "kind": "markdown"}]})
+        output = registered["outputs"][0]
+        source.write_bytes(b"version two")
+        route = f"/api/artifacts/{artifact['id']}/outputs/{output['id']}/download"
+        with urllib.request.urlopen(self.base + route) as response:
+            self.assertEqual(response.read(), b"version one")
+            self.assertIn("attachment", response.headers["Content-Disposition"])
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(self.base + route.replace(output["id"], "missing"))
+        self.assertEqual(error.exception.code, 404)
+        error.exception.close()
+
     def test_run_accepts_one_off_deliverable_selection(self) -> None:
         status, run = self.request("/api/runs", "POST", {"deliverables": ["candidate_pool"]})
         self.assertEqual(status, 201)

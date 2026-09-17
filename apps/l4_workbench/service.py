@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from .domain import INTERVENTION_STRATEGIES, STAGE_LABELS, STAGES, ValidationError
+from .artifact_files import snapshot_output, verified_output_path
 from .diagnosis import build_diagnostic_run, select_gold_sample
 from .backtest import create_prediction_freeze, evaluate_prediction_freeze
 from .base_adapter import LarkBaseAdapter
@@ -725,7 +726,7 @@ class WorkbenchService:
             kind = str(item.get("kind") or "other")
             if kind not in ARTIFACT_OUTPUT_KINDS:
                 raise ValidationError(f"invalid output kind: {kind}")
-            path = Path(str(item["path"]).strip()).expanduser()
+            path = Path(str(item["path"]).strip()).expanduser().resolve()
             recorded.append({
                 "id": new_id("output"), "path": str(path), "kind": kind,
                 "exists_on_register": path.exists(),
@@ -733,14 +734,65 @@ class WorkbenchService:
                 "skill": str(item.get("skill") or request.get("skill") or ""),
                 "note": str(item.get("note") or "").strip(),
                 "artifact_version": artifact["version"], "registered_at": now(),
+                **snapshot_output(path, self.store.path.parent),
             })
         artifact.setdefault("outputs", []).extend(recorded)
         artifact["confirmation"] = None
-        artifact["status"] = "Skill 产出已回填，待教师确认（非正式成品）"
+        strategy = state["project"]["intervention_strategies"].get(artifact.get("target_stage"), "confirm")
+        artifact["status"] = "Skill 产出已回填，待教师确认" if strategy == "confirm" else "产出已存档，等待 AI 质量检查"
+        artifact["summary"] = f"V{artifact['version']} 已登记 {sum(item['artifact_version'] == artifact['version'] for item in artifact['outputs'])} 份产出文件；文件存档与验收记录见下方。"
         artifact["updated_at"] = now()
         missing = sum(not item["exists_on_register"] for item in recorded)
         suffix = f"，其中 {missing} 个路径当前不可读" if missing else ""
         self._event(state, "artifact.outputs_registered", f"已为“{artifact['kind']}”回填 {len(recorded)} 个 Skill 产出{suffix}")
+        self.store.save(state)
+        return artifact
+
+    def artifact_output_file(self, artifact_id: str, output_id: str) -> tuple[Path, str]:
+        state = self.store.load()
+        artifact = self._find(state["artifacts"], artifact_id, "artifact")
+        output = self._find(artifact.get("outputs", []), output_id, "output")
+        return verified_output_path(output, self.store.path.parent), Path(output["path"]).name
+
+    @retry_concurrent_updates
+    def review_artifact_quality(self, artifact_id: str, request: dict[str, Any]) -> dict[str, Any]:
+        state = self.store.load()
+        artifact = self._find(state["artifacts"], artifact_id, "artifact")
+        current = [item for item in artifact.get("outputs", []) if item["artifact_version"] == artifact["version"]]
+        output = self._find(current, str(request.get("primary_output_id") or ""), "current output")
+        verified_output_path(output, self.store.path.parent)
+        required = {"scientific_accuracy", "source_fidelity", "figure_retention", "teaching_alignment", "feedback_resolution"}
+        checks = request.get("checks")
+        if not isinstance(checks, dict) or set(checks) != required:
+            raise ValidationError("质检需包含科学性、来源、图表保留、教学目标、反馈落实五项检查")
+        for check in checks.values():
+            if not isinstance(check, dict) or check.get("status") not in {"pass", "fail"} or not str(check.get("evidence") or "").strip():
+                raise ValidationError("每项质检需填写 pass/fail 和具体依据，不能只提交通过标签")
+        reviewer = str(request.get("reviewed_by") or "").strip()
+        if not reviewer:
+            raise ValidationError("reviewed_by is required")
+        passed = all(check["status"] == "pass" for check in checks.values())
+        review = {
+            "id": new_id("quality-review"), "artifact_version": artifact["version"],
+            "primary_output_id": output["id"], "sha256": output["sha256"],
+            "reviewed_by": reviewer, "created_at": now(), "checks": checks, "passed": passed,
+        }
+        artifact.setdefault("quality_reviews", []).append(review)
+        artifact["confirmation"] = None
+        strategy = state["project"]["intervention_strategies"].get(artifact.get("target_stage"), "confirm")
+        if passed and strategy in {"auto", "exceptions"}:
+            artifact["confirmation"] = {
+                "version": artifact["version"], "confirmed_at": now(), "confirmed_by": "agent_quality_check",
+                "reason": "五项内容检查通过，按当前项目策略放行", "primary_output_id": output["id"],
+                "quality_review_id": review["id"],
+            }
+            artifact["status"] = f"AI 质检放行 V{artifact['version']}"
+        elif passed:
+            artifact["status"] = "AI 质检通过，等待项目指定的教师确认"
+        else:
+            artifact["status"] = "AI 质检发现问题，需修改后重检"
+        artifact["updated_at"] = now()
+        self._event(state, "artifact.quality_reviewed", f"{artifact['kind']} V{artifact['version']}：{artifact['status']}")
         self.store.save(state)
         return artifact
 
@@ -759,8 +811,9 @@ class WorkbenchService:
         if artifact["confirmation"]["primary_output_id"] not in {item["id"] for item in current_outputs}:
             raise ValidationError("primary_output_id must reference an output of the current version")
         primary = next(item for item in current_outputs if item['id'] == artifact['confirmation']['primary_output_id'])
-        if not Path(primary['path']).is_file():
-            raise ValidationError("当前主产出文件不可读，不能验收缺失文件")
+        if not primary.get("stored_path"):
+            primary.update(snapshot_output(Path(primary["path"]), self.store.path.parent))
+        verified_output_path(primary, self.store.path.parent)
         artifact["status"] = f"教师已确认 V{artifact['version']}"
         artifact["updated_at"] = now()
         self._event(state, "artifact.confirmed", f"教师已确认“{artifact['kind']}” V{artifact['version']}；下游阶段可读取该版本")
@@ -825,6 +878,13 @@ class WorkbenchService:
         )
         required_stages = required_stages_for(deliverables)
         context = _mother_context(state)
+        group_ids = request.get("mother_group_ids")
+        if group_ids is not None:
+            if not isinstance(group_ids, list) or not group_ids or not all(isinstance(item, str) for item in group_ids):
+                raise ValidationError("mother_group_ids must be a non-empty list of group IDs")
+            if not context or not set(group_ids).issubset({g["id"] for g in context["mother_run"]["groups"]}):
+                raise ValidationError("所选题组已变化，请刷新后重新选择")
+            group_ids = sorted(set(group_ids))
         for question in state["questions"]:
             priority, reason, intervention = recommend_priority(question, state["project"])
             question["production_priority"] = priority
@@ -839,11 +899,18 @@ class WorkbenchService:
             "skipped_stages": [stage for stage in STAGES if stage not in required_stages],
             "delivery_scope": "once",
             "mother_question_run_id": context['mother_run']['id'] if context else None,
-            "production_input_fingerprint": production_input_fingerprint(state),
+            "production_input_fingerprint": production_input_fingerprint(state, group_ids),
+            "mother_group_ids": group_ids,
             "rule_version": state["project"]["rule_version"],
             "source_snapshot_ids": [item["id"] for item in state["source_snapshots"]],
             "selected_question_ids": [q["id"] for q in state["questions"] if q.get("selected_for_candidate")],
         }
+        if context:
+            run["selected_question_ids"] = sorted({
+                member["asset_id"] for group in context["mother_run"]["groups"]
+                if not group_ids or group["id"] in group_ids
+                for member in group["members"]
+            })
         state["runs"].append(run)
         labels = "、".join(DELIVERABLES[item]["label"] for item in deliverables)
         self._event(state, "run.started", f"AI 已按本次交付目标开始运行：{labels}", run["id"])
@@ -892,14 +959,22 @@ class WorkbenchService:
         root_stage, rationale = classify_feedback(text)
         source_run = self._find(state["runs"], artifact["run_id"], "run")
         source_required_stages = source_run.get("required_stages", STAGES)
-        rerun_stages = [stage for stage in affected_stages(root_stage) if stage in source_required_stages]
+        target_stage = artifact.get("target_stage", source_required_stages[-1])
+        rerun_stages = [stage for stage in affected_stages(root_stage)
+                        if stage in source_required_stages and STAGES.index(stage) <= STAGES.index(target_stage)]
         if not rerun_stages:
-            target_stage = artifact.get("target_stage", source_required_stages[-1])
             rerun_stages = [target_stage]
+        previous_version = artifact["version"]
+        previous_outputs = [item for item in artifact.get("outputs", []) if item["artifact_version"] == previous_version]
+        for output in previous_outputs:
+            if not output.get("stored_path"):
+                output.update(snapshot_output(Path(output["path"]), self.store.path.parent))
+        previous_confirmation = artifact.get("confirmation")
         feedback = {
             "id": new_id("feedback"), "artifact_id": artifact_id, "text": text.strip(), "created_at": now(),
             "root_stage": root_stage, "root_stage_label": STAGE_LABELS[root_stage],
             "rationale": rationale, "rerun_stages": rerun_stages,
+            "artifact_version": previous_version, "attribution_method": "keyword_router",
         }
         state["feedback"].append(feedback)
         latest_rule = state["rules"][-1]
@@ -924,13 +999,36 @@ class WorkbenchService:
             "rule_version": experiment["id"], "selected_question_ids": artifact["question_ids"],
             "source_snapshot_ids": source_run.get("source_snapshot_ids", []), "feedback_id": feedback["id"],
             "mother_question_run_id": source_run.get('mother_question_run_id'),
+            "mother_group_ids": source_run.get("mother_group_ids"),
             "production_input_fingerprint": source_run.get('production_input_fingerprint'),
+            "parent_run_id": source_run["id"],
+            "revision_context": {
+                "artifact_id": artifact_id, "previous_version": previous_version,
+                "feedback_id": feedback["id"], "feedback_text": text.strip(),
+                "root_stage": root_stage, "rationale": rationale,
+                "previous_outputs": previous_outputs,
+                "previous_confirmation": previous_confirmation,
+            },
         }
+        # Invalidate acceptance before rerunning: even a failed rerun must not
+        # leave the rejected version available as an accepted downstream input.
+        artifact["version"] += 1
+        artifact["confirmation"] = None
+        artifact["run_id"] = rerun["id"]
+        artifact["skill_packet_job_id"] = None
+        artifact["updated_at"] = now()
+        artifact["revision_notes"].append({
+            "version": artifact["version"], "feedback_id": feedback["id"], "rerun_stages": rerun_stages,
+            "previous_version": previous_version, "previous_confirmation": previous_confirmation,
+            "summary": f"已保存 V{previous_version} 与修改意见，等待新版实际产出",
+        })
         state["runs"].append(rerun)
         for stage in rerun_stages:
             rerun["current_stage"] = stage
             try:
-                self.jobs.execute(state, rerun, stage)
+                job, _ = self.jobs.execute(state, rerun, stage)
+                if stage == target_stage and job.get("execution_mode") == "skill_packet":
+                    artifact["skill_packet_job_id"] = job["id"]
             except StageExecutionError as error:
                 rerun["stage_states"][stage] = "failed"
                 rerun["status"] = "failed"
@@ -941,14 +1039,7 @@ class WorkbenchService:
                 return {"feedback": feedback, "rule": experiment, "artifact": artifact, "run": rerun}
             rerun["stage_states"][stage] = "completed"
         rerun["status"] = "completed"
-        artifact["version"] += 1
-        artifact["updated_at"] = now()
-        artifact["confirmation"] = None
-        artifact["status"] = "执行契约重跑预览（非正式生产成品）"
-        artifact["revision_notes"].append({
-            "version": artifact["version"], "feedback_id": feedback["id"], "rerun_stages": rerun_stages,
-            "summary": f"已从{STAGE_LABELS[root_stage]}开始执行重跑契约；实际执行模式见任务记录",
-        })
+        artifact["status"] = "修改任务已就绪，等待新版产出（非正式生产成品）"
         self._event(state, "feedback.rerun_completed", artifact["revision_notes"][-1]["summary"], rerun["id"])
         self.store.save(state)
         return {"feedback": feedback, "rule": experiment, "artifact": artifact, "run": rerun}
@@ -976,6 +1067,8 @@ class WorkbenchService:
                 continue
             run["current_stage"] = stage
             has_exception = self._stage_has_exception(state, stage)
+            if stage == "mother_question" and run.get("mother_group_ids"):
+                has_exception = bool(set(self._unconfirmed_exception_groups(state)) & set(run["mother_group_ids"]))
             strategy = state["project"]["intervention_strategies"][stage]
             decision = release_decision(strategy, has_exception)
             if decision != "blocked":
@@ -1000,6 +1093,8 @@ class WorkbenchService:
                     "created_at": now(),
                 }
                 state["reviews"].append(review)
+                if stage == "mother_question" and run.get("mother_group_ids"):
+                    review["item_ids"] = [gid for gid in review["item_ids"] if gid in run["mother_group_ids"]] if has_exception else run["mother_group_ids"]
                 self._event(state, "run.waiting", f"运行等待：{review['reason']}", run["id"])
                 return
             run["stage_states"][stage] = "completed"
@@ -1058,7 +1153,7 @@ class WorkbenchService:
                 "production_input_fingerprint": run.get('production_input_fingerprint'),
                 "title": f"{state['project']['name']}｜{definition['label']}", "kind": definition["label"],
                 "status": "执行契约预览（非正式生产成品）", "version": 1,
-                "question_ids": [q["id"] for q in selected], "created_at": now(), "updated_at": now(),
+                "question_ids": list(run["selected_question_ids"]), "created_at": now(), "updated_at": now(),
                 "summary": f"围绕 {len(selected)} 道已入选题目形成“{definition['label']}”结构预览；依赖阶段不额外生成成品，真实 AI/Skill 执行器尚未接入。",
                 "outline": list(definition["outline"]),
                 "revision_notes": [],
@@ -1076,10 +1171,13 @@ class WorkbenchService:
                     "summary": (
                         f"已按“{output.get('lesson_type_label')}”路由到 Skill {primary['skill'] if primary else '—'}"
                         f"（{'本机已安装' if primary and primary['resolved']['available'] else '本机未安装'}）；"
-                        f"输入为 {inputs.get('confirmed_group_count', 0)} 组已确认母题/题组、{inputs.get('figure_count', 0)} 张原题图。"
+                        f"输入为 {inputs.get('confirmed_group_count', 0)} 组已放行母题/题组、{inputs.get('figure_count', 0)} 张原题图。"
                         "执行包不是成品，Agent 执行后需回填产出路径。"
                     ),
                 })
+                groups = inputs.get("confirmed_groups", [])
+                if len(groups) == 1:
+                    artifact["title"] = f"{groups[0]['title']}｜{definition['label']}"
             state["artifacts"].append(artifact)
             artifacts.append(artifact)
         return artifacts

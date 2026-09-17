@@ -713,6 +713,16 @@ function renderMotherQuestionCenter(selection) {
   node.querySelector("#refresh-mother-run").onclick = () => createMotherQuestionRun(selection.id);
   node.querySelector("#batch-confirm-mother").onclick = () => batchConfirmMotherGroups(run.id);
   node.querySelectorAll("[data-mother-group]").forEach(form => form.onsubmit = saveMotherQuestionReview);
+  node.querySelectorAll("[data-produce-group]").forEach(button => button.onclick = async () => {
+    button.disabled = true;
+    try {
+      await api("/api/runs", {method: "POST", body: JSON.stringify({deliverables: ["lesson_plan"], mother_group_ids: [button.dataset.produceGroup]})});
+      await load();
+      showPage("artifacts");
+      toast("本组教案任务已创建");
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; }
+  });
 }
 
 function motherGroupCard(run, group, review) {
@@ -758,6 +768,7 @@ function motherGroupCard(run, group, review) {
       <label>图表呈现<select name="visual_policy">${VISUAL_POLICIES.map(value => `<option ${value === visualPolicy ? "selected" : ""}>${value}</option>`).join("")}</select></label>
       <label class="reason-field">理由<input name="reason" value="${esc(review?.status === "corrected" ? review.reason : "")}" placeholder="改分组、改成员去向或改典型原题时必填；直接确认可留空"></label>
       <button class="button secondary small" type="submit">保存本组决定</button>
+      <button class="button primary small" type="button" data-produce-group="${esc(group.id)}">创建本组教案任务</button>
     </div>
     <p class="selection-footnote">图表策略只是当前项目偏好；改分组或成员去向会形成隔离规则候选。无论哪种选择，每道原题的全部图表都随组保留，系统不会自动拼接。</p>
   </form>`;
@@ -857,11 +868,12 @@ function renderArtifacts() {
   const empty = document.querySelector("#artifact-empty");
   empty.style.display = state.artifacts.length ? "none" : "grid";
   const jobsById = Object.fromEntries((state.jobs || []).map(job => [job.id, job]));
-  list.innerHTML = [...state.artifacts].reverse().map(a => `
-    <article class="artifact"><div><p class="eyebrow">${esc(a.kind)} · V${a.version}</p><h3>${esc(a.title)}</h3><p class="artifact-meta">${esc(a.status)}｜${esc(a.updated_at)}</p><p>${esc(a.summary)}</p>
+  const hasCurrentOutput = artifact => (artifact.outputs || []).some(item => item.artifact_version === artifact.version && item.stored_path);
+  list.innerHTML = [...state.artifacts].reverse().sort((a, b) => Number(hasCurrentOutput(b)) - Number(hasCurrentOutput(a))).map(a => `
+    <article class="artifact"><div><p class="eyebrow">${esc(a.kind)} · V${a.version}</p><h3>${esc(a.title)}</h3><p class="artifact-meta">${esc(!a.target_stage && !a.outputs?.length ? "历史演示结构（无产出文件）" : a.status)}｜${esc(a.updated_at)}</p><p>${esc(a.summary)}</p>
       <ol class="outline">${a.outline.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
-      ${skillPacketMarkup(jobsById[a.skill_packet_job_id])}
       ${artifactOutputsMarkup(a)}
+      ${a.skill_packet_job_id ? `<details><summary>生产任务与输入依据</summary>${skillPacketMarkup(jobsById[a.skill_packet_job_id])}</details>` : ""}
       ${a.revision_notes.map(n => `<div class="revision">V${n.version}：${esc(n.summary)}（${n.rerun_stages.join(" → ")}）</div>`).join("")}
     </div><div class="feedback-box"><strong>只在成品处反馈也可以</strong><p class="quiet">例如：“逐字稿不够口语”“第二题不适合做母题”“原题图表缺失”。AI 会逆向归因。</p><textarea data-feedback="${a.id}" placeholder="写下修改意见，不需要判断应该改哪条规则…"></textarea><button class="button primary" data-submit-feedback="${a.id}">提交反馈并局部重跑</button></div></article>`).join("");
   document.querySelectorAll("[data-submit-feedback]").forEach(button => button.onclick = () => submitFeedback(button.dataset.submitFeedback));
@@ -877,14 +889,18 @@ function artifactOutputsMarkup(artifact) {
   const outputs = artifact.outputs || [];
   const current = outputs.filter(item => item.artifact_version === artifact.version);
   const confirmation = artifact.confirmation;
-  const rows = outputs.length ? outputs.map(item => `<div class="output-row"><div><strong>${esc(item.path)}</strong><small>${esc(item.kind)} · V${item.artifact_version} · ${esc(item.produced_by)}${item.skill ? ` · ${esc(item.skill)}` : ""}${item.note ? ` · ${esc(item.note)}` : ""}</small></div><span class="tag ${item.exists_on_register ? "good" : "risk"}">${item.exists_on_register ? "登记时可读" : "登记时不可读"}</span></div>`).join("") : `<p class="quiet">尚未回填 Skill 产出。Agent 按执行包跑完后，把生成文件的本地路径登记到这里；确认后下游阶段才会把它当作已确认输入。</p>`;
+  const quality = [...(artifact.quality_reviews || [])].reverse().find(item => item.artifact_version === artifact.version);
+  const dimensions = {scientific_accuracy: "科学性", source_fidelity: "来源忠实", figure_retention: "图表保留", teaching_alignment: "教学目标", feedback_resolution: "反馈落实"};
+  const rows = outputs.length ? outputs.map(item => `<div class="output-row"><div><strong>${esc(item.path.split(/[\\/]/).pop())}</strong><small>${esc(item.kind)} · V${item.artifact_version} · ${esc(item.produced_by)}${item.skill ? ` · ${esc(item.skill)}` : ""}${item.note ? ` · ${esc(item.note)}` : ""}</small></div>${item.stored_path ? `<a class="button secondary small" href="/api/artifacts/${encodeURIComponent(artifact.id)}/outputs/${encodeURIComponent(item.id)}/download" download>下载 V${item.artifact_version}</a>` : `<span class="tag ${item.exists_on_register ? "" : "risk"}">${item.exists_on_register ? "尚未存档" : "文件缺失"}</span>`}</div>`).join("") : `<p class="quiet">暂无产出文件</p>`;
   const confirmState = confirmation
-    ? `<span class="tag good">教师已确认 V${confirmation.version} · ${esc(confirmation.confirmed_at)}</span>${confirmation.reason ? `<small class="member-reason">${esc(confirmation.reason)}</small>` : ""}`
+    ? `<span class="tag good">${confirmation.confirmed_by === "agent_quality_check" ? "AI质检放行" : "教师已确认"} V${confirmation.version} · ${esc(confirmation.confirmed_at)}</span>${confirmation.reason ? `<small class="member-reason">${esc(confirmation.reason)}</small>` : ""}`
     : `<span class="tag">V${artifact.version} 未确认</span>`;
   const confirmButton = current.length && !confirmation ? `<button class="button primary small" type="button" data-confirm-artifact="${esc(artifact.id)}">确认当前版本 V${artifact.version}</button>` : "";
   return `<div class="artifact-outputs">
-    <div class="skill-packet-head"><strong>Skill 产出回填与教师确认</strong>${confirmState}</div>
+    <div class="skill-packet-head"><strong>产出文件与验收记录</strong>${confirmState}</div>
     <div class="output-list">${rows}</div>
+    ${quality ? `<details><summary>质量检查依据 · ${esc(quality.reviewed_by)}</summary>${Object.entries(quality.checks).map(([key, check]) => `<p><strong>${esc(dimensions[key] || key)} · ${check.status === "pass" ? "通过" : "需修改"}</strong><br>${esc(check.evidence)}</p>`).join("")}</details>` : ""}
+    ${current.length && !confirmation ? `<label>用于后续生产的主文件<select data-primary-output="${esc(artifact.id)}">${current.map(item => `<option value="${esc(item.id)}">${esc(item.path.split(/[\\/]/).pop())} · ${esc(item.kind)}</option>`).join("")}</select></label>` : ""}
     <form class="output-form" data-register-outputs="${esc(artifact.id)}">
       <label>产出文件路径<input name="path" placeholder="/本地路径/教案初稿.docx" required></label>
       <label>类型<select name="kind">${["docx","markdown","json","csv","pptx","html","pdf","folder","other"].map(kind => `<option>${kind}</option>`).join("")}</select></label>
@@ -913,7 +929,8 @@ async function confirmArtifact(id) {
   const reason = window.prompt("确认理由（可留空）：", "") ?? null;
   if (reason === null) return;
   try {
-    await api(`/api/artifacts/${id}/confirm`, {method: "POST", body: JSON.stringify({reason})});
+    const primary_output_id = document.querySelector(`[data-primary-output="${id}"]`)?.value;
+    await api(`/api/artifacts/${id}/confirm`, {method: "POST", body: JSON.stringify({reason, primary_output_id})});
     await load();
     toast("已确认当前版本；下游阶段执行包会读取该产出");
   } catch (error) { toast(error.message, true); }
@@ -931,7 +948,7 @@ function skillPacketMarkup(job) {
   const gates = (packet.gates || []).map(gate => `<li>${esc(gate)}</li>`).join("");
   const retention = packet.figure_retention ? `${packet.figure_retention.retained_count}/${packet.figure_retention.source_count}` : "—";
   return `<div class="skill-packet">
-    <div class="skill-packet-head"><strong>Skill 执行包 · ${esc(packet.lesson_type_label || "")}</strong><span class="tag">${esc(executionModeLabel(job.execution_mode))}</span><span class="tag">原题图表保留 ${esc(retention)}</span>${inputs.confirmed_group_count != null ? `<span class="tag good">${inputs.confirmed_group_count} 组已确认</span>` : ""}${inputs.unconfirmed_group_count ? `<span class="tag frequency">${inputs.unconfirmed_group_count} 组未确认不进入</span>` : ""}${inputs.mode ? `<span class="tag">${esc(inputs.mode.toUpperCase())} 模式</span>` : ""}</div>
+    <div class="skill-packet-head"><strong>Skill 执行包 · ${esc(packet.lesson_type_label || "")}</strong><span class="tag">${esc(executionModeLabel(job.execution_mode))}</span><span class="tag">原题图表保留 ${esc(retention)}</span>${inputs.confirmed_group_count != null ? `<span class="tag good">${inputs.confirmed_group_count} 组已放行</span>` : ""}${inputs.unconfirmed_group_count ? `<span class="tag frequency">${inputs.unconfirmed_group_count} 组待放行</span>` : ""}${inputs.mode ? `<span class="tag">${esc(inputs.mode.toUpperCase())} 模式</span>` : ""}</div>
     <p class="quiet">${esc(packet.message || packet.status)}</p>
     <div class="skill-route-list">${skills}</div>
     <details><summary>门禁与预期产出</summary><ul class="gate-list">${gates}</ul><p class="quiet">预期产出：${esc((packet.expected_outputs || []).join("；") || "按 SKILL.md")}</p></details>

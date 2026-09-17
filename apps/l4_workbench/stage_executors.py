@@ -15,6 +15,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from .artifact_files import verified_output_path
 from .domain import STAGE_LABELS
 from .skill_routing import LESSON_TYPE_LABELS, SkillRegistry, normalize_lesson_type
 
@@ -56,6 +57,8 @@ def mother_question_executor(state: dict[str, Any], run: dict[str, Any], registr
     assets = {item["id"]: item for item in state["question_assets"]}
     confirmed, unconfirmed = [], []
     for group in mother_run["groups"]:
+        if run.get("mother_group_ids") and group["id"] not in run["mother_group_ids"]:
+            continue
         review = reviews.get(group["id"])
         automatic = state["project"]["intervention_strategies"]["mother_question"] in {"auto", "exceptions"}
         usable = bool(review) or (automatic and not group["exception"])
@@ -181,7 +184,7 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
         "intervention_strategy": state['project']['intervention_strategies']['transcript'],
         "gates": [
             (
-                f"逐字稿只读取教师确认的教案：已找到教师确认的教案 {confirmed_plan['artifact_title']} V{confirmed_plan['version']}（{confirmed_plan['path']}），以此为唯一主输入，不擅自改变教学目标和题目边界。"
+                f"逐字稿只读取已验收教案：已找到{confirmed_plan['acceptance_label']}的教案 {confirmed_plan['artifact_title']} V{confirmed_plan['version']}（{confirmed_plan['path']}），以此为唯一主输入，不擅自改变教学目标和题目边界。"
                 if confirmed_plan else
                 "本次题集暂无已验收教案；先完成上游真实产出和质量校验，按项目介入策略验收后再生成逐字稿。不得借用其他题集的教案。"
             ),
@@ -225,7 +228,7 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
         "figure_retention": upstream["figure_retention"],
         "gates": [
             (
-                f"以教师确认的定稿逐字稿为主输入：已找到 {confirmed_script['artifact_title']} V{confirmed_script['version']}（{confirmed_script['path']}）。"
+                f"以{confirmed_script['acceptance_label']}的逐字稿为主输入：已找到 {confirmed_script['artifact_title']} V{confirmed_script['version']}（{confirmed_script['path']}）。"
                 if confirmed_script else
                 "本次题集暂无已验收逐字稿；先完成上游真实产出和质量校验，按项目介入策略验收后再制作分镜。不得借用其他题集的逐字稿。"
             ),
@@ -287,7 +290,7 @@ def _frozen_group(group: dict[str, Any], review: dict[str, Any] | None, assets: 
     }
 
 
-def production_input_fingerprint(state: dict[str, Any]) -> str | None:
+def production_input_fingerprint(state: dict[str, Any], group_ids: list[str] | None = None) -> str | None:
     context = _mother_context(state)
     if not context:
         return None
@@ -296,11 +299,13 @@ def production_input_fingerprint(state: dict[str, Any]) -> str | None:
         'mother': context['mother_run']['id'], 'reviews': context['reviews'],
         'project': {key: project.get(key) for key in ('subject', 'grade', 'lesson_type', 'content_scope', 'target_students', 'target_region', 'target_exam_type', 'target_year')},
     }
+    if group_ids:
+        payload["mother_group_ids"] = sorted(group_ids)
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
 def _confirmed_artifact(state: dict[str, Any], target_stage: str, run: dict[str, Any]) -> dict[str, Any] | None:
-    """Latest teacher-confirmed artifact for a stage, with its primary output path."""
+    """Latest accepted artifact for this input scope, with its frozen file."""
     for artifact in reversed(state.get("artifacts", [])):
         fingerprint = run.get('production_input_fingerprint')
         if not fingerprint or artifact.get('production_input_fingerprint') != fingerprint:
@@ -314,11 +319,19 @@ def _confirmed_artifact(state: dict[str, Any], target_stage: str, run: dict[str,
         primary = next((item for item in outputs if item["id"] == confirmation.get("primary_output_id")), None)
         if primary is None:
             continue
-        if not Path(primary['path']).is_file():
-            continue
+        if primary.get("stored_path"):
+            try:
+                path = verified_output_path(primary, Path(primary["stored_path"]).parent.parent)
+            except ValueError:
+                continue
+        else:
+            path = Path(primary["path"])
+            if not path.is_file():
+                continue
         return {
             "artifact_id": artifact["id"], "artifact_title": artifact.get("title"), "version": artifact["version"],
-            "path": primary["path"], "kind": primary["kind"], "confirmed_at": confirmation.get("confirmed_at"),
+            "path": str(path), "kind": primary["kind"], "confirmed_at": confirmation.get("confirmed_at"),
+            "acceptance_label": "AI质检放行" if confirmation.get("confirmed_by") == "agent_quality_check" else "教师确认",
         }
     return None
 
@@ -327,6 +340,18 @@ def _stage_output(state: dict[str, Any], run: dict[str, Any], stage: str) -> dic
     for job in reversed(state.get("jobs", [])):
         if job.get("run_id") == run["id"] and job.get("stage") == stage and job.get("status") == "completed":
             return job.get("output")
+    # Unaffected dependencies retain the exact parent run, never an unrelated
+    # project's latest artifact. Affected stages must finish in the new run.
+    seen = {run["id"]}
+    while run.get("parent_run_id") and run.get("stage_states", {}).get(stage) == "not_affected":
+        parent = next((item for item in state.get("runs", []) if item["id"] == run["parent_run_id"]), None)
+        if not parent or parent["id"] in seen:
+            break
+        seen.add(parent["id"])
+        for job in reversed(state.get("jobs", [])):
+            if job.get("run_id") == parent["id"] and job.get("stage") == stage and job.get("status") == "completed":
+                return job.get("output")
+        run = parent
     return None
 
 
@@ -355,6 +380,15 @@ def _agent_prompt(run: dict[str, Any], packet: dict[str, Any], input_summary: st
     )
     notes = "".join(f"\n适配说明：{note}" for note in primary.get("adaptation_notes", []))
     gates = "".join(f"\n- {gate}" for gate in packet["gates"])
+    revision = ""
+    if run.get("revision_context"):
+        packet["revision_context"] = run["revision_context"]
+        revision = (
+            "\n本次为反馈修改。先读取上一版存档和以下教师反馈，逐条说明采纳、修改位置和验证结果；"
+            "尚未通过回测的规则仅为当前项目候选，不能声称 Skill 已进化。\n"
+            + json.dumps(run["revision_context"], ensure_ascii=False, indent=2)
+            + "\n请输出新文件，不覆盖上一版；完成后回填到上述 artifact_id 的当前版本。\n"
+        )
     return (
         f"请读取 {location} 并按其流程执行「{stage_label}」（{packet['lesson_type_label']}）。\n"
         f"先读：{read_first}。{extra}{notes}\n"
@@ -364,4 +398,5 @@ def _agent_prompt(run: dict[str, Any], packet: dict[str, Any], input_summary: st
         f"当前项目介入策略：{packet.get('intervention_strategy', 'auto')}。遵循用户已选策略：auto 自动质检并继续，exceptions 仅异常复核，confirm 等待教师确认；Skill 中默认人工步骤服从此项目授权。质量门禁仍须通过，公共规则/Skill 发布始终需人工批准。\n"
         f"产出：{'；'.join(packet['expected_outputs']) or '按 SKILL.md'}。\n"
         "完成后把产出文件路径回填给工作台成品记录；不要把本执行包当作正式成品。"
+        + revision
     )

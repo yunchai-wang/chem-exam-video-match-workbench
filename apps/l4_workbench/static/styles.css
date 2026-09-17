@@ -198,6 +198,7 @@ h3 { font-size: 16px; margin-bottom: 0; }
 .output-row strong { display: block; font-size: 10px; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 .output-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
 .output-row .tag { flex: 0 0 auto; }
+.output-row a[download] { flex: 0 0 auto; white-space: nowrap; }
 .output-form { display: grid; grid-template-columns: minmax(180px, 2fr) 110px minmax(140px, 1fr) auto auto; gap: 8px; align-items: end; }
 .output-form label { display: grid; gap: 4px; color: var(--muted); font-size: 9px; min-width: 0; }
 .output-form input, .output-form select { min-width: 0; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: white; color: var(--ink); font-size: 11px; }

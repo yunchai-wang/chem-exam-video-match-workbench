@@ -30,6 +30,22 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if path == "/api/state":
             self._json(200, self.service.get_state())
             return
+        match = re.fullmatch(r"/api/artifacts/([^/]+)/outputs/([^/]+)/download", path)
+        if match:
+            try:
+                target, filename = self.service.artifact_output_file(match.group(1), match.group(2))
+            except ValidationError as error:
+                self._json(404, {"error": str(error)})
+                return
+            payload = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", mimetypes.guess_type(filename)[0] or "application/octet-stream")
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(filename)}")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if path.startswith("/api/assets/"):
             try:
                 target = self.service.asset_path(unquote(path.removeprefix("/api/assets/")))
@@ -193,6 +209,10 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             match = re.fullmatch(r"/api/artifacts/([^/]+)/confirm", path)
             if match:
                 self._json(200, self.service.confirm_artifact(match.group(1), payload))
+                return
+            match = re.fullmatch(r"/api/artifacts/([^/]+)/quality-review", path)
+            if match:
+                self._json(200, self.service.review_artifact_quality(match.group(1), payload))
                 return
             match = re.fullmatch(r"/api/source-snapshots/([^/]+)/standardize", path)
             if match:
