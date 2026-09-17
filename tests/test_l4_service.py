@@ -159,18 +159,18 @@ class ServiceTests(unittest.TestCase):
         artifact = self.service.get_state()["artifacts"][-1]
         self.assertIsNone(artifact["skill_packet_job_id"])
 
-    def test_unconfirmed_mother_groups_block_lesson_plan_by_design_gate(self) -> None:
+    def test_auto_mother_groups_prepare_lesson_plan_without_teacher_gate(self) -> None:
         selection_id = self._seed_selection_run()
         self.service.create_mother_question_run({"selection_run_id": selection_id})
         self.service.update_project({"intervention_strategies": {stage: "auto" for stage in STAGES}})
         run = self.service.start_run({"deliverables": ["lesson_plan"]})
-        self.assertEqual(run["status"], "failed")
+        self.assertEqual(run["status"], "completed")
         self.assertEqual(run["stage_states"]["mother_question"], "completed")
-        self.assertEqual(run["stage_states"]["lesson_plan"], "failed")
-        self.assertIn("母题未经确认不能生成教案", run["error"])
+        self.assertEqual(run["stage_states"]["lesson_plan"], "completed")
         mother_job = next(job for job in self.service.get_state()["jobs"] if job["run_id"] == run["id"] and job["stage"] == "mother_question")
         self.assertEqual(mother_job["execution_mode"], "skill_packet")
-        self.assertFalse(mother_job["output"]["lesson_plan_ready"])
+        self.assertTrue(mother_job["output"]["lesson_plan_ready"])
+        self.assertEqual(self.service.get_state()['mother_question_reviews'], [])
 
     def test_confirmed_mother_groups_freeze_skill_packets_down_to_storyboard(self) -> None:
         selection_id = self._seed_selection_run()

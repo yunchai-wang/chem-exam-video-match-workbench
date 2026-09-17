@@ -338,10 +338,7 @@ def _coverage_candidate(
     target_overlap: list[str],
     target_gate: str,
 ) -> dict[str, Any]:
-    strong_transcript = (
-        video["transcript_status"] in STRONG_TRANSCRIPT_STATES
-        or video["transcript_status"] in INDEXED_TRANSCRIPT_STATES
-    )
+    strong_transcript = video["transcript_status"] in STRONG_TRANSCRIPT_STATES
     coverage_candidate = bool(task_overlap and strong_transcript and target_gate in {"passed", "question_core_unresolved"})
     rank_score = 4 + min(len(task_overlap), 3) * 3 + (3 if strong_transcript else 0) + (2 if target_overlap else 0) + (1 if video["screenshot_tokens"] else 0)
     if coverage_candidate:

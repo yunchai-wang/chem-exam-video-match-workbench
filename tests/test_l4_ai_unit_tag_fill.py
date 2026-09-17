@@ -117,7 +117,7 @@ class AiUnitTagFillTests(unittest.TestCase):
         proposal = run["proposals"][0]
         by_label = {item["label"]: item for item in proposal["units"]}
         self.assertEqual(by_label["小问（1）"]["question"], ["写化学反应方程式"])
-        self.assertIn("比较物质的性质", by_label["小问（2）"]["question"])
+        self.assertEqual(by_label["小问（2）"]["question"], [])  # 比时间不能误判为比较物质性质
         self.assertTrue(by_label["小问（3）"]["question"], "对照/证明线索应命中")
         self.assertEqual(by_label["小问（4）"]["question"], ["补全实验方案"])
         # No unit receives the full whole-question trio blindly.
@@ -155,7 +155,8 @@ class AiUnitTagFillTests(unittest.TestCase):
         )
         group = mother["groups"][0]
         self.assertEqual(group["members"][0]["answer_boundary"]["task_source"], "逐小问标签")
-        self.assertEqual(group["members"][0]["answer_boundary"]["status"], "已识别")
+        self.assertEqual(group["members"][0]["answer_boundary"]["status"], "部分识别")
+        self.assertNotEqual(group['mode'], '整合成母题')
 
     def test_service_endpoint_applies_fill_on_seed_clone(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

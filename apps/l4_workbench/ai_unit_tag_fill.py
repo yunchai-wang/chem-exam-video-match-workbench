@@ -18,10 +18,11 @@ from typing import Any
 from .domain import ValidationError
 from .mother_question import ELIGIBLE_ROUTES
 from .tagging import QUESTION_TYPES, TAGGING_CONTRACT_VERSION, normalize_tag_profile
+from .label_library_sync import mapping_targets
 
 
-FILL_VERSION = "ai-unit-tag-fill-v0.1"
-SOURCE_LABEL = "AI 补标·待校准"
+FILL_VERSION = "ai-unit-tag-fill-v0.2"
+SOURCE_LABEL = "规则辅助补标·待校准"
 ACTIVE_STATUSES = {"现行", "已修改", "新增"}
 UNIT_MARK = re.compile(r"[（(]([1-9]|[一二三四五六七八九十]+)[）)]")
 DIGIT_LABELS = {
@@ -31,17 +32,14 @@ DIGIT_LABELS = {
 
 # Cue → preferred library terminal labels (first resolvable wins).
 QUESTION_CUES: list[tuple[re.Pattern[str], tuple[str, ...]]] = [
-    (re.compile(r"化学方程式|写.*方程式|方程式为"), ("写化学反应方程式", "判断化学方程式的正误")),
+    (re.compile(r"写出[^。；]*方程式|化学方程式为\s*[。＿_ ]"), ("写化学反应方程式",)),
+    (re.compile(r"判断[^。；]*化学方程式[^。；]*(?:正误|正确)"), ("判断化学方程式的正误",)),
     (re.compile(r"设计.*方案|请结合.*设计|设计方案|设计实验"), ("补全实验方案", "评价实验设计", "求实验设计的作用")),
     (re.compile(r"为什么|原因|理由|解释"), ("解释实验操作/实验条件/选用某试剂的原因或作用", "解释实验现象", "解释实验结果")),
     (re.compile(r"对比.*证明|可证明|对照"), ("判断实验方案与实验目的是否匹配", "补全实验方案")),
     (re.compile(r"合理|不合理"), ("判断实验方案与实验目的是否匹配", "判断实验操作的正误")),
-    (re.compile(r"溶质质量分数|质量分数"), ("比较溶质质量分数", "比较溶质的质量")),
-    (re.compile(r"填[“\"]\s*[＞＜＝]|[＞＜＝]\s*\d|时间t\s*[＞＜＝]"), ("比较物质的性质", "比较金属的活动性顺序")),
-    (re.compile(r"计算|多少克|求.*质量"), ("比较溶质的质量", "比较析出固体的质量")),
+    (re.compile(r"(?:比较[^。；]*溶质质量分数|溶质质量分数[^。；]*(?:大小|大于|小于|＞|＜))"), ("比较溶质质量分数",)),
     (re.compile(r"写出.*化学式|化学式为|化合价"), ("求符合要求的化学式", "判断有关化学式的含义", "比较元素的化合价")),
-    (re.compile(r"推断|物质是|可能是"), ("判断实验方案与实验目的是否匹配",)),
-    (re.compile(r"读图|如图所示|根据图|图像信息"), ("解释实验结果", "解释实验现象")),
 ]
 SOLUTION_CUES: list[tuple[re.Pattern[str], tuple[str, ...]]] = [
     (re.compile(r"控制变量|对比.*证明|对照"), ("根据控制变量法设计实验", "根据实验目的判断需要控制的量", "根据对比/对照/控制变量法得实验设计的目的")),
@@ -113,7 +111,7 @@ def build_ai_unit_tag_fill_run(
     }
     checksum = hashlib.sha256(json.dumps({
         "selection": selection_run["id"], "version": FILL_VERSION, "scope": scope,
-        "candidates": [item["candidate_id"] for item in proposals],
+        "proposals": proposals, "library": (label_snapshot or {}).get('id'),
     }, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
     return {
         "id": f"ai-tag-fill-{checksum[:14]}",
@@ -127,7 +125,7 @@ def build_ai_unit_tag_fill_run(
             "逐小问标签只按该小问文本线索生成，不会把整题任务标签自动下沉到每一个小问。",
             "核心知识与全部知识分离；干扰项/仅提及知识不会被标成核心。",
             "产出一律标注为 AI 补标·待校准；教师抽检前不得当作金标准。",
-            "优先使用现行词表与待映射队列中的显式/建议映射；库外标签不会被悄悄删除。",
+            "只复用现行全等、已确认映射和唯一旧→新映射；待确认建议不写入有效标签。",
         ],
         "created_at": now(),
     }
@@ -169,8 +167,7 @@ class LabelResolver:
                     item["label"] for item in meta.get("labels", [])
                     if item.get("status") in ACTIVE_STATUSES
                 }
-            for item in snapshot.get("old_to_new", []):
-                self.old_to_new[(item["dimension"], item["old"])] = item["new"]
+            self.old_to_new = {key: values[0] for key, values in mapping_targets(snapshot).items() if len(values) == 1}
         self.mapped = {
             (item["dimension"], item["label"]): item["mapped_to"]
             for item in queue
@@ -193,19 +190,8 @@ class LabelResolver:
         active = self.active.get(dimension)
         if active is not None and label in active:
             return label, "现行词表"
-        suggestions = self.suggested.get((dimension, label)) or []
-        if len(suggestions) == 1 and (active is None or suggestions[0] in active):
-            return suggestions[0], "队列单建议"
         if active is None:
             return label, "无词表·保留原标签"
-        # Prefer a longer active label that contains the project tag (coarse→fine).
-        # Never collapse a long project tag into a short library fragment.
-        contained = sorted(
-            (item for item in active if label in item and len(item) >= max(len(label), 4)),
-            key=lambda item: (len(item), item),
-        )
-        if contained:
-            return contained[0], "字符重合·粗到细"
         return None, "未映射"
 
 
@@ -288,11 +274,15 @@ def _pick_question_tags(
     # Single whole-question unit may inherit remapped whole tags (capped), never multi-unit copy.
     if not picked and kind == "whole_question" and len(units) == 1 and remapped_whole:
         for label in remapped_whole[:3]:
+            if not resolver.resolve('question', label)[0]:
+                continue
             picked.append(label)
             trace.append({"label": label, "via": "整题唯一单元·继承映射后整题任务", "cue": ""})
     # Multi-unit: only attach a remapped whole tag if its wording also appears in this unit text.
     if text and len(units) > 1 and remapped_whole:
         for label in remapped_whole:
+            if not resolver.resolve('question', label)[0]:
+                continue
             if label in picked:
                 continue
             stem = re.sub(r"[（(].*$", "", label)
@@ -325,6 +315,8 @@ def _pick_solution_tags(
             break
     if not picked and remapped_whole:
         for label in remapped_whole[:1]:
+            if not resolver.resolve('solution', label)[0]:
+                continue
             stem = label[:4]
             if stem and stem in text:
                 picked.append(label)
@@ -374,14 +366,6 @@ def _pick_core_knowledge(
         if resolved and resolved not in core:
             core.append(resolved)
             trace.append({"label": resolved, "via": f"底层结构·{how}"})
-        elif resolver.active.get("knowledge"):
-            overlaps = sorted(
-                (item for item in resolver.active["knowledge"] if key and (key in item or item in key) and len(item) >= 4),
-                key=lambda item: (-len(item), item),
-            )
-            if overlaps and overlaps[0] not in core:
-                core.append(overlaps[0])
-                trace.append({"label": overlaps[0], "via": "底层结构·词表包含"})
         if len(core) >= 3:
             return core[:3], trace
     stem = raw_text[:240]
@@ -395,11 +379,6 @@ def _pick_core_knowledge(
             trace.append({"label": label, "via": "全部知识·题干命中"})
         if len(core) >= 3:
             break
-    # If still empty but remapped_all has 1–2 items, promote carefully — never dump a long all-list.
-    if not core and 1 <= len(remapped_all) <= 2:
-        for label in remapped_all:
-            core.append(label)
-            trace.append({"label": label, "via": "全部知识过短·暂作核心候选"})
     return core[:3], trace
 
 
@@ -407,8 +386,9 @@ def _remap_list(resolver: LabelResolver, dimension: str, values: list[str]) -> l
     result: list[str] = []
     for value in values:
         resolved, _how = resolver.resolve(dimension, value)
-        if resolved and resolved not in result:
-            result.append(resolved)
+        retained = resolved or value
+        if retained not in result:
+            result.append(retained)
     return result
 
 

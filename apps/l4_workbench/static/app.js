@@ -19,6 +19,7 @@ let selectedOnly = false;
 let basePreview = null;
 let manifestPreview = null;
 let currentCandidateIds = [];
+let questionView = "candidates";
 let runSelectionDraft = null;
 
 const ROLE_LABELS = ["母题候选", "核心例题", "同构练习", "变式练习", "迁移练习", "检测题", "基础巩固题"];
@@ -313,12 +314,17 @@ function renderVideoEvidence() {
     : "没有跨课库同名簇";
   const evidenceIndex = [...(state.video_evidence_index_snapshots || [])].reverse()[0];
   const enrichment = evidenceIndex?.collection_enrichment;
+  const transcriptPointers = (state.video_assets || []).filter(item => item.evidence_index?.preferred_transcript);
+  const pointerDetails = transcriptPointers.length ? `<details><summary>浏览已定位逐字稿（${transcriptPointers.length} 个视频）</summary><div class="snapshot-list">${transcriptPointers.map(item => {
+    const pointer = item.evidence_index.preferred_transcript;
+    return `<div class="snapshot-card"><strong>${esc(item.video_name)}</strong><small>${esc(pointer.kind)} · ${esc(pointer.selection_status || '来源待核验')}<br>${esc(pointer.selection_reason || '')}</small>${pointer.url ? `<a href="${esc(pointer.url)}" target="_blank" rel="noopener">${esc(pointer.title)}</a>` : `<small>${esc(pointer.title)}（附件来源已记录）</small>`}</div>`;
+  }).join('')}</div></details>` : '';
   const indexSummary = evidenceIndex
     ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">索引定稿/录音 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span>${enrichment ? `<span class="tag">合集升格 ${enrichment.preferred_upgraded_from_collection || 0}</span>` : ""}</div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
     : `<p class="quiet">尚未同步飞书截图表与 Base 逐字稿指针。同步只读拉取链接/附件名/时间码，并解析合集文档内定稿/录音稿指针；不把正文写入仓库。</p>`;
   node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.listing_count || videoImport.record_count}</b><span>课库目录记录</span></div><div><b>${videoImport.video_asset_count}</b><span>去重视频实体</span></div><div><b>${videoImport.cross_catalog_entity_count || 0}</b><span>跨课库同名簇</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
     <div class="catalog-strip">${catalogCards || `<span class="quiet">旧版清单未记录课库统计，重新导入后补齐。</span>`}<span class="tag catalog-tag">${esc(overlapBreakdown)}</span></div>
-    ${indexSummary}
+    ${indexSummary}${pointerDetails}
     <div class="calibration-actions"><p class="quiet">视频证据适配器 ${esc(videoImport.adapter_version)}。候选会同时检索教材同步课、重难点培优和中考总复习培优；跨课库同名视频只占一个候选位置，但保留全部目录归属。旧 matches 和宣传白名单不作为生产覆盖结论。</p><div><button class="button secondary small" id="sync-video-evidence-index">只读同步截图+逐字稿索引</button><button class="button secondary small" id="rebuild-video-evidence-index">用本地快照重算索引</button>${action}</div></div>${summary}<div class="evidence-limit"><strong>保守边界</strong><span>${coverage ? esc(coverage.evidence_limits.join(" ")) : "需要金样本后才能运行题目—视频证据对照。"}</span></div><div class="coverage-rail">${rows}</div>`;
   node.querySelector("#sync-video-evidence-index").onclick = () => syncVideoEvidenceIndex(true);
   node.querySelector("#rebuild-video-evidence-index").onclick = () => syncVideoEvidenceIndex(false);
@@ -565,6 +571,12 @@ function renderEvents() {
 }
 
 function renderQuestions() {
+  document.querySelector("#mother-question-center").hidden = questionView !== "mothers";
+  for (const id of ["selection-foundation", "downstream-task-center", "question-list"]) {
+    document.getElementById(id).hidden = questionView !== "candidates";
+  }
+  document.querySelector("#question-search").disabled = questionView === "mothers";
+  document.querySelector("#show-selected").hidden = questionView === "mothers";
   const search = (document.querySelector("#question-search")?.value || "").toLowerCase();
   const selection = (state.selection_runs || []).at(-1);
   if (selection) {
@@ -689,7 +701,7 @@ function renderMotherQuestionCenter(selection) {
   const actionCounts = s.member_action_counts || {};
   const fill = [...(state.ai_tag_fill_runs || [])].reverse().find(item => item.selection_run_id === selection.id);
   const fillNote = fill
-    ? `<span class="tag frequency">${esc(fill.source)} · ${fill.summary.candidates_with_unit_fills}/${fill.summary.candidate_count} 题已补小问</span>`
+    ? `<span class="tag frequency">${fill.status === 'retracted_by_quality_audit' ? '旧补标已撤回，待重新校准' : `${esc(fill.source)} · ${fill.summary.candidates_with_unit_fills}/${fill.summary.candidate_count} 题已补小问`}</span>`
     : `<span class="tag">尚未 AI 补标</span>`;
   node.innerHTML = `${head}
     <div class="diagnosis-summary mother-summary"><div><b>${s.eligible_candidate_count}</b><span>有效题目单元</span></div><div><b>${s.mother_group_count}</b><span>整合成母题</span></div><div><b>${s.progressive_group_count}</b><span>递进题组</span></div><div><b>${s.independent_count}</b><span>保持独立</span></div><div><b>${s.exception_group_count}</b><span>异常组待看</span></div><div class="${s.figures_fully_retained ? "" : "health-risk"}"><b>${s.retained_figure_count}/${s.source_figure_count}</b><span>原题图表保留</span></div></div>
@@ -1338,5 +1350,16 @@ document.querySelector("#freeze-form").onsubmit = freezePredictions;
 document.querySelector("#standard-asset-search").oninput = renderStandardAssets;
 document.querySelector("#asset-integrity-filter").onchange = renderStandardAssets;
 document.querySelector("#question-search").oninput = renderQuestions;
+for (const [id, view] of [["browse-candidates", "candidates"], ["browse-mothers", "mothers"]]) {
+  document.getElementById(id).onclick = () => {
+    questionView = view;
+    for (const button of document.querySelectorAll('.question-tabs button')) {
+      const active = button.id === id;
+      button.setAttribute('aria-selected', String(active));
+      button.className = `button ${active ? 'primary' : 'secondary'}`;
+    }
+    renderQuestions();
+  };
+}
 document.querySelector("#show-selected").onclick = event => { selectedOnly = !selectedOnly; event.target.textContent = selectedOnly ? "显示全部" : "只看视频入选"; renderQuestions(); };
 load().catch(error => toast(error.message, true));

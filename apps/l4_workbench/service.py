@@ -29,7 +29,7 @@ from .ai_unit_tag_fill import apply_ai_unit_tag_fill, build_ai_unit_tag_fill_run
 from .tag_configuration import build_tag_configuration
 from .output_planning import DELIVERABLES, normalize_deliverables, public_catalog, required_stages_for
 from .skill_routing import SkillRegistry, normalize_lesson_type
-from .stage_executors import build_stage_executors
+from .stage_executors import build_stage_executors, production_input_fingerprint, _mother_context
 from .exports import build_mother_question_docx, build_question_set_docx, build_selection_docx
 from .label_library_sync import (
     apply_batch_label_alignment,
@@ -758,6 +758,9 @@ class WorkbenchService:
         }
         if artifact["confirmation"]["primary_output_id"] not in {item["id"] for item in current_outputs}:
             raise ValidationError("primary_output_id must reference an output of the current version")
+        primary = next(item for item in current_outputs if item['id'] == artifact['confirmation']['primary_output_id'])
+        if not Path(primary['path']).is_file():
+            raise ValidationError("当前主产出文件不可读，不能验收缺失文件")
         artifact["status"] = f"教师已确认 V{artifact['version']}"
         artifact["updated_at"] = now()
         self._event(state, "artifact.confirmed", f"教师已确认“{artifact['kind']}” V{artifact['version']}；下游阶段可读取该版本")
@@ -821,6 +824,7 @@ class WorkbenchService:
             request.get("deliverables", state["project"]["default_deliverables"])
         )
         required_stages = required_stages_for(deliverables)
+        context = _mother_context(state)
         for question in state["questions"]:
             priority, reason, intervention = recommend_priority(question, state["project"])
             question["production_priority"] = priority
@@ -834,6 +838,8 @@ class WorkbenchService:
             "required_stages": required_stages,
             "skipped_stages": [stage for stage in STAGES if stage not in required_stages],
             "delivery_scope": "once",
+            "mother_question_run_id": context['mother_run']['id'] if context else None,
+            "production_input_fingerprint": production_input_fingerprint(state),
             "rule_version": state["project"]["rule_version"],
             "source_snapshot_ids": [item["id"] for item in state["source_snapshots"]],
             "selected_question_ids": [q["id"] for q in state["questions"] if q.get("selected_for_candidate")],
@@ -855,7 +861,12 @@ class WorkbenchService:
         review["resolved_at"] = now()
         run = self._find(state["runs"], review["run_id"], "run")
         stage = review["stage"]
-        if run["stage_states"].get(stage) == "blocked":
+        if stage == 'mother_question':
+            for job in state['jobs']:
+                if job['run_id'] == run['id'] and job['stage'] == stage:
+                    job['status'] = 'pending'
+            run['production_input_fingerprint'] = production_input_fingerprint(state)
+        if run["stage_states"].get(stage) == "blocked" or stage == 'mother_question':
             try:
                 self.jobs.execute(state, run, stage)
             except StageExecutionError as error:
@@ -912,6 +923,8 @@ class WorkbenchService:
             "skipped_stages": [stage for stage in STAGES if stage not in source_required_stages],
             "rule_version": experiment["id"], "selected_question_ids": artifact["question_ids"],
             "source_snapshot_ids": source_run.get("source_snapshot_ids", []), "feedback_id": feedback["id"],
+            "mother_question_run_id": source_run.get('mother_question_run_id'),
+            "production_input_fingerprint": source_run.get('production_input_fingerprint'),
         }
         state["runs"].append(rerun)
         for stage in rerun_stages:
@@ -1042,6 +1055,7 @@ class WorkbenchService:
             artifact = {
                 "id": new_id("artifact"), "run_id": run["id"], "deliverable_id": deliverable_id,
                 "target_stage": definition["target_stage"],
+                "production_input_fingerprint": run.get('production_input_fingerprint'),
                 "title": f"{state['project']['name']}｜{definition['label']}", "kind": definition["label"],
                 "status": "执行契约预览（非正式生产成品）", "version": 1,
                 "question_ids": [q["id"] for q in selected], "created_at": now(), "updated_at": now(),

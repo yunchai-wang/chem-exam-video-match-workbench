@@ -11,6 +11,9 @@ the explicit dry-run contract so the demo path keeps working.
 from __future__ import annotations
 
 from typing import Any, Callable
+import hashlib
+import json
+from pathlib import Path
 
 from .domain import STAGE_LABELS
 from .skill_routing import LESSON_TYPE_LABELS, SkillRegistry, normalize_lesson_type
@@ -46,7 +49,7 @@ def dry_run_output(state: dict[str, Any], run: dict[str, Any], reason: str) -> d
 
 
 def mother_question_executor(state: dict[str, Any], run: dict[str, Any], registry: SkillRegistry) -> dict[str, Any]:
-    context = _mother_context(state)
+    context = _mother_context(state, run)
     if context is None:
         return dry_run_output(state, run, "当前项目还没有真实候选池与母题提案，母题阶段保持契约预演。")
     mother_run, reviews = context["mother_run"], context["reviews"]
@@ -54,7 +57,11 @@ def mother_question_executor(state: dict[str, Any], run: dict[str, Any], registr
     confirmed, unconfirmed = [], []
     for group in mother_run["groups"]:
         review = reviews.get(group["id"])
-        (confirmed if review else unconfirmed).append(_frozen_group(group, review, assets))
+        automatic = state["project"]["intervention_strategies"]["mother_question"] in {"auto", "exceptions"}
+        usable = bool(review) or (automatic and not group["exception"])
+        frozen = _frozen_group(group, review, assets)
+        frozen["release_basis"] = "teacher" if review else ("project_auto_policy" if usable else "unresolved")
+        (confirmed if usable else unconfirmed).append(frozen)
     figures = sum(len(member["figures"]) for group in confirmed for member in group["members"])
     incomplete = [
         f"{member['source_name']} 第 {member['question_no']} 题"
@@ -63,7 +70,7 @@ def mother_question_executor(state: dict[str, Any], run: dict[str, Any], registr
     lesson_type = _lesson_type(state)
     skills = registry.route("mother_question", lesson_type)
     gates = [
-        "母题提案未经教师确认（或批量确认非异常组）不能进入教案；本执行包只包含已确认的组。",
+        "按项目介入策略放行非异常提案；自动放行不是教师确认，保留各组 release_basis。",
         "Skill 只补完整题面、答案核验与来源映射，不重新分组，也不改变工作台记录的成员动作。",
         "每道原题的全部图表随组保留，系统与 Skill 都不得自动拼接、改绘或裁剪原题图。",
     ]
@@ -87,15 +94,16 @@ def mother_question_executor(state: dict[str, Any], run: dict[str, Any], registr
             "incomplete_figure_members": incomplete,
         },
         "figure_retention": {"source_count": figures, "retained_count": figures, "policy": "全部原题图表随题保留"},
+        "intervention_strategy": state['project']['intervention_strategies']['mother_question'],
         "gates": gates,
         "expected_outputs": _expected_outputs(skills),
-        "lesson_plan_ready": bool(confirmed),
+        "lesson_plan_ready": bool(confirmed) and not incomplete,
         "state_revision": state["metadata"]["state_revision"],
     }
-    packet["agent_prompt"] = _agent_prompt(run, packet, f"{len(confirmed)} 组已确认母题/题组、{packet['inputs']['member_count']} 道原题、{figures} 张原题图")
+    packet["agent_prompt"] = _agent_prompt(run, packet, f"{len(confirmed)} 组按项目策略放行的母题/题组、{packet['inputs']['member_count']} 道原题、{figures} 张原题图")
     packet["message"] = (
-        f"已冻结 {len(confirmed)} 组已确认母题/题组供 Skill 执行；{len(unconfirmed)} 组未确认不进入教案。"
-        if confirmed else "母题提案存在，但尚无教师确认的分组；教案阶段将按门禁受阻。"
+        f"已冻结 {len(confirmed)} 组已放行母题/题组供 Skill 执行；{len(unconfirmed)} 组待放行或补证据。"
+        if confirmed else "母题提案存在，但暂无满足项目策略和质量门禁的分组。"
     )
     return packet
 
@@ -106,8 +114,7 @@ def lesson_plan_executor(state: dict[str, Any], run: dict[str, Any], registry: S
         return dry_run_output(state, run, "上游母题阶段为契约预演，教案阶段保持契约预演。")
     if not upstream.get("lesson_plan_ready"):
         raise StageGateError(
-            "母题提案尚无教师确认的分组；按设计门禁，母题未经确认不能生成教案。"
-            "请在“题目资产与候选池 → 母题路由”中确认或批量确认非异常组后重跑。"
+            "当前没有满足项目放行策略且图表完整的母题/题组；需补齐异常证据后重跑。"
         )
     lesson_type = upstream["lesson_type"]
     skills = registry.route("lesson_plan", lesson_type)
@@ -133,17 +140,18 @@ def lesson_plan_executor(state: dict[str, Any], run: dict[str, Any], registry: S
             },
         },
         "figure_retention": upstream["figure_retention"],
+        "intervention_strategy": state['project']['intervention_strategies']['lesson_plan'],
         "gates": [
-            "教案只读取已确认的母题/题组；若执行中发现已确认母题存在条件冲突或科学性问题，重新打开母题审核，不得擅自改题后继续。",
+            "教案只读取本执行包按项目策略放行的母题/题组；发现科学性冲突时隔离该对象并修复，不得带错继续。",
             "所有原题图片、表格、装置图、坐标图和流程图必须随对应题目完整出现；原题图缺失、模糊或错配时标为“教案生成受阻”。",
             "教学目标、关键理解、方法与例题分开写；每道例题只设一个主功能，逐选项/逐小问审视后再决定保留、改写、后置或删除。",
-            "教案产出是待教师审核的初稿；逐字稿阶段只读取教师确认后的教案。",
+            "教案按项目介入策略验收；自动模式需真实产出和质量校验，不能把执行包当作成品。",
         ],
         "expected_outputs": _expected_outputs(skills),
         "state_revision": state["metadata"]["state_revision"],
     }
-    packet["agent_prompt"] = _agent_prompt(run, packet, f"{len(groups)} 组已确认母题/题组、{upstream['inputs']['figure_count']} 张原题图")
-    packet["message"] = f"已冻结 {len(groups)} 组已确认母题/题组的教案执行包；教案初稿由 Skill 生成后仍需教师审核。"
+    packet["agent_prompt"] = _agent_prompt(run, packet, f"{len(groups)} 组已放行母题/题组、{upstream['inputs']['figure_count']} 张原题图")
+    packet["message"] = f"已冻结 {len(groups)} 组母题/题组的教案执行包；真实产出后按项目策略验收。"
     return packet
 
 
@@ -153,7 +161,7 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
         return dry_run_output(state, run, "上游教案阶段为契约预演，逐字稿阶段保持契约预演。")
     lesson_type = upstream["lesson_type"]
     skills = registry.route("transcript", lesson_type)
-    confirmed_plan = _confirmed_artifact(state, "lesson_plan")
+    confirmed_plan = _confirmed_artifact(state, "lesson_plan", run)
     packet = {
         "execution_mode": "skill_packet", "production_ready": False, "result_type": "skill_packet",
         "stage": "transcript", "status": PACKET_STATUS,
@@ -170,11 +178,12 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
             "lesson_plan_artifact_id": confirmed_plan["artifact_id"] if confirmed_plan else None,
         },
         "figure_retention": upstream["figure_retention"],
+        "intervention_strategy": state['project']['intervention_strategies']['transcript'],
         "gates": [
             (
                 f"逐字稿只读取教师确认的教案：已找到教师确认的教案 {confirmed_plan['artifact_title']} V{confirmed_plan['version']}（{confirmed_plan['path']}），以此为唯一主输入，不擅自改变教学目标和题目边界。"
                 if confirmed_plan else
-                "逐字稿只读取教师确认的教案；工作台目前没有任何教师已确认的教案成品。Agent 执行前必须先让教师在“成品与后验反馈”页确认教案版本，并把路径填入 inputs.lesson_plan_document。"
+                "本次题集暂无已验收教案；先完成上游真实产出和质量校验，按项目介入策略验收后再生成逐字稿。不得借用其他题集的教案。"
             ),
             "按 Skill 的多步流程（初稿→洋葱味道点评→修改→润色→终稿）执行，每步输出可编辑 .docx。",
             "信息时序复核：学生此刻已看到并理解的信息才能被调用；画面切换、高亮与台词同步。",
@@ -183,7 +192,7 @@ def transcript_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
         "state_revision": state["metadata"]["state_revision"],
     }
     packet["agent_prompt"] = _agent_prompt(run, packet, f"{upstream['inputs']['confirmed_group_count']} 组已确认母题/题组对应的已确认教案")
-    packet["message"] = "已冻结逐字稿执行包；需要教师确认的教案作为唯一主输入。"
+    packet["message"] = "已冻结逐字稿执行包；需要本次题集已验收的教案作为主输入。"
     return packet
 
 
@@ -196,7 +205,7 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
     deliverables = run.get("requested_deliverables", [])
     mode = "html" if "html" in deliverables else "ppt"
     validator = next((item["validator_path"] for item in skills if item.get("validator_path")), None)
-    confirmed_script = _confirmed_artifact(state, "transcript")
+    confirmed_script = _confirmed_artifact(state, "transcript", run)
     packet = {
         "execution_mode": "skill_packet", "production_ready": False, "result_type": "skill_packet",
         "stage": "storyboard", "status": PACKET_STATUS,
@@ -218,13 +227,14 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
             (
                 f"以教师确认的定稿逐字稿为主输入：已找到 {confirmed_script['artifact_title']} V{confirmed_script['version']}（{confirmed_script['path']}）。"
                 if confirmed_script else
-                "以明确标为“定稿/终稿”的逐字稿和原题为主输入；工作台目前没有教师已确认的逐字稿成品，未定稿不得以视觉制作绕过教研审核，Agent 执行前须让教师确认逐字稿版本并把路径填入 inputs.final_transcript_document。"
+                "本次题集暂无已验收逐字稿；先完成上游真实产出和质量校验，按项目介入策略验收后再制作分镜。不得借用其他题集的逐字稿。"
             ),
             "不重绘会造成科学失真的原题图；高风险科学图优先保留原图或重建为经核对的可编辑矢量图。",
             f"storyboard.json 生成后运行校验脚本：{validator or '（校验脚本未在本机找到）'}。",
         ],
         "expected_outputs": _expected_outputs(skills),
         "validator_path": validator,
+        "intervention_strategy": state['project']['intervention_strategies']['storyboard'],
         "state_revision": state["metadata"]["state_revision"],
     }
     packet["agent_prompt"] = _agent_prompt(run, packet, f"定稿逐字稿（{mode.upper()} 模式）")
@@ -232,12 +242,14 @@ def storyboard_executor(state: dict[str, Any], run: dict[str, Any], registry: Sk
     return packet
 
 
-def _mother_context(state: dict[str, Any]) -> dict[str, Any] | None:
+def _mother_context(state: dict[str, Any], run: dict[str, Any] | None = None) -> dict[str, Any] | None:
     selection = state.get("selection_runs", [])[-1:] or [None]
     selection = selection[0]
     if not selection:
         return None
     mother_run = next((item for item in reversed(state.get("mother_question_runs", [])) if item["selection_run_id"] == selection["id"]), None)
+    if run and run.get("mother_question_run_id"):
+        mother_run = next((item for item in state.get("mother_question_runs", []) if item["id"] == run["mother_question_run_id"]), None)
     if not mother_run:
         return None
     reviews = {item["group_id"]: item for item in state.get("mother_question_reviews", []) if item["mother_question_run_id"] == mother_run["id"]}
@@ -275,9 +287,24 @@ def _frozen_group(group: dict[str, Any], review: dict[str, Any] | None, assets: 
     }
 
 
-def _confirmed_artifact(state: dict[str, Any], target_stage: str) -> dict[str, Any] | None:
+def production_input_fingerprint(state: dict[str, Any]) -> str | None:
+    context = _mother_context(state)
+    if not context:
+        return None
+    project = state['project']
+    payload = {
+        'mother': context['mother_run']['id'], 'reviews': context['reviews'],
+        'project': {key: project.get(key) for key in ('subject', 'grade', 'lesson_type', 'content_scope', 'target_students', 'target_region', 'target_exam_type', 'target_year')},
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+def _confirmed_artifact(state: dict[str, Any], target_stage: str, run: dict[str, Any]) -> dict[str, Any] | None:
     """Latest teacher-confirmed artifact for a stage, with its primary output path."""
     for artifact in reversed(state.get("artifacts", [])):
+        fingerprint = run.get('production_input_fingerprint')
+        if not fingerprint or artifact.get('production_input_fingerprint') != fingerprint:
+            continue
         confirmation = artifact.get("confirmation")
         if artifact.get("target_stage") != target_stage or not confirmation:
             continue
@@ -286,6 +313,8 @@ def _confirmed_artifact(state: dict[str, Any], target_stage: str) -> dict[str, A
         outputs = artifact.get("outputs", [])
         primary = next((item for item in outputs if item["id"] == confirmation.get("primary_output_id")), None)
         if primary is None:
+            continue
+        if not Path(primary['path']).is_file():
             continue
         return {
             "artifact_id": artifact["id"], "artifact_title": artifact.get("title"), "version": artifact["version"],
@@ -332,6 +361,7 @@ def _agent_prompt(run: dict[str, Any], packet: dict[str, Any], input_summary: st
         f"输入：L4 工作台运行 {run['id']} 的「{stage_label}」执行包（{input_summary}），"
         f"原题文字、图片路径与标签见执行包 inputs；图片可通过工作台 /api/assets/<path> 读取。\n"
         f"门禁：{gates}\n"
+        f"当前项目介入策略：{packet.get('intervention_strategy', 'auto')}。遵循用户已选策略：auto 自动质检并继续，exceptions 仅异常复核，confirm 等待教师确认；Skill 中默认人工步骤服从此项目授权。质量门禁仍须通过，公共规则/Skill 发布始终需人工批准。\n"
         f"产出：{'；'.join(packet['expected_outputs']) or '按 SKILL.md'}。\n"
         "完成后把产出文件路径回填给工作台成品记录；不要把本执行包当作正式成品。"
     )

@@ -22,7 +22,7 @@ from .domain import ValidationError
 from .video_evidence import STRONG_TRANSCRIPT_STATES, WEAK_TRANSCRIPT_STATES, normalize_video_title
 
 
-SYNC_VERSION = "video-evidence-index-v0.2"
+SYNC_VERSION = "video-evidence-index-v0.3"
 INDEXED_DINGGAO = "索引定稿-待打开核验"
 INDEXED_RECORDING = "索引录音稿-待打开核验"
 INDEXED_TRANSCRIPT_STATES = {INDEXED_DINGGAO, INDEXED_RECORDING}
@@ -105,12 +105,13 @@ TRANSCRIPT_TABLES = [
         "base_token": "FqH7bLYwQa3Qk4sm84Tc9wrjnyb",
         "table_id": "tblycycOv7SGXEiZ",
         "label": "新教材课程更新PMO（wiki bitable）",
+        "subject": "初中化学",
         "url": "https://guanghe.feishu.cn/wiki/IupkwT7XoiIAKyk0bWCc73W6nhe?table=tblycycOv7SGXEiZ",
         "name_fields": ("视频名称", "知识点名称", "课程名称"),
         "link_fields": ("文档集合", "视频名称 / 文档链接", "合集文档"),
-        "dinggao_fields": ("定稿文件",),
-        "recording_fields": ("脚本/录音稿", "录音稿"),
-        "collection_fields": ("文档集合", "视频名称 / 文档链接", "合集文档"),
+        "dinggao_fields": ("定稿文件", "定稿"),
+        "recording_fields": ("脚本/录音稿", "录音稿", "定稿（或录音稿）", "脚本（制作PPT或动画前的逐字稿）"),
+        "collection_fields": ("文档集合", "视频名称 / 文档链接", "合集文档", "集合文档", "教研素材（文档集合）"),
     },
 ]
 
@@ -239,21 +240,27 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
         source_counts["tables"] += 1
         for raw in _read_ndjson(path):
             fields = raw.get("fields") or raw
+            if table.get('subject') and fields.get('学科') and table['subject'] not in fields['学科']:
+                continue
             name = _clean(_first_field(fields, table["name_fields"]))
             video_id = _clean(_first_field(fields, ("视频ID", "VM后台id", "backend_video_id", "知识点ID")))
             if not name and not video_id:
                 continue
             entry = upsert(video_id or None, name or None)
-            for attachment in _attachments(_first_field(fields, table["dinggao_fields"])):
+            for attachment in [a for field in table['dinggao_fields'] for a in _attachments(fields.get(field))]:
+                if not _kind_from_collection_attachment(attachment.get('name', ''), attachment.get('type', '')):
+                    continue
                 _offer_transcript(entry, {
-                    "kind": "定稿",
+                    "kind": _kind_from_collection_attachment(attachment.get('name', ''), attachment.get('type', '')),
                     "title": attachment.get("name") or "定稿文件",
                     "url": attachment.get("url") or attachment.get("tmp_url"),
                     "file_token": attachment.get("file_token") or attachment.get("token"),
                     "source_id": table["id"],
                     "source_label": table["label"],
                 })
-            for attachment in _attachments(_first_field(fields, table["recording_fields"])):
+            for attachment in [a for field in table['recording_fields'] for a in _attachments(fields.get(field))]:
+                if not _kind_from_collection_attachment(attachment.get('name', ''), attachment.get('type', '')):
+                    continue
                 _offer_transcript(entry, {
                     "kind": _kind_from_name(attachment.get("name") or "录音稿"),
                     "title": attachment.get("name") or "脚本/录音稿",
@@ -262,7 +269,7 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
                     "source_id": table["id"],
                     "source_label": table["label"],
                 })
-            for link in _links(_first_field(fields, table["collection_fields"] + table["link_fields"])):
+            for link in _links([fields.get(field) for field in dict.fromkeys(table["collection_fields"] + table["link_fields"])]):
                 _offer_transcript(entry, {
                     "kind": "合集文档",
                     "title": link["title"],
@@ -302,7 +309,7 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
         "id": f"video-evidence-index-{checksum[:12]}",
         "sync_version": SYNC_VERSION,
         "status": "synced_local_readonly",
-        "selection_policy": "同一视频多份逐字稿时优先最后一份定稿，其次录音稿，再次合集云文档链接；不下载正文进仓库。",
+        "selection_policy": "定稿优先，其次录音稿、普通脚本、合集；同级按明确日期取最新，缺日期或同日冲突标为版本待核验。",
         "sources": {
             "sheets": SCREENSHOT_SHEETS,
             "tables": [
@@ -447,7 +454,7 @@ def enrich_collection_documents(
     snapshot["checksum"] = checksum
     snapshot["sync_version"] = SYNC_VERSION
     snapshot["selection_policy"] = (
-        "同一视频多份逐字稿时优先最后一份定稿，其次录音稿，再次合集云文档链接；"
+        "定稿优先，其次录音稿、普通脚本、合集；同级按明确日期取最新，缺日期或同日冲突标为版本待核验；"
         "合集文档会只读解析其中的定稿/录音稿/逐字稿指针与片段时间表；不下载正文进仓库。"
     )
     snapshot["collection_enrichment"] = report
@@ -523,12 +530,8 @@ def _kind_from_collection_attachment(name: str, mime: str) -> str | None:
     if lower.endswith(MEDIA_SUFFIXES) or mime_l.startswith(("audio/", "video/", "image/")):
         return None
     is_doc = lower.endswith(DOC_SUFFIXES) or "wordprocessing" in mime_l or "pdf" in mime_l
-    if "逐字稿" in text:
-        return "定稿"
-    if "定稿" in text and is_doc:
-        return "定稿"
-    if "录音稿" in text or ("脚本" in text and is_doc and "PPT" not in text):
-        return "录音稿"
+    if is_doc and any(word in text for word in ('逐字稿', '定稿', '终稿', '录音稿', '脚本')):
+        return _kind_from_name(text)
     return None
 
 
@@ -536,10 +539,8 @@ def _kind_from_collection_cite(title: str) -> str | None:
     text = str(title or "")
     if any(marker in text for marker in ("PPT", "教案", "反馈", "说课", "大纲")):
         return None
-    if "逐字稿" in text or "定稿" in text:
-        return "定稿"
-    if "录音稿" in text:
-        return "录音稿"
+    if any(word in text for word in ('逐字稿', '定稿', '终稿', '录音稿', '脚本')):
+        return _kind_from_name(text)
     return None
 
 
@@ -618,10 +619,12 @@ def apply_evidence_index_to_videos(video_assets: list[dict[str, Any]], snapshot:
             elif preferred.get("kind") == "合集文档":
                 collection += 1
         status = asset.get("transcript_status")
-        if status in STRONG_TRANSCRIPT_STATES or status in INDEXED_TRANSCRIPT_STATES:
+        if status in STRONG_TRANSCRIPT_STATES:
             asset["evidence_level"] = "E2"
-        elif status in WEAK_TRANSCRIPT_STATES or asset.get("screenshot_tokens"):
+        elif status in INDEXED_TRANSCRIPT_STATES or status in WEAK_TRANSCRIPT_STATES or asset.get("screenshot_tokens"):
             asset["evidence_level"] = "E1"
+        if status in INDEXED_TRANSCRIPT_STATES:
+            asset['issue_codes'] = list(dict.fromkeys([*asset.get('issue_codes', []), 'transcript_not_verified']))
     return {
         "matched_assets": matched,
         "dinggao_preferred": dinggao,
@@ -687,12 +690,29 @@ def _entry_key(video_id: str | None, name: str | None) -> str:
 def _prefer_transcript(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not candidates:
         return None
-    order = {"定稿": 0, "录音稿": 1, "合集文档": 2, "其他": 3}
-    ranked = sorted(
-        enumerate(candidates),
-        key=lambda pair: (order.get(pair[1].get("kind"), 9), -pair[0]),
-    )
-    return ranked[0][1]
+    order = {"定稿": 0, "录音稿": 1, "其他": 2, "合集文档": 3}
+    best_rank = min(order.get(item.get('kind'), 9) for item in candidates)
+    pool = [item for item in candidates if order.get(item.get('kind'), 9) == best_rank]
+    def version_date(item):
+        # Only explicit document dates are comparable; source-row modification
+        # time and source traversal order are not transcript version evidence.
+        text = str(item.get('version_date') or item.get('title') or '')
+        dates = re.findall(r'(?<!\d)(20\d{2})[-年_./]?(\d{2})[-月_./]?(\d{2})(?!\d)', text)
+        valid = []
+        for year, month, day in dates:
+            try:
+                valid.append(datetime(int(year), int(month), int(day)).isoformat())
+            except ValueError:
+                pass
+        return max(valid, default='')
+    dated = [(version_date(item), item) for item in pool]
+    latest = max(date for date, item in dated)
+    winners = [item for date, item in dated if date == latest]
+    certain = len(pool) == 1 or (all(date for date, item in dated) and len(winners) == 1)
+    chosen = sorted(winners, key=lambda item: (item.get('url') or '', item.get('file_token') or '', item.get('title') or ''))[0]
+    return {**chosen, 'selection_status': '首选版本已定位' if certain else '版本待核验',
+            'selection_reason': '唯一同级候选' if len(pool) == 1 else ('同级稿件按明确年月日选择最新' if certain else '缺少可比较日期或日期相同；保留候选，不宣称最新'),
+            'candidate_count': len(pool)}
 
 
 def _offer_transcript(entry: dict[str, Any], candidate: dict[str, Any]) -> None:
@@ -715,14 +735,17 @@ def _offer_transcript(entry: dict[str, Any], candidate: dict[str, Any]) -> None:
         "source_id": candidate.get("source_id"),
         "source_label": candidate.get("source_label"),
         "match_status": candidate.get("match_status"),
+        "version_date": candidate.get("version_date"),
     })
 
 
 def _kind_from_name(name: str) -> str:
     text = str(name or "")
-    if "定稿" in text:
+    if any(word in text for word in ('预定稿', '初稿', '待定稿')):
+        return "其他"
+    if "定稿" in text or "终稿" in text:
         return "定稿"
-    if "录音" in text or "脚本" in text:
+    if "录音" in text:
         return "录音稿"
     return "其他"
 

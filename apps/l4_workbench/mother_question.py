@@ -69,6 +69,7 @@ def build_mother_question_run(
     ]
     checksum = hashlib.sha256(json.dumps({
         "selection": selection_run["id"], "rule": RULE_VERSION, "reviews": review_fingerprint,
+        "members": members,
     }, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
     source_figures = sum(item["figure_retention"]["source_count"] for item in groups)
     retained_figures = sum(item["figure_retention"]["retained_count"] for item in groups)
@@ -94,7 +95,7 @@ def build_mother_question_run(
         "source_snapshot_id": selection_run.get("source_snapshot_id"),
         "rule_version": RULE_VERSION,
         "status": "proposed_pending_optional_confirmation",
-        "lesson_plan_gate": "母题提案未经教师确认（或批量确认非异常组）不能进入教案。",
+        "lesson_plan_gate": "按项目介入策略放行；自动模式使用非异常提案，异常对象隔离。",
         "evidence_limits": [
             "只按显式共同底层结构分组；同知识点但考查逻辑或作答边界不同的题不会硬拼成母题。",
             "作答边界由整题题型与小问任务标签推断；缺少任务标签时只提议递进题组，不合并成母题。",
@@ -218,6 +219,8 @@ def _answer_boundary(candidate: dict[str, Any], units: list[dict[str, Any]]) -> 
         status = "部分识别"
     else:
         status = "待识别"
+    if any("待校准" in str((unit.get("tag_profile") or {}).get("status", "")) for unit in units):
+        status = "部分识别"
     return {
         "question_type": question_type, "tasks": tasks, "unit_kinds": unit_kinds,
         "task_source": "逐小问标签" if unit_tasks else ("整题任务标签" if tasks else "无"),

@@ -21,7 +21,7 @@ from .domain import ValidationError
 from .tagging import DEFAULT_LABEL_LIBRARY_SNAPSHOT, TAG_DIMENSIONS
 
 SYNC_VERSION = "label-library-sync-v0.1"
-BATCH_ALIGN_VERSION = "label-batch-align-v0.1"
+BATCH_ALIGN_VERSION = "label-batch-align-v0.2"
 DIMENSION_LABELS = {
     "knowledge": "知识点", "solution": "解法", "condition": "条件",
     "question": "问题", "context": "情景", "thinking_method": "思想方法",
@@ -181,7 +181,7 @@ def audit_tag_profiles(assets: list[dict[str, Any]], snapshot: dict[str, Any], e
     vocab = snapshot["vocabulary"]
     active = {dim: {item["label"]: item for item in meta["labels"] if item["status"] in ACTIVE_STATUSES} for dim, meta in vocab.items()}
     inactive = {dim: {item["label"]: item for item in meta["labels"] if item["status"] not in ACTIVE_STATUSES} for dim, meta in vocab.items()}
-    old_map = {(item["dimension"], item["old"]): item["new"] for item in snapshot.get("old_to_new", [])}
+    old_map = mapping_targets(snapshot)
     counts = {dim: {"matched": 0, "deprecated": 0, "unknown": 0} for dim in vocab}
     occurrences: dict[tuple[str, str], dict[str, Any]] = {}
     for asset in assets:
@@ -211,14 +211,14 @@ def audit_tag_profiles(assets: list[dict[str, Any]], snapshot: dict[str, Any], e
     for (dim, value), entry in sorted(occurrences.items(), key=lambda pair: (-pair[1]["occurrence_count"], pair[0])):
         previous = preserved.get((dim, value), {})
         suggested = old_map.get((dim, value))
-        candidates = [suggested] if suggested else _suggest(value, list(active[dim]))
+        candidates = suggested if suggested else _suggest(value, list(active[dim]))
         queue.append({
             "id": previous.get("id") or f"unmatched-{hashlib.sha256(f'{dim}|{value}'.encode('utf-8')).hexdigest()[:12]}",
             "dimension": dim, "dimension_label": DIMENSION_LABELS[dim], "label": value,
             "bucket": entry["bucket"], "occurrence_count": entry["occurrence_count"],
             "sample_asset_ids": entry["sample_asset_ids"],
-            "suggested_labels": [item for item in candidates if item][:3],
-            "suggestion_source": "显式旧→新映射" if suggested else ("字符重合启发式" if candidates else "无"),
+            "suggested_labels": [item for item in candidates if item],
+            "suggestion_source": ("显式旧→新映射" if len(suggested) == 1 else "一对多旧→新待判定") if suggested else ("字符重合启发式" if candidates else "无"),
             "status": previous.get("status", "待映射"), "mapped_to": previous.get("mapped_to"),
             "snapshot_id": snapshot["id"], "created_at": previous.get("created_at") or now(), "updated_at": now(),
         })
@@ -312,11 +312,24 @@ def active_labels_by_dimension(snapshot: dict[str, Any]) -> dict[str, set[str]]:
     }
 
 
+def mapping_targets(snapshot: dict[str, Any]) -> dict[tuple[str, str], list[str]]:
+    """Preserve every active destination; a taxonomy split is not a rename."""
+    active = active_labels_by_dimension(snapshot)
+    targets: dict[tuple[str, str], list[str]] = {}
+    for item in snapshot.get("old_to_new", []):
+        if item.get("status", "现行") not in ACTIVE_STATUSES or item["new"] not in active.get(item["dimension"], set()):
+            continue
+        values = targets.setdefault((item["dimension"], item["old"]), [])
+        if item["new"] not in values:
+            values.append(item["new"])
+    return targets
+
+
 def classify_unmatched_label(item: dict[str, Any], active: set[str]) -> dict[str, Any]:
     """Decide whether a queue item can be auto-mapped, kept as project extension, or needs review.
 
     Auto-map is intentionally conservative: explicit old→new, exact active match, or unique
-    long-enough containment. Character-overlap heuristics never auto-apply.
+    verified one-to-one renames. String containment is only a review suggestion.
     """
     value = str(item.get("label") or "").strip()
     dimension = str(item.get("dimension") or "")
@@ -326,12 +339,14 @@ def classify_unmatched_label(item: dict[str, Any], active: set[str]) -> dict[str
         return {"action": "needs_review", "mapped_to": None, "reason": "空标签"}
     if value in active:
         return {"action": "auto_map", "mapped_to": value, "reason": "已是现行标签"}
-    if source == "显式旧→新映射" and suggested and suggested[0] in active:
+    if "/" in value or "／" in value:
+        return {"action": "project_extension", "mapped_to": None, "reason": "复合标签保留，不折叠为一个末级"}
+    if source == "显式旧→新映射" and len(suggested) == 1 and suggested[0] in active:
         return {"action": "auto_map", "mapped_to": suggested[0], "reason": "显式旧→新映射"}
 
     unique = _unique_containment_target(value, active)
     if unique:
-        return {"action": "auto_map", "mapped_to": unique["label"], "reason": unique["reason"]}
+        return {"action": "needs_review", "mapped_to": unique["label"], "reason": "字符串包含不证明语义等价"}
 
     if _looks_like_project_chapter(dimension, value, suggested, int(item.get("occurrence_count") or 0)):
         return {"action": "project_extension", "mapped_to": None, "reason": "粗粒度项目章节/高频无唯一现行对应"}
@@ -354,7 +369,13 @@ def propose_batch_label_alignment(
             continue
         if int(item.get("occurrence_count") or 0) < min_occurrence:
             continue
-        decision = classify_unmatched_label(item, active.get(item.get("dimension") or "", set()))
+        candidate = dict(item)
+        targets = mapping_targets(snapshot).get((item.get("dimension"), item.get("label")))
+        if targets:
+            candidate.update(suggested_labels=targets, suggestion_source="显式旧→新映射" if len(targets) == 1 else "一对多旧→新待判定")
+        elif candidate.get("suggestion_source") == "显式旧→新映射":
+            candidate["suggestion_source"] = "历史建议待重新核验"
+        decision = classify_unmatched_label(candidate, active.get(item.get("dimension") or "", set()))
         proposals.append({
             "id": item["id"],
             "dimension": item["dimension"],
@@ -381,7 +402,7 @@ def propose_batch_label_alignment(
         "summary": summary,
         "proposals": proposals,
         "policy": (
-            "只自动采纳显式旧→新、全等或唯一足够长的包含关系；"
+            "只自动采纳现行全等或当前词表中唯一的一对一旧→新映射；"
             "字符重合启发式永不自动落库；粗粒度章节可批量标为项目扩展。"
         ),
     }
@@ -496,7 +517,7 @@ def rewrite_tag_profiles_with_mappings(
 
         knowledge = profile.get("knowledge")
         if isinstance(knowledge, dict):
-            for key in ("all", "core", "prerequisite", "distractor", "mention_only"):
+            for key in ("all", "core", "prerequisite", "distractor", "mentioned", "mention_only"):
                 if key in knowledge and isinstance(knowledge[key], list):
                     knowledge[key] = replace_list("knowledge", knowledge[key])
         for dimension in ("solution", "condition", "question", "context", "thinking_method"):
@@ -509,7 +530,7 @@ def rewrite_tag_profiles_with_mappings(
                     continue
                 for dimension in ("question", "solution", "knowledge"):
                     if dimension == "knowledge" and isinstance(unit.get("knowledge"), dict):
-                        for key in ("all", "core", "prerequisite", "distractor", "mention_only"):
+                        for key in ("all", "core", "prerequisite", "distractor", "mentioned", "mention_only"):
                             if key in unit["knowledge"] and isinstance(unit["knowledge"][key], list):
                                 unit["knowledge"][key] = replace_list("knowledge", unit["knowledge"][key])
                     elif isinstance(unit.get(dimension), list):

@@ -30,6 +30,19 @@ class VideoEvidenceIndexTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
+    def test_new_textbook_real_field_names_and_all_link_columns_are_read(self):
+        rows = [{'视频名称': '净水课', '学科': ['初中化学'],
+                 '集合文档': '[集合](https://guanghe.feishu.cn/docx/collection)',
+                 '教研素材（文档集合）': '[素材](https://guanghe.feishu.cn/docx/material)',
+                 '定稿（或录音稿）': [{'name': '净水录音稿.docx', 'file_token': 'f1'}]},
+                {'视频名称': '物理课', '学科': ['初中物理'], '集合文档': '[集合](https://guanghe.feishu.cn/docx/physics)'}]
+        (self.raw / 'wiki-new-textbook-pmo.records.ndjson').write_text('\n'.join(json.dumps(x, ensure_ascii=False) for x in rows))
+        snapshot = build_video_evidence_index(self.raw)
+        entry = next(x for x in snapshot['entries'] if x['primary_name'] == '净水课')
+        self.assertEqual(len(entry['transcript_candidates']), 3)
+        self.assertEqual(entry['preferred_transcript']['kind'], '录音稿')
+        self.assertFalse(any(x['primary_name'] == '物理课' for x in snapshot['entries']))
+
     def test_prefers_dinggao_over_collection_and_fills_locator(self) -> None:
         write_sheet(self.raw / "sheet-jG6GT9.csv-get.json", "\n".join([
             "知识点名称（视频名称）,视频ID,视频截图,AI逐字稿匹配状态,AI逐字稿文件",
@@ -64,10 +77,10 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         self.assertEqual(join["matched_assets"], 1)
         self.assertEqual(assets[0]["transcript_status"], INDEXED_DINGGAO)
         self.assertEqual(assets[0]["segment_locator"], "0:25-9:00")
-        self.assertEqual(assets[0]["evidence_level"], "E2")
+        self.assertEqual(assets[0]["evidence_level"], "E1")
         self.assertTrue(assets[0]["evidence_index"]["preferred_transcript"]["title"].startswith("【定稿】"))
 
-    def test_indexed_dinggao_can_pass_coverage_gate(self) -> None:
+    def test_unopened_dinggao_pointer_cannot_pass_coverage_gate(self) -> None:
         video = {
             "video_id": "v1", "video_name": "溶解度曲线培优", "catalogs": ["重难点"],
             "structural_keys": ["溶解度曲线"], "task_tags": ["信息提取"],
@@ -87,8 +100,8 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         gold = {"id": "g1", "items": [{"asset_id": "q1"}]}
         video_import = {"id": "vi1"}
         run = build_coverage_run(diagnostic, gold, video_import, [video])
-        self.assertEqual(run["results"][0]["status"], "部分覆盖候选")
-        self.assertTrue(run["results"][0]["candidates"][0]["coverage_candidate"])
+        self.assertEqual(run["results"][0]["status"], "证据不足")
+        self.assertFalse(run["results"][0]["candidates"][0]["coverage_candidate"])
 
     def test_collection_doc_lifts_dinggao_and_segments(self) -> None:
         xml = """
@@ -136,7 +149,7 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         entry = next(item for item in snapshot["entries"] if "NaOH" in (item.get("primary_name") or ""))
         self.assertEqual(entry["preferred_transcript"]["kind"], "定稿")
         self.assertTrue(any("0:00-0:34" in locator for locator in entry["segment_locators"]))
-        self.assertEqual(snapshot["sync_version"], "video-evidence-index-v0.2")
+        self.assertEqual(snapshot["sync_version"], "video-evidence-index-v0.3")
 
         assets = [{
             "video_id": "vid-coll", "video_name": "NaOH变质后的成分分析题",
@@ -152,7 +165,7 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         video_good = {
             "video_id": "v-good", "video_name": "好视频", "catalogs": ["重难点"],
             "structural_keys": ["溶解度曲线"], "task_tags": ["信息提取"],
-            "transcript_status": INDEXED_DINGGAO, "screenshot_tokens": ["s"],
+            "transcript_status": "强匹配-文件名+正文", "screenshot_tokens": ["s"],
             "teaching_target_tags": ["溶解度曲线"], "mentioned_knowledge_tags": [],
             "lesson_mode": "解题课", "knowledge_contract": "problem_lesson_video",
             "prerequisite_knowledge_tags": [], "segment_type": "例题", "segment_locator": "1:00-2:00",
