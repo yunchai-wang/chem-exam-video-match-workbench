@@ -19,7 +19,7 @@ VIDEO_ADAPTER_VERSION = "video-manifest-v0.3"
 COVERAGE_RULE_VERSION = "production-coverage-v0.4"
 STRONG_TRANSCRIPT_STATES = {"强匹配-文件名", "强匹配-文件名+正文", "本地素材直接匹配"}
 WEAK_TRANSCRIPT_STATES = {"弱匹配待人工复核", "弱匹配待复核"}
-INDEXED_TRANSCRIPT_STATES = {"索引定稿-待打开核验", "索引录音稿-待打开核验"}
+INDEXED_TRANSCRIPT_STATES = {"索引定稿-待打开核验", "索引录音稿-待打开核验", "索引脚本-待打开核验"}
 
 # A production match cannot rely on a structure label copied from an older
 # promotion-oriented manifest. At least one anchor group must also appear in

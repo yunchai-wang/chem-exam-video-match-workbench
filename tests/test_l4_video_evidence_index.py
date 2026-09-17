@@ -149,7 +149,7 @@ class VideoEvidenceIndexTests(unittest.TestCase):
         entry = next(item for item in snapshot["entries"] if "NaOH" in (item.get("primary_name") or ""))
         self.assertEqual(entry["preferred_transcript"]["kind"], "定稿")
         self.assertTrue(any("0:00-0:34" in locator for locator in entry["segment_locators"]))
-        self.assertEqual(snapshot["sync_version"], "video-evidence-index-v0.3")
+        self.assertEqual(snapshot["sync_version"], "video-evidence-index-v0.4")
 
         assets = [{
             "video_id": "vid-coll", "video_name": "NaOH变质后的成分分析题",

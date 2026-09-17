@@ -13,9 +13,30 @@ from tests.test_l4_ai_unit_tag_fill import multi_unit_candidate, multi_unit_asse
 
 class QualityRegressions(unittest.TestCase):
     def test_script_and_unfinalized_transcript_do_not_claim_final_status(self):
-        self.assertEqual(_kind_from_name('脚本.docx'), '其他')
+        self.assertEqual(_kind_from_name('脚本.docx'), '脚本')
         self.assertEqual(_kind_from_collection_attachment('逐字稿初稿.docx', ''), '其他')
         self.assertEqual(_kind_from_name('预定稿.docx'), '其他')
+        self.assertEqual(_kind_from_name('脚本待修改.docx'), '其他')
+
+    def test_script_recording_and_final_share_maturity_and_use_version_date(self):
+        candidates = [
+            {'kind': '定稿', 'title': '定稿20260915.docx', 'url': 'final'},
+            {'kind': '脚本', 'title': '脚本20260917.docx', 'url': 'script'},
+            {'kind': '录音稿', 'title': '录音稿20260916.docx', 'url': 'recording'},
+        ]
+        for values in [candidates, list(reversed(candidates))]:
+            result = _prefer_transcript(values)
+            self.assertEqual(result['url'], 'script')
+            self.assertEqual(result['candidate_count'], 3)
+            self.assertEqual(result['selection_status'], '首选版本已定位')
+
+    def test_undated_script_is_not_silently_ranked_below_final(self):
+        result = _prefer_transcript([
+            {'kind': '定稿', 'title': '定稿.docx', 'url': 'a'},
+            {'kind': '脚本', 'title': '脚本.docx', 'url': 'b'},
+        ])
+        self.assertEqual(result['candidate_count'], 2)
+        self.assertEqual(result['selection_status'], '版本待核验')
 
     def test_unopened_transcript_pointer_is_not_coverage_evidence(self):
         video = {'video_id': 'v', 'video_name': '课', 'transcript_status': '索引定稿-待打开核验',

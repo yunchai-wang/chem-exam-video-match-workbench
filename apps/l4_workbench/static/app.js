@@ -206,7 +206,7 @@ async function syncVideoEvidenceIndex(fetch) {
     const s = result.snapshot.summary || {};
     const j = result.join || {};
     const e = result.collection_enrichment || {};
-    toast(`证据索引已冻结：${s.entry_count || 0} 条（定稿 ${s.preferred_dinggao || 0} / 录音 ${s.preferred_recording || 0} / 合集 ${s.preferred_collection || 0}），合集升格 ${e.preferred_upgraded_from_collection || 0}，回写 ${j.matched_assets || 0} 个视频`);
+    toast(`证据索引已冻结：${s.entry_count || 0} 条（定稿 ${s.preferred_dinggao || 0} / 录音 ${s.preferred_recording || 0} / 脚本 ${s.preferred_script || 0} / 合集 ${s.preferred_collection || 0}），合集升格 ${e.preferred_upgraded_from_collection || 0}，回写 ${j.matched_assets || 0} 个视频`);
   } catch (error) { toast(error.message, true); await load(); }
 }
 
@@ -320,7 +320,7 @@ function renderVideoEvidence() {
     return `<div class="snapshot-card"><strong>${esc(item.video_name)}</strong><small>${esc(pointer.kind)} · ${esc(pointer.selection_status || '来源待核验')}<br>${esc(pointer.selection_reason || '')}</small>${pointer.url ? `<a href="${esc(pointer.url)}" target="_blank" rel="noopener">${esc(pointer.title)}</a>` : `<small>${esc(pointer.title)}（附件来源已记录）</small>`}</div>`;
   }).join('')}</div></details>` : '';
   const indexSummary = evidenceIndex
-    ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">索引定稿/录音 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span>${enrichment ? `<span class="tag">合集升格 ${enrichment.preferred_upgraded_from_collection || 0}</span>` : ""}</div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
+    ? `<div class="chip-row"><span class="tag good">证据索引 ${esc(evidenceIndex.sync_version || "")}</span><span class="tag">条目 ${evidenceIndex.entry_count || evidenceIndex.summary?.entry_count || 0}</span><span class="tag frequency">已定位稿件 ${indexed}</span><span class="tag">已填时间码 ${withLocator}</span>${enrichment ? `<span class="tag">合集升格 ${enrichment.preferred_upgraded_from_collection || 0}</span>` : ""}</div><p class="quiet">${esc(evidenceIndex.selection_policy || "")}</p>`
     : `<p class="quiet">尚未同步飞书截图表与 Base 逐字稿指针。同步只读拉取链接/附件名/时间码，并解析合集文档内定稿/录音稿指针；不把正文写入仓库。</p>`;
   node.innerHTML = `<div class="diagnosis-summary"><div><b>${videoImport.listing_count || videoImport.record_count}</b><span>课库目录记录</span></div><div><b>${videoImport.video_asset_count}</b><span>去重视频实体</span></div><div><b>${videoImport.cross_catalog_entity_count || 0}</b><span>跨课库同名簇</span></div><div><b>${strong}</b><span>强逐字稿证据</span></div><div><b>${weak}</b><span>弱匹配待复核</span></div><div><b>${transcriptUnmatched}</b><span>逐字稿未匹配</span></div></div>
     <div class="catalog-strip">${catalogCards || `<span class="quiet">旧版清单未记录课库统计，重新导入后补齐。</span>`}<span class="tag catalog-tag">${esc(overlapBreakdown)}</span></div>

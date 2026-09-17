@@ -1,7 +1,7 @@
 """Read-only video evidence index: screenshots + transcript pointers from Feishu.
 
-Does not download transcript bodies into the repo. Prefer the latest 定稿, then
-录音稿, then a collection-doc link. Joins onto existing video_assets by video_id
+Does not download transcript bodies into the repo. 脚本/录音稿/定稿 share a maturity
+tier; choose by explicit version evidence. Joins onto existing video_assets by video_id
 or normalised title.
 """
 
@@ -22,10 +22,11 @@ from .domain import ValidationError
 from .video_evidence import STRONG_TRANSCRIPT_STATES, WEAK_TRANSCRIPT_STATES, normalize_video_title
 
 
-SYNC_VERSION = "video-evidence-index-v0.3"
+SYNC_VERSION = "video-evidence-index-v0.4"
 INDEXED_DINGGAO = "索引定稿-待打开核验"
 INDEXED_RECORDING = "索引录音稿-待打开核验"
-INDEXED_TRANSCRIPT_STATES = {INDEXED_DINGGAO, INDEXED_RECORDING}
+INDEXED_SCRIPT = "索引脚本-待打开核验"
+INDEXED_TRANSCRIPT_STATES = {INDEXED_DINGGAO, INDEXED_RECORDING, INDEXED_SCRIPT}
 
 DOCX_TOKEN = re.compile(r"/docx/([A-Za-z0-9]+)")
 SOURCE_TAG = re.compile(r"<source\b([^>]*)/?>", re.I)
@@ -299,6 +300,7 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
         "with_preferred_transcript": sum(1 for item in values if item.get("preferred_transcript")),
         "preferred_dinggao": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "定稿"),
         "preferred_recording": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "录音稿"),
+        "preferred_script": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "脚本"),
         "preferred_collection": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "合集文档"),
         "with_segment_locator": sum(1 for item in values if item.get("segment_locators")),
         "with_screenshot_token": sum(1 for item in values if item.get("screenshot_tokens")),
@@ -309,7 +311,7 @@ def build_video_evidence_index(raw_dir: Path) -> dict[str, Any]:
         "id": f"video-evidence-index-{checksum[:12]}",
         "sync_version": SYNC_VERSION,
         "status": "synced_local_readonly",
-        "selection_policy": "定稿优先，其次录音稿、普通脚本、合集；同级按明确日期取最新，缺日期或同日冲突标为版本待核验。",
+        "selection_policy": "脚本、录音稿、定稿同级；按明确版本日期选择最新。初稿/预定稿/待修改单独识别，无法确定先后标记版本待核验。",
         "sources": {
             "sheets": SCREENSHOT_SHEETS,
             "tables": [
@@ -428,7 +430,7 @@ def enrich_collection_documents(
             report["entries_touched"] += 1
             entry["preferred_transcript"] = _prefer_transcript(entry.get("transcript_candidates") or [])
             after_kind = (entry.get("preferred_transcript") or {}).get("kind")
-            if before_kind == "合集文档" and after_kind in {"定稿", "录音稿"}:
+            if before_kind == "合集文档" and after_kind in {"定稿", "录音稿", "脚本"}:
                 report["preferred_upgraded_from_collection"] += 1
 
     values = snapshot.get("entries") or []
@@ -437,6 +439,7 @@ def enrich_collection_documents(
         "with_preferred_transcript": sum(1 for item in values if item.get("preferred_transcript")),
         "preferred_dinggao": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "定稿"),
         "preferred_recording": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "录音稿"),
+        "preferred_script": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "脚本"),
         "preferred_collection": sum(1 for item in values if (item.get("preferred_transcript") or {}).get("kind") == "合集文档"),
         "with_segment_locator": sum(1 for item in values if item.get("segment_locators")),
         "with_screenshot_token": sum(1 for item in values if item.get("screenshot_tokens")),
@@ -454,7 +457,7 @@ def enrich_collection_documents(
     snapshot["checksum"] = checksum
     snapshot["sync_version"] = SYNC_VERSION
     snapshot["selection_policy"] = (
-        "定稿优先，其次录音稿、普通脚本、合集；同级按明确日期取最新，缺日期或同日冲突标为版本待核验；"
+        "脚本、录音稿、定稿同级；按明确版本日期选择最新。初稿/预定稿/待修改单独识别，无法确定先后标记版本待核验；"
         "合集文档会只读解析其中的定稿/录音稿/逐字稿指针与片段时间表；不下载正文进仓库。"
     )
     snapshot["collection_enrichment"] = report
@@ -571,7 +574,7 @@ def apply_evidence_index_to_videos(video_assets: list[dict[str, Any]], snapshot:
             if alias:
                 by_name[normalize_video_title(str(alias))] = entry
 
-    matched = dinggao = recording = collection = locator = screenshot = 0
+    matched = dinggao = recording = script = collection = locator = screenshot = 0
     for asset in video_assets:
         entry = None
         for candidate_id in [asset.get("video_id"), *(asset.get("alias_video_ids") or [])]:
@@ -618,6 +621,10 @@ def apply_evidence_index_to_videos(video_assets: list[dict[str, Any]], snapshot:
                     asset["issue_codes"] = [code for code in asset.get("issue_codes") or [] if code != "transcript_not_verified"]
             elif preferred.get("kind") == "合集文档":
                 collection += 1
+            elif preferred.get("kind") == "脚本":
+                script += 1
+            if asset.get('transcript_status') in INDEXED_TRANSCRIPT_STATES | {'未匹配', 'None', '', None}:
+                asset['transcript_status'] = {'定稿': INDEXED_DINGGAO, '录音稿': INDEXED_RECORDING, '脚本': INDEXED_SCRIPT}.get(preferred.get('kind'), '未匹配')
         status = asset.get("transcript_status")
         if status in STRONG_TRANSCRIPT_STATES:
             asset["evidence_level"] = "E2"
@@ -629,6 +636,7 @@ def apply_evidence_index_to_videos(video_assets: list[dict[str, Any]], snapshot:
         "matched_assets": matched,
         "dinggao_preferred": dinggao,
         "recording_preferred": recording,
+        "script_preferred": script,
         "collection_preferred": collection,
         "segment_locator_filled": locator,
         "screenshot_token_filled": screenshot,
@@ -690,7 +698,7 @@ def _entry_key(video_id: str | None, name: str | None) -> str:
 def _prefer_transcript(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not candidates:
         return None
-    order = {"定稿": 0, "录音稿": 1, "其他": 2, "合集文档": 3}
+    order = {"定稿": 0, "录音稿": 0, "脚本": 0, "其他": 2, "合集文档": 3}
     best_rank = min(order.get(item.get('kind'), 9) for item in candidates)
     pool = [item for item in candidates if order.get(item.get('kind'), 9) == best_rank]
     def version_date(item):
@@ -741,12 +749,14 @@ def _offer_transcript(entry: dict[str, Any], candidate: dict[str, Any]) -> None:
 
 def _kind_from_name(name: str) -> str:
     text = str(name or "")
-    if any(word in text for word in ('预定稿', '初稿', '待定稿')):
+    if any(word in text for word in ('预定稿', '初稿', '待定稿', '待修改', '草稿')):
         return "其他"
     if "定稿" in text or "终稿" in text:
         return "定稿"
     if "录音" in text:
         return "录音稿"
+    if "脚本" in text or "逐字稿" in text:
+        return "脚本"
     return "其他"
 
 
