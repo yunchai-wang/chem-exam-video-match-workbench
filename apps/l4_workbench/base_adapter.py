@@ -51,6 +51,7 @@ FIELD_ALIASES = {
     "new_material": ["新素材"],
     "new_form": ["新形式"],
     "new_questioning": ["新设问"],
+    "new_question_type": ["新题型"],
     "ability_type": ["能力分层题型", "题型"],
 }
 
