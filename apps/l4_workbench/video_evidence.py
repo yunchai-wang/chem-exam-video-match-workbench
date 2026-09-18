@@ -418,8 +418,32 @@ def _supports_structure(video: dict[str, Any], structure: str) -> bool:
     evidence_text = " ".join(str(video.get(key) or "") for key in (
         "video_name", "hierarchy", "content_summary", "transcript_evidence",
     )).lower()
-    anchor_groups = STRUCTURE_ANCHOR_GROUPS.get(structure, ((structure,),))
+    anchor_groups = _structure_anchor_groups(video, structure)
     return any(all(token.lower() in evidence_text for token in group) for group in anchor_groups)
+
+
+def _structure_anchor_groups(video: dict[str, Any], structure: str) -> tuple[tuple[str, ...], ...]:
+    """Prefer anchors declared on the manifest row; fall back to the built-in table.
+
+    The built-in table only knows chemistry structures. A new subject's catalog can
+    declare `structure_anchors` per row (``{structure: ["压敏", ["热敏", "阈值"]]}``),
+    so the anchor gate stays evidence-based instead of degrading to a verbatim match.
+    """
+    declared = (video.get("raw_fields") or {}).get("structure_anchors") or video.get("structure_anchors")
+    if isinstance(declared, str):
+        try:
+            declared = json.loads(declared)
+        except json.JSONDecodeError:
+            declared = None
+    if isinstance(declared, dict) and declared.get(structure):
+        groups: list[tuple[str, ...]] = []
+        for group in declared[structure] if isinstance(declared[structure], list) else [declared[structure]]:
+            tokens = tuple(str(t).strip() for t in (group if isinstance(group, list) else [group]) if str(t).strip())
+            if tokens:
+                groups.append(tokens)
+        if groups:
+            return tuple(groups)
+    return STRUCTURE_ANCHOR_GROUPS.get(structure, ((structure,),))
 
 
 def _evidence_rank(record: dict[str, Any]) -> tuple[int, int]:

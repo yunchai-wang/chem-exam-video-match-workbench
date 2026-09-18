@@ -132,6 +132,34 @@ class VideoEvidenceTests(unittest.TestCase):
         self.assertEqual(run["results"][0]["status"], "未发现可核验证据")
         self.assertEqual(run["results"][0]["candidates"], [])
 
+    def test_manifest_declared_anchors_let_a_new_subject_structure_pass_the_gate(self) -> None:
+        # The built-in anchor table only knows chemistry. A physics catalog row can
+        # declare its own anchors; without them the gate degrades to a verbatim match
+        # of the whole structure label and every physics video is rejected.
+        base_row = {
+            "video_id": "P1", "video_name": "【培优 九年级 10】压敏电阻综合分析",
+            "hierarchy": "九年级 / 压敏电阻综合分析",
+            "content_summary": "分析动态电路从变阻入手，电阻变化→电流变化→电压变化。",
+            "signatures": "敏感电阻动态电路与阈值分析", "task_tags": "比较大小/变化趋势判断",
+            "transcript_match_status": "本地素材直接匹配",
+        }
+        diagnostic = {"id": "diagnosis-1", "results": [{
+            "asset_id": "q1", "source_name": "2025 南充卷", "question_no": "10",
+            "structural_keys": ["敏感电阻动态电路与阈值分析"], "task_tags": ["比较大小/变化趋势判断"],
+        }]}
+        sample = {"id": "sample-1", "items": [{"asset_id": "q1"}]}
+
+        without = build_video_import(self.snapshot, [dict(base_row)])
+        run = build_coverage_run(diagnostic, sample, {k: v for k, v in without.items() if k != "video_assets"}, without["video_assets"])
+        self.assertEqual(run["results"][0]["status"], "未发现可核验证据")
+
+        declared = build_video_import(self.snapshot, [{
+            **base_row, "structure_anchors": {"敏感电阻动态电路与阈值分析": ["压敏", ["热敏", "阈值"]]},
+        }])
+        run = build_coverage_run(diagnostic, sample, {k: v for k, v in declared.items() if k != "video_assets"}, declared["video_assets"])
+        self.assertEqual(run["results"][0]["status"], "部分覆盖候选")
+        self.assertEqual(run["results"][0]["candidates"][0]["video_id"], "P1")
+
     def test_mentioned_knowledge_never_passes_the_teaching_target_gate(self) -> None:
         video_import = build_video_import(self.snapshot, [{
             "video_id": "V1", "video_name": "控制变量法专题", "signatures": "控制变量实验",

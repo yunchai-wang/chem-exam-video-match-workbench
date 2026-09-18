@@ -54,6 +54,29 @@ class DiagnosisTests(unittest.TestCase):
         self.assertEqual(by_id["q3"]["frequency"]["level"], "不可判断")
         self.assertIn("不会仅凭同一知识点", by_id["q3"]["frequency"]["reason"])
 
+    def test_overly_broad_structure_cannot_claim_frequency_or_typicality(self) -> None:
+        # At corpus scale (>=50 assets) one coarse structure on 20 of 60 questions across
+        # 20 papers passes the raw high-frequency thresholds, but a structure covering
+        # >=10% of the run is a knowledge block, not a question type.
+        assets = [asset(f"q{i}", f"2026 卷{i}", "串并联识别") for i in range(1, 21)]
+        assets += [asset(f"q{i}", f"2026 卷{i}", f"细结构{i}") for i in range(21, 61)]
+        run = build_diagnostic_run(self.snapshot, assets)
+        by_id = {item["asset_id"]: item for item in run["results"]}
+        coarse = by_id["q1"]["frequency"]
+        self.assertEqual(coarse["level"], "不可判断")
+        self.assertEqual(coarse["granularity"]["status"], "过粗")
+        self.assertTrue(coarse["granularity"]["guard_armed"])
+        self.assertIn("粒度接近知识板块", coarse["reason"])
+        self.assertEqual(by_id["q1"]["quality"]["dimensions"]["典型性"]["status"], "证据不足")
+        self.assertEqual(by_id["q21"]["frequency"]["granularity"]["status"], "正常")
+
+    def test_granularity_guard_stays_disarmed_on_small_runs(self) -> None:
+        assets = [asset("q1", "2026 A卷", "控制变量实验"), asset("q2", "2026 B卷", "控制变量实验"), asset("q3", "2026 C卷", "")]
+        run = build_diagnostic_run(self.snapshot, assets)
+        result = {item["asset_id"]: item for item in run["results"]}["q1"]
+        self.assertFalse(result["frequency"]["granularity"]["guard_armed"])
+        self.assertEqual(result["frequency"]["level"], "中频")
+
     def test_one_year_does_not_claim_trend_or_final_priority(self) -> None:
         run = build_diagnostic_run(self.snapshot, [asset("q1", "2026 A卷", "控制变量实验")])
         result = run["results"][0]
@@ -106,6 +129,14 @@ class DifficultyQuantificationTests(unittest.TestCase):
         self.assertEqual(result["source"], "estimated-steps-knowledge")
         self.assertEqual(result["confidence"], "低")
         self.assertEqual(result["score"], 95)
+
+    def test_knowledge_breadth_alone_does_not_estimate_difficulty(self) -> None:
+        # Only chapter-level knowledge tags, no task/solution/method signal: must stay unknown,
+        # not collapse to the easiest band (surfaced by the physics Base run).
+        result = quantify_difficulty({}, self._profile(knowledge_tags="第十五章 电流和电路、第十八章 电功率"))
+        self.assertIsNone(result["score"])
+        self.assertEqual(result["source"], "unknown")
+        self.assertIn("没有任务/解法/思想方法信号", result["reason"])
 
     def test_quantified_difficulty_drives_cognitive_dimension(self) -> None:
         snapshot = {"id": "snapshot-1", "immutable_checksum": "abc"}

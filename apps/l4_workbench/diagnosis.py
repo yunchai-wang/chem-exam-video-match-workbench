@@ -13,8 +13,13 @@ from .domain import ValidationError
 from .tagging import canonical_source_fields, label_library_snapshot, profile_for_asset
 
 
-RULE_VERSION = "production-diagnosis-v0.4"
+RULE_VERSION = "production-diagnosis-v0.5"
 GENERIC_METHODS = {"", "problem优先", "knowledge优先"}
+# A "底层结构" that covers this share of the whole run is behaving like a knowledge
+# block, not a question type; frequency must not be claimed on it until refined.
+# Share statistics are meaningless on tiny runs, so the guard only arms at scale.
+STRUCTURE_SHARE_CAP = 0.10
+STRUCTURE_SHARE_MIN_ASSETS = 50
 TAG_SPLIT = re.compile(r"[、,，;；|]+")
 YEAR_PATTERN = re.compile(r"20\d{2}")
 
@@ -73,11 +78,13 @@ def build_diagnostic_run(snapshot: dict[str, Any], assets: list[dict[str, Any]])
     papers = sorted({str(asset.get("source_name") or "未知试卷") for asset in assets})
     years = sorted({year for paper in papers for year in YEAR_PATTERN.findall(paper)})
     papers_by_key: dict[str, set[str]] = defaultdict(set)
+    assets_by_key: Counter[str] = Counter()
     for asset in assets:
         for key in structural_keys(asset):
             papers_by_key[key].add(str(asset.get("source_name") or "未知试卷"))
+            assets_by_key[key] += 1
 
-    results = [_diagnose_asset(asset, papers, years, papers_by_key) for asset in assets]
+    results = [_diagnose_asset(asset, papers, years, papers_by_key, assets_by_key, len(assets)) for asset in assets]
     summary = {
         "asset_count": len(results),
         "paper_count": len(papers),
@@ -178,7 +185,9 @@ def quantify_difficulty(fields: dict[str, Any], tag_profile: dict[str, Any]) -> 
 
     steps = len(tag_profile["question"]) + len(tag_profile["solution"]) + len(tag_profile["thinking_method"])
     breadth = len(tag_profile["knowledge"]["all"]) or len(tag_profile["knowledge"]["core"])
-    if steps or breadth:
+    # Knowledge breadth alone says nothing about steps: an untagged question must stay
+    # "unknown" rather than collapse to the easiest band.
+    if steps:
         if steps >= 6 or breadth >= 6:
             score = 95
         elif steps == 5 or breadth >= 5:
@@ -192,6 +201,11 @@ def quantify_difficulty(fields: dict[str, Any], tag_profile: dict[str, Any]) -> 
         return _difficulty_result(
             score, "estimated-steps-knowledge", "低", steps=steps, breadth=breadth,
             reason=f"缺显式难度，按步骤约 {steps}、知识点约 {breadth} 估算为 {score}（{_difficulty_band(score)}，低置信）。",
+        )
+    if breadth:
+        return _difficulty_result(
+            None, "unknown", "低", steps=0, breadth=breadth,
+            reason=f"只有 {breadth} 个知识点标签、没有任务/解法/思想方法信号，不能据此估算步骤数与难度。",
         )
     return _difficulty_result(None, "unknown", "低", reason="缺少难度值、难度描述与可估算的步骤/知识点信息。")
 
@@ -323,6 +337,8 @@ def _diagnose_asset(
     papers: list[str],
     years: list[str],
     papers_by_key: dict[str, set[str]],
+    assets_by_key: Counter[str] | None = None,
+    asset_total: int = 0,
 ) -> dict[str, Any]:
     fields = canonical_source_fields(asset)
     tag_profile = profile_for_asset(asset)
@@ -332,9 +348,23 @@ def _diagnose_asset(
     numerator = len(papers_by_key[primary_key]) if primary_key else 0
     denominator = len(papers)
     rate = numerator / denominator if denominator and primary_key else None
+    structure_share = (assets_by_key or Counter()).get(primary_key, 0) / asset_total if primary_key and asset_total else None
+    guard_armed = asset_total >= STRUCTURE_SHARE_MIN_ASSETS
+    granularity = {
+        "share": round(structure_share, 4) if structure_share is not None else None,
+        "cap": STRUCTURE_SHARE_CAP,
+        "guard_armed": guard_armed,
+        "status": "过粗" if guard_armed and structure_share is not None and structure_share >= STRUCTURE_SHARE_CAP else "正常",
+    }
     if primary_key is None:
         frequency_level = "不可判断"
         frequency_reason = "缺少可验证的共同底层结构；不会仅凭同一知识点把题目归为同一高频题型。"
+    elif granularity["status"] == "过粗":
+        frequency_level = "不可判断"
+        frequency_reason = (
+            f"底层结构“{primary_key}”覆盖本轮 {structure_share:.0%} 的题目，粒度接近知识板块而非题型；"
+            f"细化结构后再判频次（上限 {STRUCTURE_SHARE_CAP:.0%}）。"
+        )
     elif numerator >= 5 and rate is not None and rate >= 0.18:
         frequency_level = "高频"
         frequency_reason = f"底层结构“{primary_key}”出现在 {numerator}/{denominator} 套同年跨地区试卷中。"
@@ -354,7 +384,7 @@ def _diagnose_asset(
     core_knowledge_tags = tag_profile["knowledge"]["core"]
     visual_forms = split_tags(fields.get("visual_forms"))
     structure_complete = bool(text and asset.get("question_no") and (not has_visual or image_ok))
-    typical = numerator >= 2
+    typical = numerator >= 2 and granularity["status"] == "正常"
     difficulty_profile = quantify_difficulty(fields, tag_profile)
     difficulty_score = difficulty_profile["score"]
     # Use the quantified 55-95 midpoint (>=75 means 中等以上) when available; fall back
@@ -366,7 +396,11 @@ def _diagnose_asset(
     memory_dependence = assess_memory_dependence(fields, tag_profile, difficulty_score)
     dimensions = {
         "结构完整": _dimension(structure_complete, "题干、题号及声明的题图均可追溯" if structure_complete else "题干、题号或题图完整性不足"),
-        "典型性": _dimension(typical, f"同构结构覆盖 {numerator} 套试卷" if primary_key else "没有共同底层结构证据"),
+        "典型性": _dimension(
+            typical,
+            f"同构结构覆盖 {numerator} 套试卷" if typical
+            else ("底层结构粒度过粗，同构证据暂不可信" if granularity["status"] == "过粗" else "没有共同底层结构证据"),
+        ),
         "认知价值": _dimension(cognitive, "包含中等以上认知要求或明确任务" if cognitive else "当前字段显示偏基础或任务信息不足"),
         "迁移价值": _dimension(migration, "结构、任务、知识或图表形成可迁移组合" if migration else "迁移证据不足"),
         "科学性": {"status": "待人工核验", "reason": "现有清单只有 AI 初标，尚未接入官方答案与解析交叉校验"},
@@ -402,6 +436,7 @@ def _diagnose_asset(
         "frequency": {
             "level": frequency_level, "numerator": numerator, "denominator": denominator,
             "rate": round(rate, 4) if rate is not None else None, "scope": "同年跨地区可比试卷",
+            "granularity": granularity,
             "reason": frequency_reason,
         },
         "quality": {
