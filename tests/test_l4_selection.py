@@ -84,6 +84,52 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(review["rule_proposals"], [])
         self.assertEqual(review["preference_signals"][0]["scope"], "当前生产项目")
 
+    def test_older_diagnosis_without_new_dimensions_gets_safe_defaults(self) -> None:
+        run = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])
+        item = run["results"][0]
+        self.assertEqual(item["memory_dependence"]["level"], "待核验")
+        self.assertFalse(item["innovation"]["has_innovation"])
+        self.assertEqual(item["difficulty"]["level"], "较难")
+        self.assertIsNone(item["difficulty"]["score"])
+        self.assertEqual(run["summary"]["innovation_count"], 0)
+        self.assertIn("记忆型", run["summary"]["memory_level_counts"])
+
+    def test_new_dimensions_flow_into_candidate_and_summary(self) -> None:
+        self.diagnosis["results"][0].update({
+            "difficulty_profile": {"score": 85, "band": "较难", "scale": "55/65/75/85/95", "source": "explicit-55-95", "confidence": "高", "reason": "依据既有难度值"},
+            "innovation": {"has_innovation": True, "new_material": ["真实工业情境"], "new_form": ["价类图"], "new_questioning": [], "new_question_type": [], "tags": ["真实工业情境", "价类图"]},
+            "memory_dependence": {"level": "推理/信息提取型", "confidence": "高", "evidence": "命中 4 项推理信号", "explanation_available": True},
+        })
+        run = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])
+        item = run["results"][0]
+        self.assertEqual(item["difficulty"]["score"], 85)
+        self.assertEqual(item["difficulty"]["level"], "较难")
+        self.assertEqual(item["difficulty"]["source"], "explicit-55-95")
+        self.assertEqual(item["memory_dependence"]["level"], "推理/信息提取型")
+        self.assertEqual(item["innovation"]["tags"], ["真实工业情境", "价类图"])
+        self.assertEqual(run["summary"]["innovation_count"], 1)
+        self.assertEqual(run["summary"]["memory_level_counts"]["推理/信息提取型"], 1)
+
+    def test_quantified_difficulty_overrides_legacy_number_for_level(self) -> None:
+        # Legacy number says 较难, but the quantified score says 基础: the quantified value wins,
+        # so the question stays P3 like any other simple question.
+        self.diagnosis["results"][0]["difficulty_profile"] = {"score": 65, "band": "较简单", "source": "legacy-1-5", "confidence": "中"}
+        run = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])
+        item = run["results"][0]
+        self.assertEqual(item["difficulty"]["level"], "基础")
+        self.assertEqual(item["production_priority"]["recommendation"], "P3")
+
+    def test_innovation_and_memory_tags_never_change_priority(self) -> None:
+        baseline = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])["results"][0]
+        self.diagnosis["results"][0].update({
+            "innovation": {"has_innovation": True, "tags": ["价类图"], "new_material": [], "new_form": ["价类图"], "new_questioning": [], "new_question_type": []},
+            "memory_dependence": {"level": "记忆型", "confidence": "高", "evidence": "x", "explanation_available": True},
+        })
+        tagged = build_selection_run(self.diagnosis, self.sample, self.coverage, [self.asset], [])["results"][0]
+        self.assertEqual(tagged["production_priority"]["recommendation"], baseline["production_priority"]["recommendation"])
+        self.assertEqual(tagged["quality"]["recommendation"], baseline["quality"]["recommendation"])
+        self.assertEqual(tagged["ai_next_route"], baseline["ai_next_route"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -578,13 +578,22 @@ function renderQuestions() {
   document.querySelector("#question-search").disabled = questionView === "mothers";
   document.querySelector("#show-selected").hidden = questionView === "mothers";
   const search = (document.querySelector("#question-search")?.value || "").toLowerCase();
+  const memoryFilter = document.querySelector("#memory-filter")?.value || "";
+  const innovationFilter = document.querySelector("#innovation-filter")?.value || "";
   const selection = (state.selection_runs || []).at(-1);
+  for (const id of ["memory-filter", "innovation-filter"]) {
+    const node = document.getElementById(id);
+    if (node) node.hidden = !selection || questionView === "mothers";
+  }
   if (selection) {
     renderSelectionOverview(selection);
     const reviews = Object.fromEntries((state.selection_reviews || []).filter(item => item.selection_run_id === selection.id).map(item => [item.candidate_id, item]));
     const questions = selection.results.filter(item => {
       const decision = reviews[item.id]?.decision || item.ai_next_route;
-      return (!selectedOnly || decision === "进入课程生产") && JSON.stringify(item).toLowerCase().includes(search);
+      return (!selectedOnly || decision === "进入课程生产")
+        && matchesMemoryFilter(item, memoryFilter)
+        && matchesInnovationFilter(item, innovationFilter)
+        && JSON.stringify(item).toLowerCase().includes(search);
     });
     currentCandidateIds = questions.map(item => item.id);
     renderDownstreamTaskCenter(selection, questions);
@@ -801,6 +810,39 @@ function renderSelectionOverview(selection) {
   node.querySelector("#batch-pass-selections").onclick = () => batchPassSelections(selection.id);
 }
 
+// 记忆依赖度 / 创新特征 are filter-only dimensions: they never alter the good-question
+// verdict or priority, they just let a project keep or drop question kinds.
+function matchesMemoryFilter(item, filter) {
+  if (!filter) return true;
+  const level = item.memory_dependence?.level || "待核验";
+  if (filter === "exclude-memory") return level !== "记忆型";
+  return level === filter;
+}
+
+function matchesInnovationFilter(item, filter) {
+  if (!filter) return true;
+  const has = Boolean(item.innovation?.has_innovation);
+  return filter === "only" ? has : !has;
+}
+
+function memoryChip(item) {
+  const memory = item.memory_dependence;
+  if (!memory) return "";
+  const cls = memory.level === "记忆型" ? "risk" : (memory.level === "推理/信息提取型" ? "good" : "");
+  return `<span class="tag ${cls}" title="${esc(memory.evidence || "")}">记忆依赖：${esc(memory.level)} · ${esc(memory.confidence || "低")}置信</span>`;
+}
+
+function innovationChips(item) {
+  const tags = item.innovation?.tags || [];
+  return tags.slice(0, 4).map(tag => `<span class="tag" title="创新特征仅作筛选，不计入好题综合分">新：${esc(tag)}</span>`).join("");
+}
+
+function difficultyChip(item) {
+  const d = item.difficulty || {};
+  if (d.score == null) return `<span class="tag">难度：${esc(d.level)}</span>`;
+  return `<span class="tag" title="${esc(d.reason || "")}">难度：${esc(d.level)} · ${esc(String(d.score))}（${esc(d.confidence || "")}置信）</span>`;
+}
+
 function selectionCard(item, review) {
   const asset = state.question_assets.find(candidate => candidate.id === item.asset_id);
   const firstImage = asset?.content_blocks?.find(block => block.type === "image" && block.path);
@@ -819,7 +861,7 @@ function selectionCard(item, review) {
     <div class="question-visual">${visual}<div class="question-source">${esc(item.source_name)} · 第 ${esc(item.question_no)} 题</div></div>
     <div class="question-body">
       <div class="question-head"><div><p class="eyebrow">${esc(item.id)}</p><h3>${esc(item.title)}</h3></div><div class="priority ${priorityClass}">${esc(priority)}</div></div>
-      <div class="chip-row"><span class="tag frequency">频次：${esc(item.frequency.level)} · ${item.frequency.numerator}/${item.frequency.denominator}</span><span class="tag ${item.quality.is_good_candidate ? "good" : ""}">好题：${esc(item.quality.recommendation)}</span><span class="tag">难度：${esc(item.difficulty.level)}</span><span class="tag ${item.exception ? "risk" : ""}">${esc(item.content_health.status)}</span>${saved}</div>
+      <div class="chip-row"><span class="tag frequency">频次：${esc(item.frequency.level)} · ${item.frequency.numerator}/${item.frequency.denominator}</span><span class="tag ${item.quality.is_good_candidate ? "good" : ""}">好题：${esc(item.quality.recommendation)}</span>${difficultyChip(item)}${memoryChip(item)}${innovationChips(item)}<span class="tag ${item.exception ? "risk" : ""}">${esc(item.content_health.status)}</span>${saved}</div>
       ${tagProfileMarkup(item.tag_profile)}
       <div class="evidence-grid selection-evidence">
         <div class="evidence-block"><label>好题理由 · 与高频独立</label><strong>${item.quality.score}/${item.quality.score_denominator} 项支持</strong><p>${esc(item.quality.reason)}</p></div>
@@ -1367,6 +1409,8 @@ document.querySelector("#freeze-form").onsubmit = freezePredictions;
 document.querySelector("#standard-asset-search").oninput = renderStandardAssets;
 document.querySelector("#asset-integrity-filter").onchange = renderStandardAssets;
 document.querySelector("#question-search").oninput = renderQuestions;
+document.querySelector("#memory-filter").onchange = renderQuestions;
+document.querySelector("#innovation-filter").onchange = renderQuestions;
 for (const [id, view] of [["browse-candidates", "candidates"], ["browse-mothers", "mothers"]]) {
   document.getElementById(id).onclick = () => {
     questionView = view;

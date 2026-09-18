@@ -11,7 +11,10 @@ from typing import Any
 from .domain import ValidationError
 
 
-RULE_VERSION = "production-selection-v0.3"
+RULE_VERSION = "production-selection-v0.4"
+MEMORY_LEVELS = ("记忆型", "记忆+推理", "推理/信息提取型")
+UNKNOWN_MEMORY = {"level": "待核验", "confidence": "低", "evidence": "诊断运行未产出记忆依赖度标签。", "explanation_available": False}
+NO_INNOVATION = {"has_innovation": False, "new_material": [], "new_form": [], "new_questioning": [], "new_question_type": [], "tags": []}
 DECISIONS = {"按 AI 建议推进", "进入课程生产", "仅保留好题池", "进入母题改造", "暂不使用"}
 ROLE_LABELS = {"母题候选", "核心例题", "同构练习", "变式练习", "迁移练习", "检测题", "基础巩固题"}
 USAGE_SCENARIOS = {"视频生产", "习题册", "作业", "学案", "专题资料", "备考题池"}
@@ -78,6 +81,10 @@ def build_selection_run(
         "not_produce_count": sum(item["production_priority"]["recommendation"] == "暂不生产" for item in results),
         "teacher_calibrated_count": sum(item["evidence_sources"]["calibration"] == "教师校准" for item in results),
         "student_evidence_count": 0,
+        "innovation_count": sum(item["innovation"]["has_innovation"] for item in results),
+        "memory_level_counts": {
+            level: sum(item["memory_dependence"]["level"] == level for item in results) for level in MEMORY_LEVELS
+        },
     }
     return {
         "id": f"selection-{checksum[:14]}", "diagnostic_run_id": diagnostic_run["id"],
@@ -155,7 +162,10 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
     science = effective.get("science", diagnosis["quality"]["dimensions"]["科学性"]["status"])
     coverage_status = effective.get("coverage", coverage["status"])
     structural_keys = effective.get("structural_keys", diagnosis["structural_keys"])
-    difficulty = _difficulty_label(diagnosis.get("difficulty"))
+    difficulty_profile = diagnosis.get("difficulty_profile") or {}
+    difficulty = _difficulty_label(diagnosis.get("difficulty"), difficulty_profile.get("score"))
+    innovation = diagnosis.get("innovation") or dict(NO_INNOVATION)
+    memory_dependence = diagnosis.get("memory_dependence") or dict(UNKNOWN_MEMORY)
     is_good = quality_label in {"AI候选好题", "好题"}
     migration = "高" if diagnosis["quality"]["dimensions"]["迁移价值"]["status"] == "支持" else "低"
     cross_region = "高" if frequency_level == "高频" else ("中" if frequency_level == "中频" else "低")
@@ -199,7 +209,20 @@ def _candidate(asset: dict[str, Any], diagnosis: dict[str, Any], coverage: dict[
             "best_evidence_level": coverage.get("candidates", [{}])[0].get("evidence_level", "E0") if coverage.get("candidates") else "E0",
             "independent_dimension": True,
         },
-        "difficulty": {"level": difficulty, "source": "题目已有难度字段"},
+        "difficulty": {
+            "level": difficulty,
+            "source": difficulty_profile.get("source") or "题目已有难度字段",
+            "score": difficulty_profile.get("score"),
+            "band": difficulty_profile.get("band"),
+            "scale": difficulty_profile.get("scale"),
+            "confidence": difficulty_profile.get("confidence"),
+            "reason": difficulty_profile.get("reason"),
+        },
+        # Filter/display-only dimensions absorbed from the paper-analysis platform.
+        # They never feed _priority(): innovation is not a proxy for quality, and the
+        # memory tag is a project-level filter rather than a veto.
+        "innovation": innovation,
+        "memory_dependence": memory_dependence,
         "learner_value": {
             "level": learner_level, "evidence_status": "教研预测", "reason": learner_reason,
             "student_data_available": False,
@@ -258,7 +281,18 @@ def _predicted_learner_value(difficulty: str, quality: str, migration: str, task
     return "中", "题目具备一定认知或迁移要求，但当前只有教研侧预测，尚无学生行为实证。"
 
 
-def _difficulty_label(value: Any) -> str:
+def _difficulty_label(value: Any, quantified_score: Any = None) -> str:
+    """Prefer the quantified 55-95 score; fall back to the legacy 1-5 number."""
+    try:
+        score = float(quantified_score)
+    except (TypeError, ValueError):
+        score = None
+    if score is not None:
+        if score <= 65:
+            return "基础"
+        if score <= 75:
+            return "中等"
+        return "较难"
     try:
         number = float(value)
     except (TypeError, ValueError):

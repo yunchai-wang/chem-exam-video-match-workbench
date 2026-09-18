@@ -38,12 +38,23 @@ def build_selection_docx(selection: dict[str, Any], reviews: list[dict[str, Any]
         review = review_index.get(candidate["id"])
         decision = review["decision"] if review else candidate["ai_next_route"]
         doc.heading(f"{candidate['source_name']} · 第 {candidate['question_no']} 题", 2)
+        difficulty = candidate["difficulty"]
+        memory = candidate.get("memory_dependence") or {}
+        innovation = candidate.get("innovation") or {}
+        difficulty_text = difficulty["level"]
+        if difficulty.get("score") is not None:
+            difficulty_text = f"{difficulty['level']}（{difficulty['score']} · {difficulty.get('band') or ''} · {difficulty.get('confidence') or ''}置信）"
         doc.table([
             ["频次", "好题", "难度", "视频覆盖", "优先级", "当前去向"],
             [f"{candidate['frequency']['level']}（{candidate['frequency']['numerator']}/{candidate['frequency']['denominator']}）",
-             candidate["quality"]["recommendation"], candidate["difficulty"]["level"], candidate["coverage"]["status"],
+             candidate["quality"]["recommendation"], difficulty_text, candidate["coverage"]["status"],
              f"{candidate['production_priority']['recommendation']}（{candidate['production_priority']['status']}）",
              f"{decision}{'（教师' + ('纠正' if review['status'] == 'corrected' else '确认') + '）' if review else '（AI 建议）'}"],
+        ])
+        doc.table([
+            ["记忆依赖度", "置信度", "创新特征（仅筛选，不计分）"],
+            [memory.get("level") or "待核验", memory.get("confidence") or "低",
+             "、".join(innovation.get("tags") or []) or "无"],
         ])
         roles = review["role_labels"] if review else candidate.get("ai_role_labels", [])
         scenarios = review["usage_scenarios"] if review else candidate.get("ai_usage_scenarios", [])
@@ -53,6 +64,10 @@ def build_selection_docx(selection: dict[str, Any], reviews: list[dict[str, Any]
         figure_total += _write_asset_content(doc, asset_index.get(candidate["asset_id"], {}), root)
         doc.paragraph(f"好题理由：{candidate['quality']['reason']}")
         doc.paragraph(f"高频证据：{candidate['frequency']['reason']}")
+        if memory.get("evidence"):
+            doc.paragraph(f"记忆依赖度证据：{memory['evidence']}")
+        if difficulty.get("reason"):
+            doc.paragraph(f"难度量化依据：{difficulty['reason']}")
         doc.paragraph(f"视频覆盖：{candidate['coverage']['reason']}")
         doc.paragraph(f"优先级理由：{candidate['production_priority']['reason']}")
         if review and review.get("reason"):

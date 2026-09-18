@@ -80,7 +80,7 @@
     <section class="page" id="page-questions">
       <div class="section-heading">
         <div><p class="eyebrow">标准题目资产</p><h2>高频、好题、覆盖和优先级各自独立</h2><p>频次回答“出现得多不多”，好题回答“值不值得用”，优先级回答“当前项目要不要先生产”。教师修正须附理由，供规则归因。</p></div>
-        <div class="filter-bar"><input id="question-search" placeholder="筛选题名、理由、标签"><button class="button secondary" id="show-selected">只看视频入选</button></div>
+        <div class="filter-bar"><input id="question-search" placeholder="筛选题名、理由、标签"><select id="memory-filter" aria-label="按记忆依赖度筛选"><option value="">记忆依赖度：全部</option><option value="推理/信息提取型">只看推理/信息提取型</option><option value="记忆+推理">只看记忆+推理</option><option value="记忆型">只看记忆型</option><option value="exclude-memory">排除记忆型</option></select><select id="innovation-filter" aria-label="按创新特征筛选"><option value="">创新特征：全部</option><option value="only">只看有新素材/新形式/新设问</option><option value="none">只看无创新特征</option></select><button class="button secondary" id="show-selected">只看视频入选</button></div>
       </div>
       <div class="question-tabs" role="tablist" aria-label="题目工作视图">
         <button class="button primary" id="browse-candidates" role="tab" aria-selected="true">浏览候选题</button>

@@ -95,6 +95,28 @@ class ExportBuilderTests(unittest.TestCase):
         self.assertIn("题干A", xml)
         self.assertIn("原题图缺失", xml)
         self.assertIn("图片完整性：missing", xml)
+        # candidates without the newer dimensions still export with safe placeholders
+        self.assertIn("记忆依赖度", xml)
+        self.assertIn("待核验", xml)
+
+    def test_selection_export_shows_memory_innovation_and_quantified_difficulty(self) -> None:
+        candidate = self.candidate("a")
+        candidate["difficulty"] = {"level": "较难", "score": 85, "band": "较难", "confidence": "高", "reason": "依据既有难度值 88 归一到 85"}
+        candidate["memory_dependence"] = {"level": "推理/信息提取型", "confidence": "高", "evidence": "命中 4 项推理信号"}
+        candidate["innovation"] = {"has_innovation": True, "tags": ["价类图", "真实工业情境"]}
+        selection = {
+            "id": "selection-2", "rule_version": "production-selection-v0.4", "created_at": "t",
+            "summary": {"evaluated_count": 1, "high_frequency_count": 1, "good_question_count": 1, "high_frequency_and_good_count": 1,
+                        "p1_count": 0, "p2_count": 1, "p3_count": 0, "not_produce_count": 0},
+            "evidence_limits": [], "results": [candidate],
+        }
+        payload, _ = build_selection_docx(selection, [], self.assets, self.root)
+        xml, _ = read_docx(payload)
+        self.assertIn("推理/信息提取型", xml)
+        self.assertIn("价类图、真实工业情境", xml)
+        self.assertIn("85 · 较难 · 高置信", xml)
+        self.assertIn("记忆依赖度证据：命中 4 项推理信号", xml)
+        self.assertIn("难度量化依据：依据既有难度值 88 归一到 85", xml)
 
     def test_question_set_export_keeps_tables_and_tags(self) -> None:
         question_set = {
